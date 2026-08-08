@@ -1,4 +1,4 @@
-import { Account, Client, Databases, ID, Storage } from "appwrite";
+import { Account, Client, Databases, ID, Query, Storage } from "appwrite";
 
 // Appwrite backend — project "House" on fra.cloud.appwrite.io.
 // Endpoint + project ID are public-safe (client-side SDK).
@@ -49,7 +49,10 @@ export async function mergePrefs(partial) {
 
 // Mirror a user's public info into the profiles collection so other
 // clients can look people up (messenger, hype authors, follows).
+// Existence is checked with a query (no exception flow), so a missing
+// doc always gets created and an existing one updated.
 export async function syncProfileDoc(userId, { name, bio, avatar, avatarUrl }) {
+  if (!userId) return;
   const data = {
     name: name || "",
     bio: bio || "",
@@ -57,15 +60,22 @@ export async function syncProfileDoc(userId, { name, bio, avatar, avatarUrl }) {
     avatar_url: avatarUrl || "",
   };
   try {
-    await databases.getDocument(DB_ID, COLLECTIONS.profiles, userId);
-    await databases.updateDocument(DB_ID, COLLECTIONS.profiles, userId, data);
-  } catch {
-    await databases.createDocument(
-      DB_ID,
-      COLLECTIONS.profiles,
-      userId,
-      data,
-      [`read("any")`, `write("user:${userId}")`]
-    );
+    const res = await databases.listDocuments(DB_ID, COLLECTIONS.profiles, [
+      Query.equal("$id", userId),
+    ]);
+    if (res.documents.length) {
+      await databases.updateDocument(DB_ID, COLLECTIONS.profiles, userId, data);
+    } else {
+      await databases.createDocument(
+        DB_ID,
+        COLLECTIONS.profiles,
+        userId,
+        data,
+        [`read("any")`, `write("user:${userId}")`]
+      );
+    }
+  } catch (e) {
+    // Collection missing or offline — never crash the auth flow.
+    console.warn("profile sync:", e.message);
   }
 }

@@ -104,6 +104,12 @@ export function AuthProvider({ children }) {
       await account.createEmailPasswordSession(email, password);
       const u = await account.get();
       setUser({ ...u, id: u.$id });
+      // Ensure the account is findable (people list, messenger, hype
+      // author lookups) — heals accounts that predate the profiles
+      // collection, and is a no-op for everyone else.
+      syncProfileDoc(u.$id, { name: displayName(u), avatar: seedFor(u.$id) }).catch(
+        () => {}
+      );
       notify(`Welcome back, ${displayName(u)}`);
       return u;
     },
