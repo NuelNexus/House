@@ -311,48 +311,6 @@ export function SocialProvider({ children }) {
     if (activeThreadRef.current) loadThread(activeThreadRef.current);
   }, [fetchProfiles, loadThread]);
 
-  // Realtime (Appwrite pushes events for docs this user can read) plus
-  // a light polling fallback so the inbox always refreshes.
-  useEffect(() => {
-    if (!uid) return undefined;
-    let active = true;
-    refreshSocial();
-    // Reload the follow graph + feed too — the mount-only effects above
-    // ran while signed out, so this catches the state after sign-in.
-    loadFollows();
-    loadHype();
-    let unsub = () => {};
-    try {
-      unsub = appwrite.subscribe(
-        [
-          `databases.${DB_ID}.collections.${COLLECTIONS.messages}.documents`,
-          `databases.${DB_ID}.collections.${COLLECTIONS.follows}.documents`,
-          `databases.${DB_ID}.collections.${COLLECTIONS.hypes}.documents`,
-        ],
-        () => {
-          if (!active) return;
-          refreshSocial();
-          loadFollows();
-          loadHype();
-        }
-      );
-    } catch {
-      /* realtime unavailable — poll handles it */
-    }
-    const poll = window.setInterval(() => {
-      if (active) {
-        refreshSocial();
-        loadFollows();
-        loadHype();
-      }
-    }, 12000);
-    return () => {
-      active = false;
-      unsub();
-      window.clearInterval(poll);
-    };
-  }, [uid, refreshSocial, loadFollows, loadHype]);
-
   const unreadTotal = useMemo(
     () => Object.values(unread).reduce((n, c) => n + c, 0),
     [unread]
@@ -461,6 +419,50 @@ export function SocialProvider({ children }) {
   useEffect(() => {
     loadHype();
   }, [loadHype]);
+
+  // Realtime (Appwrite pushes events for docs this user can read) plus
+  // a light polling fallback so the inbox always refreshes. Declared after
+  // loadHype on purpose — its deps array is evaluated during render, so
+  // every referenced callback must already be initialized (no TDZ).
+  useEffect(() => {
+    if (!uid) return undefined;
+    let active = true;
+    refreshSocial();
+    // Reload the follow graph + feed too — the mount-only effects above
+    // ran while signed out, so this catches the state after sign-in.
+    loadFollows();
+    loadHype();
+    let unsub = () => {};
+    try {
+      unsub = appwrite.subscribe(
+        [
+          `databases.${DB_ID}.collections.${COLLECTIONS.messages}.documents`,
+          `databases.${DB_ID}.collections.${COLLECTIONS.follows}.documents`,
+          `databases.${DB_ID}.collections.${COLLECTIONS.hypes}.documents`,
+        ],
+        () => {
+          if (!active) return;
+          refreshSocial();
+          loadFollows();
+          loadHype();
+        }
+      );
+    } catch {
+      /* realtime unavailable — poll handles it */
+    }
+    const poll = window.setInterval(() => {
+      if (active) {
+        refreshSocial();
+        loadFollows();
+        loadHype();
+      }
+    }, 12000);
+    return () => {
+      active = false;
+      unsub();
+      window.clearInterval(poll);
+    };
+  }, [uid, refreshSocial, loadFollows, loadHype]);
 
   const uploadVideo = useCallback(async (blob, name) => {
     const me = uidRef.current;
