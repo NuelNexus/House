@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { supabase } from "../lib/supabase";
+import { mergePrefs } from "../lib/appwrite";
 import { useAuth } from "./AuthContext";
 
 const ThemeContext = createContext(null);
@@ -152,12 +152,9 @@ export function ThemeProvider({ children }) {
         /* storage unavailable */
       }
       if (user) {
-        supabase
-          .from("profiles")
-          .upsert({ id: user.id, theme: JSON.stringify(next) })
-          .then(({ error }) => {
-            if (error) console.warn("theme sync:", error.message);
-          });
+        // Theme rides along in the Appwrite account prefs so it follows
+        // the user across devices.
+        mergePrefs({ theme: JSON.stringify(next) }).catch(() => {});
       }
       setTheme(next);
     },

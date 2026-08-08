@@ -26,8 +26,9 @@ import Messages from "./pages/Messages";
 import Contact from "./pages/Contact";
 import Appearance from "./pages/Appearance";
 
-// Bridges the auth session into the store so parties / reviews /
-// tickets sync to Supabase (and back) when the user is signed in.
+// Bridges the auth session into the store. Parties/reviews/tickets are
+// local-first for now (Appwrite auth phase 1) — cloud sync arrives
+// with the Appwrite database port.
 function CloudSync() {
   const { user } = useAuth();
   const { attachCloud, importCloud } = useStore();
@@ -77,11 +78,9 @@ function parseHash(hash) {
     q,
   };
 
-  // Password-reset emails land on #access_token=...&type=recovery —
-  // route those to the auth page so the "set new password" form shows.
-  if (hash.includes("type=recovery")) {
-    return { ...base, tab: "auth" };
-  }
+  // Appwrite recovery/verification links land on #auth/recovery or
+  // #auth/verify (with userId+secret in the query) — the Auth page
+  // detects those itself and shows the right completion form.
 
   if (head === "user" && parts[1]) {
     return { ...base, tab: "user", userId: decodeURIComponent(parts[1]) };

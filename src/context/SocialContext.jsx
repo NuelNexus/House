@@ -7,7 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { supabase } from "../lib/supabase";
+import { Query } from "appwrite";
+import { appwrite, databases, storage, DB_ID, COLLECTIONS, MEDIA_BUCKET, ID } from "../lib/appwrite";
 import { useAuth } from "./AuthContext";
 import { useStore } from "./StoreContext";
 
@@ -33,14 +34,20 @@ export function SocialProvider({ children }) {
   const fetchProfiles = useCallback(async (ids) => {
     const clean = [...new Set((ids || []).filter(Boolean))];
     if (!clean.length) return {};
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, name, avatar, avatar_url")
-      .in("id", clean);
     const map = {};
-    (data || []).forEach((p) => {
-      map[p.id] = p;
-    });
+    try {
+      for (let i = 0; i < clean.length; i += 50) {
+        const batch = clean.slice(i, i + 50);
+        const res = await databases.listDocuments(DB_ID, COLLECTIONS.profiles, [
+          Query.equal("$id", batch),
+        ]);
+        (res.documents || []).forEach((p) => {
+          map[p.$id] = { ...p, id: p.$id };
+        });
+      }
+    } catch {
+      /* collection missing — graceful */
+    }
     return map;
   }, []);
 
@@ -52,21 +59,28 @@ export function SocialProvider({ children }) {
   const [followCounts, setFollowCounts] = useState({});
 
   const loadFollows = useCallback(async () => {
-    if (!uidRef.current) {
+    const me = uidRef.current;
+    if (!me) {
       setFollowing([]);
       setMyFollowers(0);
       return;
     }
-    const me = uidRef.current;
-    const [outgoing, incoming] = await Promise.all([
-      supabase.from("follows").select("following_id").eq("follower_id", me),
-      supabase
-        .from("follows")
-        .select("follower_id", { count: "exact", head: true })
-        .eq("following_id", me),
-    ]);
-    if (!outgoing.error) setFollowing((outgoing.data || []).map((r) => r.following_id));
-    setMyFollowers(incoming.count ?? 0);
+    try {
+      const [outgoing, incoming] = await Promise.all([
+        databases.listDocuments(DB_ID, COLLECTIONS.follows, [
+          Query.equal("follower_id", me),
+          Query.limit(1000),
+        ]),
+        databases.listDocuments(DB_ID, COLLECTIONS.follows, [
+          Query.equal("following_id", me),
+          Query.limit(1000),
+        ]),
+      ]);
+      setFollowing((outgoing.documents || []).map((r) => r.following_id));
+      setMyFollowers(incoming.total ?? 0);
+    } catch {
+      /* not signed in — ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -77,25 +91,33 @@ export function SocialProvider({ children }) {
 
   const loadFollowCounts = useCallback(async (targetId) => {
     if (!targetId) return;
-    const [incoming, outgoing] = await Promise.all([
-      supabase
-        .from("follows")
-        .select("follower_id", { count: "exact", head: true })
-        .eq("following_id", targetId),
-      supabase
-        .from("follows")
-        .select("following_id", { count: "exact", head: true })
-        .eq("follower_id", targetId),
-    ]);
-    setFollowCounts((p) => ({
-      ...p,
-      [targetId]: { followers: incoming.count ?? 0, following: outgoing.count ?? 0 },
-    }));
+    try {
+      const [incoming, outgoing] = await Promise.all([
+        databases.listDocuments(DB_ID, COLLECTIONS.follows, [
+          Query.equal("following_id", targetId),
+          Query.limit(1000),
+        ]),
+        databases.listDocuments(DB_ID, COLLECTIONS.follows, [
+          Query.equal("follower_id", targetId),
+          Query.limit(1000),
+        ]),
+      ]);
+      setFollowCounts((p) => ({
+        ...p,
+        [targetId]: {
+          followers: incoming.total ?? 0,
+          following: outgoing.total ?? 0,
+        },
+      }));
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const toggleFollow = useCallback(
     async (targetId) => {
-      if (!uidRef.current) return false;
+      const me = uidRef.current;
+      if (!me) return false;
       const has = following.includes(targetId);
       // Optimistic local update — feels instant, cloud sync follows.
       setFollowing((p) => (has ? p.filter((x) => x !== targetId) : [...p, targetId]));
@@ -106,16 +128,29 @@ export function SocialProvider({ children }) {
           followers: (p[targetId]?.followers ?? 0) + (has ? -1 : 1),
         },
       }));
-      const { error } = has
-        ? await supabase
-            .from("follows")
-            .delete()
-            .eq("follower_id", uidRef.current)
-            .eq("following_id", targetId)
-        : await supabase
-            .from("follows")
-            .insert({ follower_id: uidRef.current, following_id: targetId });
-      if (error) console.warn("follow sync:", error.message);
+      try {
+        const res = await databases.listDocuments(DB_ID, COLLECTIONS.follows, [
+          Query.equal("follower_id", me),
+          Query.equal("following_id", targetId),
+        ]);
+        if (res.documents.length) {
+          await databases.deleteDocument(
+            DB_ID,
+            COLLECTIONS.follows,
+            res.documents[0].$id
+          );
+        } else {
+          await databases.createDocument(
+            DB_ID,
+            COLLECTIONS.follows,
+            ID.unique(),
+            { follower_id: me, following_id: targetId },
+            [`read("any")`, `write("user:${me}")`]
+          );
+        }
+      } catch (e) {
+        console.warn("follow sync:", e.message);
+      }
       notify(has ? "Unfollowed" : "Now following");
       return !has;
     },
@@ -130,36 +165,48 @@ export function SocialProvider({ children }) {
   const [unread, setUnread] = useState({});
   const activeThreadRef = useRef(null);
 
-  const loadThread = useCallback(
-    async (other) => {
-      const me = uidRef.current;
-      if (!me || !other) return;
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .or(
-          `and(sender_id.eq.${me},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${me})`
-        )
-        .order("created_at", { ascending: true });
-      if (!error) setThreads((p) => ({ ...p, [other]: data || [] }));
-    },
-    []
-  );
+  const loadThread = useCallback(async (other) => {
+    const me = uidRef.current;
+    if (!me || !other) return;
+    try {
+      const res = await databases.listDocuments(DB_ID, COLLECTIONS.messages, [
+        Query.or([
+          Query.and([Query.equal("sender_id", me), Query.equal("recipient_id", other)]),
+          Query.and([Query.equal("sender_id", other), Query.equal("recipient_id", me)]),
+        ]),
+        Query.limit(1000),
+      ]);
+      const msgs = (res.documents || []).sort((a, b) =>
+        a.$createdAt.localeCompare(b.$createdAt)
+      );
+      setThreads((p) => ({ ...p, [other]: msgs }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
-  const markRead = useCallback(
-    async (other) => {
-      const me = uidRef.current;
-      if (!me || !other) return;
-      setUnread((p) => ({ ...p, [other]: 0 }));
-      await supabase
-        .from("messages")
-        .update({ read_at: new Date().toISOString() })
-        .eq("recipient_id", me)
-        .eq("sender_id", other)
-        .is("read_at", null);
-    },
-    []
-  );
+  const markRead = useCallback(async (other) => {
+    const me = uidRef.current;
+    if (!me || !other) return;
+    setUnread((p) => ({ ...p, [other]: 0 }));
+    try {
+      const res = await databases.listDocuments(DB_ID, COLLECTIONS.messages, [
+        Query.equal("recipient_id", me),
+        Query.equal("sender_id", other),
+        Query.isNull("read_at"),
+        Query.limit(100),
+      ]);
+      await Promise.all(
+        (res.documents || []).map((m) =>
+          databases.updateDocument(DB_ID, COLLECTIONS.messages, m.$id, {
+            read_at: new Date().toISOString(),
+          })
+        )
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const openThread = useCallback(
     (other) => {
@@ -170,32 +217,45 @@ export function SocialProvider({ children }) {
     [loadThread, markRead]
   );
 
-  const sendMessage = useCallback(
-    async (recipientId, body) => {
-      const me = uidRef.current;
-      if (!me || !recipientId || !body.trim()) return null;
-      const optimistic = {
-        id: `local-${Date.now()}`,
-        sender_id: me,
-        recipient_id: recipientId,
-        body: body.trim(),
-        created_at: new Date().toISOString(),
-        read_at: null,
-      };
-      setThreads((p) => ({
-        ...p,
-        [recipientId]: [...(p[recipientId] || []), optimistic],
-      }));
-      const { error } = await supabase.from("messages").insert({
-        sender_id: me,
-        recipient_id: recipientId,
-        body: optimistic.body,
-      });
-      if (error) console.warn("send message:", error.message);
-      return optimistic;
-    },
-    []
-  );
+  const sendMessage = useCallback(async (recipientId, body) => {
+    const me = uidRef.current;
+    if (!me || !recipientId || !body.trim()) return null;
+    const now = new Date().toISOString();
+    const optimistic = {
+      $id: `local-${Date.now()}`,
+      sender_id: me,
+      recipient_id: recipientId,
+      body: body.trim(),
+      created_at: now,
+      read_at: null,
+    };
+    setThreads((p) => ({
+      ...p,
+      [recipientId]: [...(p[recipientId] || []), optimistic],
+    }));
+    try {
+      await databases.createDocument(
+        DB_ID,
+        COLLECTIONS.messages,
+        ID.unique(),
+        {
+          sender_id: me,
+          recipient_id: recipientId,
+          body: optimistic.body,
+          created_at: now,
+        },
+        [
+          `read("user:${me}")`,
+          `read("user:${recipientId}")`,
+          `write("user:${me}")`,
+          `write("user:${recipientId}")`,
+        ]
+      );
+    } catch (e) {
+      console.warn("send message:", e.message);
+    }
+    return optimistic;
+  }, []);
 
   const refreshSocial = useCallback(async () => {
     const me = uidRef.current;
@@ -204,27 +264,35 @@ export function SocialProvider({ children }) {
       setUnread({});
       return;
     }
-    const [convRes, unreadRes] = await Promise.all([
-      supabase
-        .from("messages")
-        .select("*")
-        .or(`sender_id.eq.${me},recipient_id.eq.${me}`)
-        .order("created_at", { ascending: false })
-        .limit(300),
-      supabase
-        .from("messages")
-        .select("sender_id")
-        .eq("recipient_id", me)
-        .is("read_at", null),
-    ]);
+    let convRes, unreadRes;
+    try {
+      [convRes, unreadRes] = await Promise.all([
+        databases.listDocuments(DB_ID, COLLECTIONS.messages, [
+          Query.or([Query.equal("sender_id", me), Query.equal("recipient_id", me)]),
+          Query.limit(300),
+        ]),
+        databases.listDocuments(DB_ID, COLLECTIONS.messages, [
+          Query.equal("recipient_id", me),
+          Query.isNull("read_at"),
+          Query.limit(500),
+        ]),
+      ]);
+    } catch {
+      return;
+    }
     const unreadMap = {};
-    (unreadRes.data || []).forEach((m) => {
+    (unreadRes.documents || []).forEach((m) => {
       if (m.sender_id !== me) unreadMap[m.sender_id] = (unreadMap[m.sender_id] || 0) + 1;
     });
     setUnread(unreadMap);
 
+    // Newest-first (Appwrite's list order isn't guaranteed) — the first
+    // message per partner below is the latest one.
+    const convDocs = (convRes.documents || []).sort((a, b) =>
+      (b.created_at || b.$createdAt).localeCompare(a.created_at || a.$createdAt)
+    );
     const byOther = new Map();
-    (convRes.data || []).forEach((m) => {
+    convDocs.forEach((m) => {
       const other = m.sender_id === me ? m.recipient_id : m.sender_id;
       if (!byOther.has(other)) byOther.set(other, m);
     });
@@ -234,7 +302,7 @@ export function SocialProvider({ children }) {
       name: profs[other]?.name || "Festivity member",
       avatar: profs[other] || null,
       lastBody: last.body,
-      lastAt: last.created_at,
+      lastAt: last.created_at || last.$createdAt,
       lastMine: last.sender_id === me,
     }));
     list.sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt));
@@ -243,41 +311,47 @@ export function SocialProvider({ children }) {
     if (activeThreadRef.current) loadThread(activeThreadRef.current);
   }, [fetchProfiles, loadThread]);
 
-  // Realtime (if the messages table is in the realtime publication)
-  // plus a light polling fallback so the inbox always refreshes.
+  // Realtime (Appwrite pushes events for docs this user can read) plus
+  // a light polling fallback so the inbox always refreshes.
   useEffect(() => {
     if (!uid) return undefined;
     let active = true;
     refreshSocial();
-    // Reload the follow graph too — the mount-only effect above ran
-    // while signed out, so this catches the state after sign-in.
+    // Reload the follow graph + feed too — the mount-only effects above
+    // ran while signed out, so this catches the state after sign-in.
     loadFollows();
-    const channel = supabase
-      .channel("festivity-social")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
+    loadHype();
+    let unsub = () => {};
+    try {
+      unsub = appwrite.subscribe(
+        [
+          `databases.${DB_ID}.collections.${COLLECTIONS.messages}.documents`,
+          `databases.${DB_ID}.collections.${COLLECTIONS.follows}.documents`,
+          `databases.${DB_ID}.collections.${COLLECTIONS.hypes}.documents`,
+        ],
         () => {
-          if (active) refreshSocial();
+          if (!active) return;
+          refreshSocial();
+          loadFollows();
+          loadHype();
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "follows" },
-        () => {
-          if (active) loadFollows();
-        }
-      )
-      .subscribe();
+      );
+    } catch {
+      /* realtime unavailable — poll handles it */
+    }
     const poll = window.setInterval(() => {
-      if (active) refreshSocial();
+      if (active) {
+        refreshSocial();
+        loadFollows();
+        loadHype();
+      }
     }, 12000);
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      unsub();
       window.clearInterval(poll);
     };
-  }, [uid, refreshSocial, loadFollows]);
+  }, [uid, refreshSocial, loadFollows, loadHype]);
 
   const unreadTotal = useMemo(
     () => Object.values(unread).reduce((n, c) => n + c, 0),
@@ -289,11 +363,18 @@ export function SocialProvider({ children }) {
   // ============================================================
   const [people, setPeople] = useState([]);
   const loadPeople = useCallback(async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, name, avatar, avatar_url")
-      .limit(300);
-    setPeople((data || []).filter((p) => p.id !== uidRef.current));
+    try {
+      const res = await databases.listDocuments(DB_ID, COLLECTIONS.profiles, [
+        Query.limit(300),
+      ]);
+      setPeople(
+        (res.documents || [])
+          .filter((p) => p.$id !== uidRef.current)
+          .map((p) => ({ ...p, id: p.$id }))
+      );
+    } catch {
+      /* collection missing — graceful */
+    }
   }, []);
 
   useEffect(() => {
@@ -311,55 +392,68 @@ export function SocialProvider({ children }) {
   const loadHype = useCallback(async () => {
     const me = uidRef.current;
     setHypeLoading(true);
-    const [feedRes, inboxRes] = await Promise.all([
-      supabase
-        .from("hypes")
-        .select("*")
-        .is("recipient_id", null)
-        .order("created_at", { ascending: false })
-        .limit(60),
-      me
-        ? supabase
-            .from("hypes")
-            .select("*")
-            .eq("recipient_id", me)
-            .order("created_at", { ascending: false })
-            .limit(40)
-        : Promise.resolve({ data: [] }),
-    ]);
-    const authorIds = [
-      ...new Set(
-        [...(feedRes.data || []), ...(inboxRes.data || [])]
-          .map((h) => h.user_id)
-          .filter(Boolean)
-      ),
-    ];
-    const profs = await fetchProfiles(authorIds);
-    setHypeFeed(
-      (feedRes.data || []).map((h) => ({ ...h, author: profs[h.user_id] || null }))
-    );
-    setIncomingHypes(
-      (inboxRes.data || []).map((h) => ({ ...h, author: profs[h.user_id] || null }))
-    );
-    if (me) {
-      const { data: st } = await supabase
-        .from("hype_streaks")
-        .select("*")
-        .or(`user_a.eq.${me},user_b.eq.${me}`);
-      const partners = (st || []).map((s) => (s.user_a === me ? s.user_b : s.user_a));
-      const pMap = await fetchProfiles(partners);
-      setStreaks(
-        (st || []).map((s) => {
-          const partner = s.user_a === me ? s.user_b : s.user_a;
-          return {
-            ...s,
-            partner,
-            partnerName: pMap[partner]?.name || "Friend",
-          };
-        })
+    try {
+      const [feedRes, inboxRes] = await Promise.all([
+        databases.listDocuments(DB_ID, COLLECTIONS.hypes, [
+          Query.isNull("recipient_id"),
+          Query.limit(60),
+        ]),
+        me
+          ? databases.listDocuments(DB_ID, COLLECTIONS.hypes, [
+              Query.equal("recipient_id", me),
+              Query.limit(40),
+            ])
+          : Promise.resolve({ documents: [] }),
+      ]);
+      // Newest-first — Appwrite's list order isn't guaranteed.
+      const feedDocs = (feedRes.documents || []).sort((a, b) =>
+        (b.created_at || b.$createdAt).localeCompare(a.created_at || a.$createdAt)
       );
-    } else {
-      setStreaks([]);
+      const inboxDocs = (inboxRes.documents || []).sort((a, b) =>
+        (b.created_at || b.$createdAt).localeCompare(a.created_at || a.$createdAt)
+      );
+      const authorIds = [
+        ...new Set([...feedDocs, ...inboxDocs].map((h) => h.user_id).filter(Boolean)),
+      ];
+      const profs = await fetchProfiles(authorIds);
+      setHypeFeed(
+        feedDocs.map((h) => ({
+          ...h,
+          id: h.$id,
+          author: profs[h.user_id] || null,
+        }))
+      );
+      setIncomingHypes(
+        inboxDocs.map((h) => ({
+          ...h,
+          id: h.$id,
+          author: profs[h.user_id] || null,
+        }))
+      );
+      if (me) {
+        const st = await databases.listDocuments(DB_ID, COLLECTIONS.streaks, [
+          Query.or([Query.equal("user_a", me), Query.equal("user_b", me)]),
+        ]);
+        const partners = (st.documents || []).map((s) =>
+          s.user_a === me ? s.user_b : s.user_a
+        );
+        const pMap = await fetchProfiles(partners);
+        setStreaks(
+          (st.documents || []).map((s) => {
+            const partner = s.user_a === me ? s.user_b : s.user_a;
+            return {
+              ...s,
+              id: s.$id,
+              partner,
+              partnerName: pMap[partner]?.name || "Friend",
+            };
+          })
+        );
+      } else {
+        setStreaks([]);
+      }
+    } catch {
+      /* collection missing — graceful */
     }
     setHypeLoading(false);
   }, [fetchProfiles]);
@@ -371,28 +465,8 @@ export function SocialProvider({ children }) {
   const uploadVideo = useCallback(async (blob, name) => {
     const me = uidRef.current;
     if (!me) throw new Error("Sign in to post hype");
-    const path = `hype/${me}/${Date.now()}-${(name || "clip.webm").replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const bucket = supabase.storage.from("hype");
-    const upload = () =>
-      bucket.upload(path, blob, { contentType: blob.type || "video/webm" });
-    let { error } = await upload();
-    if (error) {
-      // The bucket may not have been created yet — try to create it
-      // (works when the role has storage perms), then retry once.
-      const { error: createErr } = await supabase.storage.createBucket("hype", {
-        public: true,
-      });
-      if (!createErr || /exist/i.test(createErr.message || "")) {
-        ({ error } = await upload());
-      }
-      if (error) {
-        throw new Error(
-          "Couldn't upload — the 'hype' storage bucket is missing. Open Supabase → SQL Editor and run supabase/schema.sql, then try again."
-        );
-      }
-    }
-    const { data } = supabase.storage.from("hype").getPublicUrl(path);
-    return data.publicUrl;
+    const created = await storage.createFile(MEDIA_BUCKET, ID.unique(), blob);
+    return storage.getFileView(MEDIA_BUCKET, created.$id).href;
   }, []);
 
   // Snapchat-style streak: consecutive days of hypes between a pair.
@@ -403,21 +477,38 @@ export function SocialProvider({ children }) {
     const b = me < partnerId ? partnerId : me;
     const today = localDate();
     const yesterday = localDate(new Date(Date.now() - 86400000));
-    const { data } = await supabase
-      .from("hype_streaks")
-      .select("*")
-      .eq("user_a", a)
-      .eq("user_b", b)
-      .maybeSingle();
     let streak = 1;
-    if (data) {
-      if (data.last_date === today) streak = data.streak;
-      else if (data.last_date === yesterday) streak = data.streak + 1;
-      else streak = 1;
+    try {
+      const res = await databases.listDocuments(DB_ID, COLLECTIONS.streaks, [
+        Query.equal("user_a", a),
+        Query.equal("user_b", b),
+      ]);
+      if (res.documents.length) {
+        const doc = res.documents[0];
+        if (doc.last_date === today) streak = doc.streak ?? 1;
+        else if (doc.last_date === yesterday) streak = (doc.streak ?? 1) + 1;
+        else streak = 1;
+        await databases.updateDocument(DB_ID, COLLECTIONS.streaks, doc.$id, {
+          streak,
+          last_date: today,
+        });
+      } else {
+        await databases.createDocument(
+          DB_ID,
+          COLLECTIONS.streaks,
+          ID.unique(),
+          { user_a: a, user_b: b, streak, last_date: today },
+          [
+            `read("user:${a}")`,
+            `read("user:${b}")`,
+            `write("user:${a}")`,
+            `write("user:${b}")`,
+          ]
+        );
+      }
+    } catch {
+      /* ignore */
     }
-    await supabase
-      .from("hype_streaks")
-      .upsert({ user_a: a, user_b: b, streak, last_date: today });
   }, []);
 
   const postHype = useCallback(
@@ -425,13 +516,21 @@ export function SocialProvider({ children }) {
       const me = uidRef.current;
       if (!me) throw new Error("Sign in to post hype");
       const videoUrl = await uploadVideo(blob, name);
-      const { error } = await supabase.from("hypes").insert({
+      const data = {
         user_id: me,
-        recipient_id: recipientId || null,
         video_url: videoUrl,
         caption: (caption || "").trim(),
-      });
-      if (error) throw new Error(error.message);
+        created_at: new Date().toISOString(),
+      };
+      if (recipientId) data.recipient_id = recipientId;
+      const perms = recipientId
+        ? [
+            `read("user:${me}")`,
+            `read("user:${recipientId}")`,
+            `write("user:${me}")`,
+          ]
+        : [`read("any")`, `write("user:${me}")`];
+      await databases.createDocument(DB_ID, COLLECTIONS.hypes, ID.unique(), data, perms);
       if (recipientId) await bumpStreak(recipientId);
       notify(
         recipientId ? "Hype sent — keep the streak alive 🔥" : "Your hype is live!"
@@ -447,15 +546,30 @@ export function SocialProvider({ children }) {
   // ============================================================
   const sendContactRequest = useCallback(
     async ({ senderName, eventName, hostName, kind, body }) => {
-      const { error } = await supabase.from("contact_requests").insert({
-        sender_id: uidRef.current,
-        sender_name: senderName || null,
-        event_name: eventName,
-        host_name: hostName,
-        kind,
+      const senderId = uidRef.current;
+      const data = {
+        sender_name: senderName || "",
+        event_name: eventName || "",
+        host_name: hostName || "",
+        kind: kind || "contact",
         body,
-      });
-      if (error) throw new Error(error.message);
+        created_at: new Date().toISOString(),
+      };
+      const perms = senderId
+        ? [`read("user:${senderId}")`, `write("user:${senderId}")`]
+        : [`write("any")`];
+      try {
+        if (senderId) data.sender_id = senderId;
+        await databases.createDocument(
+          DB_ID,
+          COLLECTIONS.contactRequests,
+          ID.unique(),
+          data,
+          perms
+        );
+      } catch (e) {
+        throw new Error(e.message);
+      }
       notify("Your message is on its way to the host");
     },
     [notify]

@@ -6,14 +6,18 @@ import {
   useMemo,
   useState,
 } from "react";
-import { supabase } from "../lib/supabase";
+import { account, appwrite, mergePrefs, syncProfileDoc, ID } from "../lib/appwrite";
 import { rememberAuthContext } from "../lib/nav";
 import { useStore } from "./StoreContext";
 
 const AuthContext = createContext(null);
 
-const displayName = (user) =>
-  user?.user_metadata?.name || user?.email?.split("@")[0] || "Guest";
+// Where auth emails (email verification / password reset) link back to.
+// Always the live site — even when the request came from localhost, so
+// the link never points at a local dev server.
+const APP_URL = import.meta.env.VITE_APP_URL || "https://hypez.netlify.app";
+
+const displayName = (u) => u?.name || u?.email?.split("@")[0] || "Guest";
 
 const AVATAR_SEEDS = 5;
 
@@ -33,73 +37,60 @@ function readLocalProfile(uid) {
 
 export function AuthProvider({ children }) {
   const { notify, resetUserContent } = useStore();
-  const [session, setSession] = useState(null);
+  // Appwrite user object, mapped to expose `.id` (= `$id`) so the rest
+  // of the app can keep using user.id without changes.
+  const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [cloudProfile, setCloudProfile] = useState(null);
+
+  const refreshSession = useCallback(async () => {
+    try {
+      const u = await account.get();
+      setUser({ ...u, id: u.$id });
+    } catch {
+      setUser(null);
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (mounted) setSession(data.session);
-      })
-      .catch(() => {})
-      .finally(() => {
+    (async () => {
+      try {
+        const u = await account.get();
+        if (mounted) setUser({ ...u, id: u.$id });
+      } catch {
+        if (mounted) setUser(null);
+      } finally {
         if (mounted) setAuthLoading(false);
-      });
+      }
+    })();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-    });
+    // Appwrite fires the "account" realtime channel on sign-in/out and
+    // session changes — keep React state in sync from anywhere. A slow
+    // poll covers browsers where realtime is unavailable.
+    let unsub = () => {};
+    try {
+      unsub = appwrite.subscribe("account", () => refreshSession());
+    } catch {
+      /* realtime unavailable — poll handles it */
+    }
+    const poll = window.setInterval(refreshSession, 30000);
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      unsub();
+      window.clearInterval(poll);
     };
-  }, []);
+  }, [refreshSession]);
 
-  const user = session?.user ?? null;
-
-  // Pull the extended profile (bio + avatar) from Supabase when signed in,
-  // falling back to what we saved locally.
-  useEffect(() => {
-    if (!user) {
-      setCloudProfile(null);
-      return;
-    }
-    let active = true;
-    supabase
-      .from("profiles")
-      .select("name, bio, avatar, theme")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active && data) setCloudProfile(data);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [user?.id]);
-
-  // Sign-in now lives on its own page (#auth). Opening it remembers
-  // where the user came from so they land back in the right place.
-  // `next` is the route to continue to after signing in (e.g. the
-  // post-a-party form), which only makes sense when the user just
-  // needed to authenticate to reach it.
+  // Sign-in lives on its own page (#auth). Opening it remembers where
+  // the user came from so they land back in the right place.
   const openAuth = useCallback((next) => {
-    // onClick handlers may pass the event here — only treat real
-    // route strings as a destination to continue to after signing in.
     rememberAuthContext(typeof next === "string" ? next : undefined);
     window.location.hash = "#auth";
   }, []);
 
   const ensureAuth = useCallback(
     (next) => {
-      // Session may not have loaded yet — don't wrongly block or navigate.
       if (authLoading) return false;
       if (user) return true;
       openAuth(next);
@@ -110,91 +101,107 @@ export function AuthProvider({ children }) {
 
   const signIn = useCallback(
     async ({ email, password }) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw new Error(error.message);
-      notify(`Welcome back, ${displayName(data.user)}`);
-      return data;
+      await account.createEmailPasswordSession(email, password);
+      const u = await account.get();
+      setUser({ ...u, id: u.$id });
+      notify(`Welcome back, ${displayName(u)}`);
+      return u;
     },
     [notify]
   );
 
   const signUp = useCallback(
     async ({ name, email, password }) => {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name: name || email.split("@")[0] } },
-      });
-      if (error) throw new Error(error.message);
-      if (data.session) {
-        notify("Account created — you're in!");
-      }
-      return data;
+      await account.create(ID.unique(), email, password, name);
+      // Appwrite doesn't auto-create a session — sign the new user in.
+      await account.createEmailPasswordSession(email, password);
+      const u = await account.get();
+      setUser({ ...u, id: u.$id });
+      // Make them findable in the people list + hype/messenger lookups.
+      syncProfileDoc(u.$id, { name: name || displayName(u), avatar: seedFor(u.$id) }).catch(
+        () => {}
+      );
+      notify("Account created — you're in!");
+      return u;
     },
     [notify]
   );
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw new Error(error.message);
+    try {
+      await account.deleteSession("current");
+    } catch {
+      /* no session */
+    }
+    setUser(null);
     resetUserContent();
     notify("Signed out. See you at the next party!");
   }, [notify, resetUserContent]);
 
-  const resetPassword = useCallback(async (email) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    });
-    if (error) throw new Error(error.message);
+  // ---- Email verification (Appwrite sends the email itself) ----------
+  const sendVerification = useCallback(async () => {
+    await account.createVerification(`${APP_URL}/#auth/verify`);
   }, []);
 
-  // Finish a password reset: the recovery email signs the user in with
-  // a recovery session, then this sets the new password on that session.
+  const completeVerification = useCallback(async (userId, secret) => {
+    await account.updateVerification(userId, secret);
+  }, []);
+
+  // ---- Password recovery ---------------------------------------------
+  // Appwrite emails a link to /#auth/recovery?userId=..&secret=..
+  const resetPassword = useCallback(async (email) => {
+    await account.createRecovery(email, `${APP_URL}/#auth/recovery`);
+  }, []);
+
+  // Finish a recovery: set the new password. Logs the user in on success.
+  const completeRecovery = useCallback(async (userId, secret, password) => {
+    await account.updateRecovery(userId, secret, password, password);
+  }, []);
+
   const updatePassword = useCallback(
-    async (password) => {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw new Error(error.message);
+    async (password, oldPassword) => {
+      await account.updatePassword(password, oldPassword);
       notify("Password updated — you're all set.");
     },
     [notify]
   );
 
+  // Profile = account name + prefs (bio, avatar, theme), with the
+  // device-local cache as fallback when prefs are empty.
   const profile = useMemo(() => {
     if (!user) return null;
+    const prefs = user.prefs || {};
     const local = readLocalProfile(user.id);
-    const base = cloudProfile || local || {};
     return {
-      name: base.name || displayName(user),
+      name: user.name || displayName(user),
       bio:
-        base.bio ||
+        prefs.bio ||
+        local?.bio ||
         "House party enthusiast. Accra · Kumasi · Takoradi. Always first on the dance floor.",
-      avatar: base.avatar ?? seedFor(user.id),
-      avatarUrl: base.avatar_url || base.avatarUrl || null,
-      theme: base.theme || null,
+      avatar: prefs.avatar ?? local?.avatar ?? seedFor(user.id),
+      avatarUrl: prefs.avatarUrl || local?.avatarUrl || null,
+      theme: prefs.theme || null,
     };
-  }, [user, cloudProfile]);
+  }, [user]);
 
   const saveProfile = useCallback(
     async ({ name, bio, avatar, avatarUrl = null }) => {
       if (!user) throw new Error("Not signed in");
-      const next = { name, bio, avatar, avatarUrl };
       try {
-        localStorage.setItem(`festivity.profile.${user.id}`, JSON.stringify(next));
+        localStorage.setItem(
+          `festivity.profile.${user.id}`,
+          JSON.stringify({ name, bio, avatar, avatarUrl })
+        );
       } catch {
         /* storage unavailable */
       }
-      // Name lives in auth metadata so it survives everywhere.
-      const { error } = await supabase.auth.updateUser({ data: { name } });
-      // Bio + avatar live in the profiles table (if the schema has been run).
-      // Try it regardless of the metadata result so bio/avatar still sync.
-      const { error: pe } = await supabase
-        .from("profiles")
-        .upsert({ id: user.id, name, bio, avatar, avatar_url: avatarUrl });
-      if (pe) console.warn("profile sync:", pe.message);
-      if (error) throw new Error(error.message);
+      await account.updateName(name);
+      await mergePrefs({ bio, avatar, avatarUrl });
+      // Public profile doc so other users can find you.
+      syncProfileDoc(user.id, { name, bio, avatar, avatarUrl }).catch(() => {});
+      // Refresh the user so prefs/profile stay in sync immediately.
+      const u = await account.get();
+      setUser({ ...u, id: u.$id });
       notify("Profile updated");
     },
     [user, notify]
@@ -205,6 +212,7 @@ export function AuthProvider({ children }) {
       user,
       name: displayName(user),
       initial: (displayName(user) || "G").charAt(0).toUpperCase(),
+      emailVerified: !!user?.emailVerification,
       profile,
       saveProfile,
       authLoading,
@@ -214,9 +222,12 @@ export function AuthProvider({ children }) {
       signUp,
       signOut,
       resetPassword,
+      completeRecovery,
+      sendVerification,
+      completeVerification,
       updatePassword,
     }),
-    [user, profile, saveProfile, authLoading, openAuth, ensureAuth, signIn, signUp, signOut, resetPassword, updatePassword]
+    [user, profile, saveProfile, authLoading, openAuth, ensureAuth, signIn, signUp, signOut, resetPassword, completeRecovery, sendVerification, completeVerification, updatePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

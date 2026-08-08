@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { Query } from "appwrite";
+import { databases, DB_ID, COLLECTIONS } from "../lib/appwrite";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { useSocial } from "../context/SocialContext";
@@ -23,8 +24,8 @@ function categoryFor(name, tickets, allParties) {
 }
 
 export default function PublicProfile({ userId }) {
-  const { tickets, allParties } = useStore();
-  const { user, openAuth } = useAuth();
+  const { tickets, allParties, userParties, userReviews } = useStore();
+  const { user, openAuth, profile } = useAuth();
   const { isFollowing, toggleFollow, followCounts, loadFollowCounts } = useSocial();
   const [state, setState] = useState({
     loading: true,
@@ -53,51 +54,60 @@ export default function PublicProfile({ userId }) {
     setFollowBusy(false);
   };
 
+  // Own profile → account prefs + local content. Other users → the
+  // public profiles collection (name/bio/avatar from Appwrite).
   useEffect(() => {
     let active = true;
     setState((s) => ({ ...s, loading: true }));
     (async () => {
-      const [profRes, partiesRes, reviewsRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("name, bio, avatar, avatar_url")
-          .eq("id", userId)
-          .maybeSingle(),
-        supabase
-          .from("parties")
-          .select("*")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("reviews")
-          .select("*")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false }),
-      ]);
-      if (!active) return;
-      const parties = (partiesRes.data ?? []).map((p) => ({
-        ...p,
-        isUser: false,
-        userId: p.user_id,
-      }));
-      const reviews = (reviewsRes.data ?? []).map((r) => ({
-        ...r,
-        partyName: r.party_name ?? r.partyName,
-        userId: r.user_id,
-      }));
-      setState({
-        loading: false,
-        profile: profRes.data || null,
-        parties,
-        reviews,
-      });
-    })().catch(() => {
-      if (active) setState((s) => ({ ...s, loading: false }));
-    });
+      let next;
+      if (user?.id === userId) {
+        next = {
+          profile: profile
+            ? {
+                name: profile.name,
+                bio: profile.bio,
+                avatar: profile.avatar,
+                avatar_url: profile.avatarUrl,
+              }
+            : null,
+          parties: userParties.map((p) => ({ ...p, isUser: true, userId })),
+          reviews: userReviews.map((r) => ({
+            ...r,
+            partyName: r.partyName,
+            userId,
+          })),
+        };
+      } else {
+        let doc = null;
+        try {
+          const res = await databases.listDocuments(DB_ID, COLLECTIONS.profiles, [
+            Query.equal("$id", userId),
+            Query.limit(1),
+          ]);
+          if (res.documents.length) doc = res.documents[0];
+        } catch {
+          /* not found */
+        }
+        next = {
+          profile: doc
+            ? {
+                name: doc.name,
+                bio: doc.bio,
+                avatar: doc.avatar ?? 0,
+                avatar_url: doc.avatar_url || null,
+              }
+            : null,
+          parties: [],
+          reviews: [],
+        };
+      }
+      if (active) setState({ loading: false, ...next });
+    })();
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, user?.id, profile, userParties, userReviews]);
 
   const stats = useMemo(
     () => [
