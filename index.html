@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Festivity GH — House Party Tickets in Ghana</title>
+    <meta
+      name="description"
+      content="Festivity GH — the home of house party tickets in Ghana. Grab tickets, discover parties, read reviews, follow the scene."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23101117'/%3E%3Ctext x='32' y='46' font-family='Arial Black,sans-serif' font-size='40' font-weight='900' fill='%23fff' text-anchor='middle'%3EF%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+    <script>
+      // Apply the saved theme before first paint so there's no flash.
+      // Mirrors src/context/ThemeContext.jsx
+      try {
+        var t = JSON.parse(localStorage.getItem("festivity.theme") || "null");
+        if (t) {
+          var d = document.documentElement;
+          d.dataset.mode = t.mode || "light";
+          d.dataset.preset = t.preset || "daylight";
+          var bg = t.background || {};
+          d.dataset.bg = bg.kind === "pattern" ? bg.value : bg.kind === "image" ? "image" : "none";
+          if (t.accent) d.style.setProperty("--rose-deep", t.accent);
+          if (bg.kind === "image") d.style.setProperty("--bg-image", 'url("' + bg.value + '")');
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+# Festivity GH — Netlify configuration
+# Publish: drag-drop the repo, or connect Git → build runs automatically.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Env vars are set in the Netlify dashboard (Site settings → Environment):
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_NEWS_API_KEY
+
+# The Blog "Live wire" fetches /api/news — route it to the serverless proxy.
+[[redirects]]
+  from = "/api/news"
+  to = "/.netlify/functions/news"
+  status = 200
+
+# SPA fallback (the app uses hash routing, so this is a safety net).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

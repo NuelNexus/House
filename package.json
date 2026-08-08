@@ -1,0 +1,24 @@
+{
+  "name": "festivity-gh",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "proxy": "node server/news-proxy.mjs",
+    "serve": "npm run build && node server/news-proxy.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.109.0",
+    "gsap": "^3.12.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  }
+}
