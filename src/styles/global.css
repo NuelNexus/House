@@ -5382,7 +5382,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
@@ -5474,7 +5474,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
 }
 
 .hype-slide-song i {
-  color: #ffd166;
+  color: #4da3ff;
 }
 
 .hype-slide-private {
@@ -5599,9 +5599,9 @@ html[data-mode="dark"][data-bg="image"] body::before {
 
 .hype-rail-actions {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 20px;
 }
 
 .hype-rail-btn {
@@ -5628,7 +5628,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
 }
 
 .hype-rail-btn.liked i {
-  color: #ff2c55;
+  color: #3b82f6;
   animation: hype-pop 0.35s ease;
 }
 
@@ -5661,7 +5661,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
   to { transform: rotate(360deg); }
 }
 
-/* Arrow navigation (up / down) */
+/* Arrow navigation (left / right) */
 .hype-feed-arrows {
   position: absolute;
   left: 16px;
@@ -5669,7 +5669,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
   transform: translateY(-50%);
   z-index: 5;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 10px;
 }
 
@@ -5814,7 +5814,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
   }
   .hype-rail {
     right: 12px;
-    bottom: 12px;
+    bottom: 96px;
   }
   .hype-feed-arrows {
     left: 12px;
@@ -8314,7 +8314,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
     height: 62px;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.9);
-    background: linear-gradient(135deg, #ff7a45, #ff2e63);
+    background: linear-gradient(135deg, #4da3ff, #2563eb);
     color: #fff;
     font-family: var(--font);
     font-size: 10px;
@@ -8340,7 +8340,11 @@ html[data-mode="dark"][data-bg="image"] body::before {
     transform: scale(0.92);
   }
 }
-/* Hype sound toggle — highlights the speaker when audio is on */
+/* Hype accents are blue — the flame, the sound toggle, the empty state */
 .hype-rail-btn.sound-on i {
-  color: #ff7a45;
+  color: #3b82f6;
+}
+
+.hype-feed-empty i {
+  color: rgba(77, 163, 255, 0.55);
 }

@@ -128,7 +128,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
     } catch {
       /* storage unavailable — like still works for this session */
     }
-    notify(next ? "Hype liked 🔥" : "Like removed");
+    notify(next ? "Hype liked!" : "Like removed");
   };
 
   const doShare = async () => {
@@ -230,7 +230,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
             aria-label="Like"
             onClick={doLike}
           >
-            <i className="fa-solid fa-heart" />
+            <i className="fa-solid fa-fire" />
             <span className="hype-rail-label">Like</span>
           </button>
           <button className="hype-rail-btn" aria-label="Share" onClick={doShare}>
@@ -247,10 +247,9 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
               <span className="hype-rail-label">{soundOn ? "Sound" : "Muted"}</span>
             </button>
           )}
-        </div>
-
-        <div className="hype-rail-disc" aria-hidden="true">
-          <i className="fa-solid fa-compact-disc" />
+          <div className="hype-rail-disc" aria-hidden="true">
+            <i className="fa-solid fa-compact-disc" />
+          </div>
         </div>
       </div>
     </div>
@@ -261,6 +260,7 @@ export default function Hype({ send, q, setTab }) {
   const { user, ensureAuth } = useAuth();
   const {
     hypeFeed,
+    incomingHypes,
     hypeLoading,
     postHype,
     people,
@@ -276,21 +276,24 @@ export default function Hype({ send, q, setTab }) {
   // the first tap — the kick effect above handles that). Users can mute.
   const [soundOn, setSoundOn] = useState(true); // shared across slides
   const wheelLock = useRef(0);
-  const touchStartY = useRef(null);
+  const touchStartX = useRef(null);
 
-  // Following tab filters the feed to creators you follow.
-  const visibleFeed = useMemo(
-    () =>
-      feedTab === "following"
-        ? hypeFeed.filter((h) => following.includes(h.user_id))
-        : hypeFeed,
-    [hypeFeed, following, feedTab]
-  );
+  // Hypes sent to me appear first (so the sender's hype is received),
+  // then the public For You / Following feed.
+  const visibleFeed = useMemo(() => {
+    const base = [...incomingHypes, ...hypeFeed];
+    return feedTab === "following"
+      ? base.filter((h) => following.includes(h.user_id))
+      : base;
+  }, [incomingHypes, hypeFeed, following, feedTab]);
 
-  // Reset to the top whenever the visible feed changes.
+  // Reset to the top when the tab changes or the feed's content actually
+  // changes (e.g. a new hype lands at the top) — NOT on every background
+  // refresh, or a viewer mid-feed would be bounced to slide 1 every 12s.
   useEffect(() => {
     setCurrentIndex(0);
-  }, [visibleFeed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedTab, visibleFeed[0]?.id, visibleFeed.length]);
 
   const next = () => {
     if (!visibleFeed.length) return;
@@ -324,15 +327,17 @@ export default function Hype({ send, q, setTab }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, visibleFeed.length]);
 
-  // Mouse-wheel navigation — one slide per tick, throttled.
+  // Mouse-wheel / trackpad navigation — swiping left-right (or scrolling
+  // vertically with a mouse wheel) steps one slide per tick, throttled.
   useEffect(() => {
     if (mode) return undefined;
     const onWheel = (e) => {
-      if (Math.abs(e.deltaY) < 12) return;
+      const delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (Math.abs(delta) < 12) return;
       const now = Date.now();
       if (now - wheelLock.current < 600) return;
       wheelLock.current = now;
-      if (e.deltaY > 0) next();
+      if (delta > 0) next();
       else prev();
     };
     window.addEventListener("wheel", onWheel, { passive: true });
@@ -340,18 +345,19 @@ export default function Hype({ send, q, setTab }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, visibleFeed.length]);
 
-  // Touch swipe navigation for phones (ignored while the overlay is open).
+  // Touch swipe navigation for phones — swipe LEFT for the next hype,
+  // RIGHT for the previous (ignored while the overlay is open).
   const onTouchStart = (e) => {
     if (mode) return;
-    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
   };
   const onTouchEnd = (e) => {
     if (mode) return;
-    if (touchStartY.current == null) return;
-    const dy = touchStartY.current - e.changedTouches[0].clientY;
-    touchStartY.current = null;
-    if (Math.abs(dy) < 40) return;
-    if (dy > 0) next();
+    if (touchStartX.current == null) return;
+    const dx = touchStartX.current - e.changedTouches[0].clientX;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx > 0) next();
     else prev();
   };
 
@@ -504,7 +510,7 @@ export default function Hype({ send, q, setTab }) {
           <div className="hype-feed-viewport">
             <div
               className="hype-feed-track"
-              style={{ transform: `translateY(-${currentIndex * 100}%)` }}
+              style={{ transform: `translateX(-${currentIndex * 100}%)` }}
             >
               {visibleFeed.map((h, i) => (
                 <HypeSlide
@@ -525,7 +531,7 @@ export default function Hype({ send, q, setTab }) {
                 disabled={currentIndex === 0}
                 onClick={prev}
               >
-                <i className="fa-solid fa-chevron-up" />
+                <i className="fa-solid fa-chevron-left" />
               </button>
               <button
                 className="hype-arrow-btn"
@@ -533,7 +539,7 @@ export default function Hype({ send, q, setTab }) {
                 disabled={currentIndex === visibleFeed.length - 1}
                 onClick={next}
               >
-                <i className="fa-solid fa-chevron-down" />
+                <i className="fa-solid fa-chevron-right" />
               </button>
             </div>
           </div>

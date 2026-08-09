@@ -243,42 +243,6 @@ export function SocialProvider({ children }) {
     if (activeThreadRef.current) loadThread(activeThreadRef.current);
   }, [fetchProfiles, loadThread]);
 
-  // Realtime (if the messages table is in the realtime publication)
-  // plus a light polling fallback so the inbox always refreshes.
-  useEffect(() => {
-    if (!uid) return undefined;
-    let active = true;
-    refreshSocial();
-    // Reload the follow graph too — the mount-only effect above ran
-    // while signed out, so this catches the state after sign-in.
-    loadFollows();
-    const channel = supabase
-      .channel("festivity-social")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        () => {
-          if (active) refreshSocial();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "follows" },
-        () => {
-          if (active) loadFollows();
-        }
-      )
-      .subscribe();
-    const poll = window.setInterval(() => {
-      if (active) refreshSocial();
-    }, 12000);
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-      window.clearInterval(poll);
-    };
-  }, [uid, refreshSocial, loadFollows]);
-
   const unreadTotal = useMemo(
     () => Object.values(unread).reduce((n, c) => n + c, 0),
     [unread]
@@ -368,6 +332,64 @@ export function SocialProvider({ children }) {
     loadHype();
   }, [loadHype]);
 
+  // Realtime (if the tables are in the realtime publication) plus a light
+  // polling fallback so the inbox, follows and hype feed always refresh.
+  // Declared after the hype section so every callback it references is
+  // already initialized (avoids a temporal-dead-zone crash on render).
+  useEffect(() => {
+    if (!uid) return undefined;
+    let active = true;
+    refreshSocial();
+    // Reload the follow graph too — the mount-only effect above ran
+    // while signed out, so this catches the state after sign-in.
+    loadFollows();
+    loadHype();
+    const channel = supabase
+      .channel("festivity-social")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => {
+          if (active) refreshSocial();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "follows" },
+        () => {
+          if (active) loadFollows();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hypes" },
+        () => {
+          // New hypes (public or sent to me) appear live in the feed.
+          if (active) loadHype();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hype_streaks" },
+        () => {
+          // Keep the sidebar flame counts fresh too.
+          if (active) loadHype();
+        }
+      )
+      .subscribe();
+    const poll = window.setInterval(() => {
+      if (active) {
+        refreshSocial();
+        loadHype();
+      }
+    }, 12000);
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+      window.clearInterval(poll);
+    };
+  }, [uid, refreshSocial, loadFollows, loadHype]);
+
   const uploadVideo = useCallback(async (blob, name) => {
     const me = uidRef.current;
     if (!me) throw new Error("Sign in to post hype");
@@ -395,7 +417,7 @@ export function SocialProvider({ children }) {
     return data.publicUrl;
   }, []);
 
-  // Snapchat-style streak: consecutive days of hypes between a pair.
+  // Hype flame between a pair: consecutive days of hypes sent back & forth.
   const bumpStreak = useCallback(async (partnerId) => {
     const me = uidRef.current;
     if (!me || !partnerId) return;
@@ -433,9 +455,7 @@ export function SocialProvider({ children }) {
       });
       if (error) throw new Error(error.message);
       if (recipientId) await bumpStreak(recipientId);
-      notify(
-        recipientId ? "Hype sent — keep the streak alive 🔥" : "Your hype is live!"
-      );
+      notify(recipientId ? "Hype sent!" : "Your hype is live!");
       loadHype();
       return true;
     },

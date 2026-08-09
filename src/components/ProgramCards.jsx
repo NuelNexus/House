@@ -19,7 +19,7 @@ const CARDS = [
     tab: "hype",
     tag: "Short videos",
     title: "Post hype",
-    sub: "Daily streaks with your crew",
+    sub: "Send clips straight to your crew",
     cls: "corner1",
     shapes: ["orb", "dot", "orb2"],
   },

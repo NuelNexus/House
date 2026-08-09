@@ -69,10 +69,10 @@ export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
 
       {user && streaks.length > 0 && (
         <div className="hype-sidebar-streaks">
-          <div className="hype-sidebar-section-label">Streaks</div>
+          <div className="hype-sidebar-section-label">Hype</div>
           {streaks.map((s) => (
             <div className="hype-streak-row" key={s.user_a + s.user_b}>
-              <i className="fa-solid fa-fire" style={{ color: "#ff7a45" }} />
+              <i className="fa-solid fa-fire" style={{ color: "#3b82f6" }} />
               <span className="streak-num">{s.streak}</span>
               <span className="streak-who">{s.partnerName}</span>
             </div>
