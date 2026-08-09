@@ -8293,3 +8293,51 @@ html[data-mode="dark"][data-bg="image"] body::before {
   .snap-lens-tray { left: 62px; }
   .snap-bottom { padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
 }
+/* Floating 'Post a hype' camera button — the sidebar's post button is
+   hidden on phones, so this is the one obvious way to open the camera
+   from the feed on mobile. Sits above the bottom tab bar. */
+.hype-cam-fab {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .hype-cam-fab {
+    display: flex;
+    position: absolute;
+    right: 14px;
+    bottom: 18px;
+    z-index: 6;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background: linear-gradient(135deg, #ff7a45, #ff2e63);
+    color: #fff;
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    transition: transform 0.12s ease, box-shadow 0.2s ease;
+  }
+
+  .hype-cam-fab i {
+    font-size: 21px;
+    line-height: 1;
+  }
+
+  .hype-cam-fab:hover {
+    transform: scale(1.06);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  }
+
+  .hype-cam-fab:active {
+    transform: scale(0.92);
+  }
+}

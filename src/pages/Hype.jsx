@@ -489,6 +489,13 @@ export default function Hype({ send, q, setTab }) {
             </div>
           </div>
         )}
+
+        {/* Floating camera — the one obvious way to post on phones,
+            where the sidebar's 'Post a hype' button is hidden. */}
+        <button className="hype-cam-fab" onClick={startPost} aria-label="Post a hype">
+          <i className="fa-solid fa-camera" aria-hidden="true" />
+          <span>Post</span>
+        </button>
       </div>
     </div>
   );
