@@ -1,0 +1,2581 @@
+.css-house-wrap {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 36vw;
+  height: 24vw;
+  margin: -12vw 0 0 -18vw;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: css-house-in 0.9s ease 2.3s both;
+}
+.css-house-wrap,
+.css-house-wrap * {
+  transform-style: preserve-3d;
+}
+.css-house-wrap .face {
+  position: absolute;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .house {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 36vw;
+  height: 24vw;
+  transform: perspective(20000px) rotateX(75deg) rotateZ(35deg) translateZ(-9vw);
+  transition: transform 0.1s linear;
+}
+.css-house-wrap .shadows {
+  width: 100%;
+  height: 100%;
+}
+.css-house-wrap .shadow-a {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 130%;
+  height: 103%;
+  transform-origin: top right;
+  transform: skewY(-3deg);
+  background-color: #686688;
+  box-shadow: -1vw 1vw 1.5vw #686688;
+  filter: blur(0.5vw);
+}
+.css-house-wrap .shadow-b {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 101.5%;
+  background-color: rgb(95.0857142857, 93.2571428571, 124.3428571429);
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .al__front {
+  width: 30vw;
+  height: 0.4vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(23.6vw);
+}
+.css-house-wrap .al__back {
+  width: 30vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-30vw) translateY(-0.4vw);
+}
+.css-house-wrap .al__right {
+  width: 24vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(30vw) translateX(-24vw) translateY(-0.4vw);
+}
+.css-house-wrap .al__left {
+  width: 24vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.4vw);
+}
+.css-house-wrap .al__top {
+  width: 30vw;
+  height: 24vw;
+  transform-origin: top left;
+  transform: translateZ(0.4vw);
+}
+.css-house-wrap .al__bottom {
+  width: 30vw;
+  height: 24vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-30vw);
+}
+.css-house-wrap .al {
+  width: 3vw;
+  height: 24vw;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.css-house-wrap .al__front {
+  background-image: linear-gradient(to right, #8985ad, #c4c2d6);
+}
+.css-house-wrap .al__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .al__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .al__left {
+  background-color: rgb(122.25, 117.75, 162.75);
+}
+.css-house-wrap .al__top {
+  background-image: linear-gradient(to right, rgb(166.5, 163.5, 193.5) 40%, rgb(229.25, 229.25, 229.25), #f2f2f2);
+}
+.css-house-wrap .al__top::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 13vw;
+  height: 7vw;
+  background-image: linear-gradient(-135deg, transparent 20%, rgba(168.5792079208, 214.9207920792, 207.4059405941, 0.75));
+}
+.css-house-wrap .al__top::after {
+  content: "";
+  position: absolute;
+  bottom: 1vw;
+  left: 6vw;
+  width: 5vw;
+  height: 5vw;
+  border-radius: 50%;
+  background-image: radial-gradient(rgba(251, 251, 251, 0.25), transparent);
+  filter: blur(0.7vw);
+}
+.css-house-wrap .al__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ab__front {
+  width: 8vw;
+  height: 0.4vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(7.6vw);
+}
+.css-house-wrap .ab__back {
+  width: 8vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-8vw) translateY(-0.4vw);
+}
+.css-house-wrap .ab__right {
+  width: 8vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(8vw) translateX(-8vw) translateY(-0.4vw);
+}
+.css-house-wrap .ab__left {
+  width: 8vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.4vw);
+}
+.css-house-wrap .ab__top {
+  width: 8vw;
+  height: 8vw;
+  transform-origin: top left;
+  transform: translateZ(0.4vw);
+}
+.css-house-wrap .ab__bottom {
+  width: 8vw;
+  height: 8vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-8vw);
+}
+.css-house-wrap .ab {
+  width: 8vw;
+  height: 8vw;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+.css-house-wrap .ab__front {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ab__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ab__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .ab__left {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .ab__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .ab__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .at__front {
+  width: 8vw;
+  height: 0.4vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(3.6vw);
+}
+.css-house-wrap .at__back {
+  width: 8vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-8vw) translateY(-0.4vw);
+}
+.css-house-wrap .at__right {
+  width: 4vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(8vw) translateX(-4vw) translateY(-0.4vw);
+}
+.css-house-wrap .at__left {
+  width: 4vw;
+  height: 0.4vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.4vw);
+}
+.css-house-wrap .at__top {
+  width: 8vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: translateZ(0.4vw);
+}
+.css-house-wrap .at__bottom {
+  width: 8vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-8vw);
+}
+.css-house-wrap .at {
+  width: 8vw;
+  height: 4vw;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+.css-house-wrap .at__front {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .at__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .at__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .at__left {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .at__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .at__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ac__front {
+  width: 6vw;
+  height: 1vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(11vw);
+}
+.css-house-wrap .ac__back {
+  width: 6vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-6vw) translateY(-1vw);
+}
+.css-house-wrap .ac__right {
+  width: 12vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(6vw) translateX(-12vw) translateY(-1vw);
+}
+.css-house-wrap .ac__left {
+  width: 12vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1vw);
+}
+.css-house-wrap .ac__top {
+  width: 6vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .ac__bottom {
+  width: 6vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-6vw);
+}
+.css-house-wrap .ac {
+  width: 6vw;
+  height: 12vw;
+  position: absolute;
+  right: 0;
+  top: 4vw;
+}
+.css-house-wrap .ac .face {
+  opacity: 0.9;
+}
+.css-house-wrap .ac__front {
+  background-color: #4d6d98;
+  opacity: 0.75;
+}
+.css-house-wrap .ac__back {
+  background-color: #4d6d98;
+}
+.css-house-wrap .ac__right {
+  background-image: linear-gradient(to top, #6187be, #7095c9);
+}
+.css-house-wrap .ac__left {
+  background-color: rgb(21.5789473684, 39.4586466165, 60.4210526316);
+}
+.css-house-wrap .ac__top {
+  opacity: 0.75;
+  background-image: linear-gradient(to right, #7095c9 0, #7095c9 5%, #6187be 20%, #6187be 30%, #7095c9 40%, #7095c9 65%, rgb(100.8939086294, 140.7675126904, 196.8060913706) 70%, rgb(100.8939086294, 140.7675126904, 196.8060913706) 72%, #7095c9 85%);
+  box-shadow: inset 0.5vw 0.5vw 2vw rgba(251, 251, 251, 0.5);
+}
+.css-house-wrap .ac__top::before {
+  content: "";
+  position: absolute;
+  width: 40%;
+  height: 100%;
+  overflow: hidden;
+  background-image: linear-gradient(to bottom, transparent 0, transparent 10%, rgba(97, 135, 190, 0.9) 15%, rgba(97, 135, 190, 0.9) 40%, rgba(251, 251, 251, 0.2) 40%, rgba(251, 251, 251, 0.2) 50%, transparent 60%);
+  filter: blur(0.15vw);
+}
+.css-house-wrap .ac__bottom {
+  background-color: #4d6d98;
+}
+.css-house-wrap .ac__bottom::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  box-shadow: -0.25vw 0.25vw 1vw #234062;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .bce__front {
+  width: 17vw;
+  height: 0.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(21.5vw);
+}
+.css-house-wrap .bce__back {
+  width: 17vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-17vw) translateY(-0.5vw);
+}
+.css-house-wrap .bce__right {
+  width: 22vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(17vw) translateX(-22vw) translateY(-0.5vw);
+}
+.css-house-wrap .bce__left {
+  width: 22vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.5vw);
+}
+.css-house-wrap .bce__top {
+  width: 17vw;
+  height: 22vw;
+  transform-origin: top left;
+  transform: translateZ(0.5vw);
+}
+.css-house-wrap .bce__bottom {
+  width: 17vw;
+  height: 22vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-17vw);
+}
+.css-house-wrap .bce {
+  width: 17vw;
+  height: 20.5vw;
+  position: absolute;
+  right: 6vw;
+  top: 0;
+  transform: translateZ(0.41vw);
+}
+.css-house-wrap .bce__front {
+  background-image: linear-gradient(to right, rgb(166.5, 163.5, 193.5), #c4c2d6);
+}
+.css-house-wrap .bce__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bce__right {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .bce__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bce__top {
+  background-image: linear-gradient(135deg, rgb(166.5, 163.5, 193.5) 60%, #f2f2f2);
+}
+.css-house-wrap .bce__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bce__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 101%;
+  background-color: #675d6e;
+  filter: blur(0.35vw);
+}
+.css-house-wrap .bci__front {
+  width: 16vw;
+  height: 0.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(20.5vw);
+}
+.css-house-wrap .bci__back {
+  width: 16vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-16vw) translateY(-0.5vw);
+}
+.css-house-wrap .bci__right {
+  width: 21vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(16vw) translateX(-21vw) translateY(-0.5vw);
+}
+.css-house-wrap .bci__left {
+  width: 21vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.5vw);
+}
+.css-house-wrap .bci__top {
+  width: 16vw;
+  height: 21vw;
+  transform-origin: top left;
+  transform: translateZ(0.5vw);
+}
+.css-house-wrap .bci__bottom {
+  width: 16vw;
+  height: 21vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-16vw);
+}
+.css-house-wrap .bci {
+  width: 16vw;
+  height: 21vw;
+  position: absolute;
+  right: 6vw;
+  top: 0;
+  transform: translateZ(0.92vw);
+}
+.css-house-wrap .bci__front {
+  background-image: linear-gradient(to right, rgb(166.5, 163.5, 193.5), #c4c2d6);
+}
+.css-house-wrap .bci__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bci__right {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .bci__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bci__top {
+  background-image: linear-gradient(135deg, rgb(166.5, 163.5, 193.5) 60%, #f2f2f2);
+}
+.css-house-wrap .bci__top::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 16.4vw;
+  background-color: rgb(214.5170454545, 213.8068181818, 233.6931818182);
+}
+.css-house-wrap .bci__top::after {
+  content: "";
+  position: absolute;
+  bottom: 1.5vw;
+  left: 1vw;
+  width: 10vw;
+  height: 3.5vw;
+  border-radius: 50%;
+  background-image: radial-gradient(#badfd9, transparent);
+  filter: blur(0.5vw);
+}
+.css-house-wrap .bci__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bci__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 101%;
+  background-color: #675d6e;
+  filter: blur(0.35vw);
+}
+.css-house-wrap .bl__front {
+  width: 13.1vw;
+  height: 0.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(16.5vw);
+}
+.css-house-wrap .bl__back {
+  width: 13.1vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-13.1vw) translateY(-0.5vw);
+}
+.css-house-wrap .bl__right {
+  width: 17vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(13.1vw) translateX(-17vw) translateY(-0.5vw);
+}
+.css-house-wrap .bl__left {
+  width: 17vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.5vw);
+}
+.css-house-wrap .bl__top {
+  width: 13.1vw;
+  height: 17vw;
+  transform-origin: top left;
+  transform: translateZ(0.5vw);
+}
+.css-house-wrap .bl__bottom {
+  width: 13.1vw;
+  height: 17vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-13.1vw);
+}
+.css-house-wrap .bl {
+  width: 13vw;
+  height: 17vw;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateZ(0.41vw);
+}
+.css-house-wrap .bl__front {
+  background-image: linear-gradient(to right, rgb(107.5, 102.5, 152.5), rgb(166.5, 163.5, 193.5));
+}
+.css-house-wrap .bl__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bl__right {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .bl__left {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .bl__top {
+  background-color: rgb(214.5170454545, 213.8068181818, 233.6931818182);
+}
+.css-house-wrap .bl__top::before {
+  content: "";
+  position: absolute;
+  top: 2vw;
+  left: 3.5vw;
+  width: 12vw;
+  height: 12vw;
+  border-radius: 50%;
+  background-color: rgba(222, 245, 241, 0.35);
+  filter: blur(0.95vw);
+}
+.css-house-wrap .bl__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bl__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 102%;
+  background-color: #8985ad;
+  box-shadow: 0vw 0.25vw 1vw #8985ad;
+}
+.css-house-wrap .bt__front {
+  width: 4vw;
+  height: 1.1vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(2.9vw);
+}
+.css-house-wrap .bt__back {
+  width: 4vw;
+  height: 1.1vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-4vw) translateY(-1.1vw);
+}
+.css-house-wrap .bt__right {
+  width: 4vw;
+  height: 1.1vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(4vw) translateX(-4vw) translateY(-1.1vw);
+}
+.css-house-wrap .bt__left {
+  width: 4vw;
+  height: 1.1vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1.1vw);
+}
+.css-house-wrap .bt__top {
+  width: 4vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: translateZ(1.1vw);
+}
+.css-house-wrap .bt__bottom {
+  width: 4vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-4vw);
+}
+.css-house-wrap .bt {
+  width: 4vw;
+  height: 4vw;
+  position: absolute;
+  right: 2vw;
+  top: 0;
+  transform: translateZ(0.41vw);
+}
+.css-house-wrap .bt__front {
+  background-image: linear-gradient(to top, rgb(151.75, 148.25, 183.25) 50%, rgb(201.9, 200.1, 218.1));
+}
+.css-house-wrap .bt__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bt__right {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .bt__left {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .bt__top {
+  background-color: rgb(229.25, 229.25, 229.25);
+}
+.css-house-wrap .bt__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bbe__front {
+  width: 6vw;
+  height: 0.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(5.5vw);
+}
+.css-house-wrap .bbe__back {
+  width: 6vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-6vw) translateY(-0.5vw);
+}
+.css-house-wrap .bbe__right {
+  width: 6vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(6vw) translateX(-6vw) translateY(-0.5vw);
+}
+.css-house-wrap .bbe__left {
+  width: 6vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.5vw);
+}
+.css-house-wrap .bbe__top {
+  width: 6vw;
+  height: 6vw;
+  transform-origin: top left;
+  transform: translateZ(0.5vw);
+}
+.css-house-wrap .bbe__bottom {
+  width: 6vw;
+  height: 6vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-6vw);
+}
+.css-house-wrap .bbe {
+  width: 6vw;
+  height: 6vw;
+  position: absolute;
+  right: 0;
+  bottom: 2vw;
+  transform: translateZ(0.41vw);
+}
+.css-house-wrap .bbe__front {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bbe__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bbe__right {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .bbe__left {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .bbe__top {
+  background-color: rgb(245.9, 245.9, 245.9);
+}
+.css-house-wrap .bbe__bottom {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .bbe__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 95%;
+  height: 104%;
+  background-color: #675d6e;
+  filter: blur(0.35vw);
+}
+.css-house-wrap .bbi__front {
+  width: 4vw;
+  height: 0.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(4.5vw);
+}
+.css-house-wrap .bbi__back {
+  width: 4vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-4vw) translateY(-0.5vw);
+}
+.css-house-wrap .bbi__right {
+  width: 5vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(4vw) translateX(-5vw) translateY(-0.5vw);
+}
+.css-house-wrap .bbi__left {
+  width: 5vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.5vw);
+}
+.css-house-wrap .bbi__top {
+  width: 4vw;
+  height: 5vw;
+  transform-origin: top left;
+  transform: translateZ(0.5vw);
+}
+.css-house-wrap .bbi__bottom {
+  width: 4vw;
+  height: 5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-4vw);
+}
+.css-house-wrap .bbi {
+  width: 4vw;
+  height: 5vw;
+  position: absolute;
+  right: 2vw;
+  bottom: 3vw;
+  transform: translateZ(0.92vw);
+}
+.css-house-wrap .bbi__front {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bbi__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .bbi__right {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .bbi__left {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .bbi__top {
+  background-color: rgb(236.9, 236.9, 236.9);
+}
+.css-house-wrap .bbi__bottom {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .bbi__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 95%;
+  height: 104%;
+  background-color: #675d6e;
+  filter: blur(0.5vw);
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .cl__front {
+  width: 3.5vw;
+  height: 12vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(7vw);
+}
+.css-house-wrap .cl__back {
+  width: 3.5vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-3.5vw) translateY(-12vw);
+}
+.css-house-wrap .cl__right {
+  width: 19vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(3.5vw) translateX(-19vw) translateY(-12vw);
+}
+.css-house-wrap .cl__left {
+  width: 19vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-12vw);
+}
+.css-house-wrap .cl__top {
+  width: 3.5vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: translateZ(12vw);
+}
+.css-house-wrap .cl__bottom {
+  width: 3.5vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-3.5vw);
+}
+.css-house-wrap .cl {
+  width: 5vw;
+  height: 3vw;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateZ(0.41vw);
+}
+.css-house-wrap .cl__front {
+  display: flex;
+  justify-content: center;
+  background-image: linear-gradient(to bottom, #c4c2d6, rgb(151.75, 148.25, 183.25));
+  overflow: hidden;
+}
+.css-house-wrap .cl__front::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1.1vw;
+  width: 200%;
+  height: 3vw;
+  background-image: linear-gradient(to right, rgba(222, 245, 241, 0.3), rgba(196, 194, 214, 0.25));
+  filter: blur(0.175vw);
+  transform: rotateZ(-30deg);
+}
+.css-house-wrap .cl__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cl__right {
+  background-image: linear-gradient(to top, rgb(166.5, 163.5, 193.5), #8985ad, rgb(203.4207920792, 231.0792079208, 226.5940594059) 70%);
+}
+.css-house-wrap .cl__right::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  width: calc(100% - 2.5vw);
+  height: 100%;
+  background-image: linear-gradient(to bottom, #fbfbfb, rgb(203.4207920792, 231.0792079208, 226.5940594059) 15%, rgb(216.5, 216.5, 216.5) 80%, rgb(166.5, 163.5, 193.5));
+  filter: blur(0.5vw);
+}
+.css-house-wrap .cl__right .lamp:nth-of-type(1) {
+  left: 25%;
+}
+.css-house-wrap .cl__right .lamp:nth-of-type(2) {
+  left: 50%;
+}
+.css-house-wrap .cl__right .lamp:nth-of-type(3) {
+  left: 75%;
+}
+.css-house-wrap .cl__left {
+  background-image: linear-gradient(to top, #8985ad, rgb(107.5, 102.5, 152.5));
+}
+.css-house-wrap .cl__top {
+  background-color: rgb(181.25, 178.75, 203.75);
+}
+.css-house-wrap .cl__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cl__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 115%;
+  height: 103%;
+  background-color: rgba(103, 93, 110, 0.75);
+  filter: blur(0.5vw);
+}
+.css-house-wrap .cc__front {
+  width: 1vw;
+  height: 12.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(6.5vw);
+}
+.css-house-wrap .cc__back {
+  width: 1vw;
+  height: 12.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-1vw) translateY(-12.5vw);
+}
+.css-house-wrap .cc__right {
+  width: 19vw;
+  height: 12.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(1vw) translateX(-19vw) translateY(-12.5vw);
+}
+.css-house-wrap .cc__left {
+  width: 19vw;
+  height: 12.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-12.5vw);
+}
+.css-house-wrap .cc__top {
+  width: 1vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: translateZ(12.5vw);
+}
+.css-house-wrap .cc__bottom {
+  width: 1vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-1vw);
+}
+.css-house-wrap .cc {
+  width: 1vw;
+  height: 19vw;
+  position: absolute;
+  left: 15vw;
+  top: 0;
+  transform: translateZ(12.5vw);
+}
+.css-house-wrap .cc__front {
+  background-image: linear-gradient(to bottom, rgb(181.25, 178.75, 203.75), #c4c2d6 10%);
+}
+.css-house-wrap .cc__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cc__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .cc__left {
+  background-image: linear-gradient(to top, #8985ad, rgb(107.5, 102.5, 152.5));
+}
+.css-house-wrap .cc__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .cc__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ccl__front {
+  width: 1vw;
+  height: 11.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-8.5vw);
+}
+.css-house-wrap .ccl__back {
+  width: 1vw;
+  height: 11.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-1vw) translateY(-11.5vw);
+}
+.css-house-wrap .ccl__right {
+  width: 3vw;
+  height: 11.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(1vw) translateX(-3vw) translateY(-11.5vw);
+}
+.css-house-wrap .ccl__left {
+  width: 3vw;
+  height: 11.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11.5vw);
+}
+.css-house-wrap .ccl__top {
+  width: 1vw;
+  height: 3vw;
+  transform-origin: top left;
+  transform: translateZ(11.5vw);
+}
+.css-house-wrap .ccl__bottom {
+  width: 1vw;
+  height: 3vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-1vw);
+}
+.css-house-wrap .ccl {
+  width: 1vw;
+  height: 3vw;
+  position: absolute;
+  left: 15vw;
+  top: 16vw;
+  transform: translateZ(1.43vw);
+}
+.css-house-wrap .ccl__front {
+  background-image: linear-gradient(to top, rgb(166.5, 163.5, 193.5), #c4c2d6);
+}
+.css-house-wrap .ccl__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ccl__right {
+  background-image: linear-gradient(to bottom, rgb(107.5, 102.5, 152.5), #8985ad 70%, #badfd9);
+}
+.css-house-wrap .ccl__right::before {
+  content: "";
+  position: absolute;
+  top: -0.5vw;
+  left: 0;
+  width: 100%;
+  height: 2vw;
+  transform-origin: bottom left;
+  transform: translateZ(0.05vw);
+  background-image: linear-gradient(-45deg, #8985ad, rgb(107.5, 102.5, 152.5) 80%, transparent 80%);
+}
+.css-house-wrap .ccl__left {
+  background-image: linear-gradient(to top, #8985ad, rgb(107.5, 102.5, 152.5));
+}
+.css-house-wrap .ccl__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .ccl__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ccl__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 102%;
+  height: 101%;
+  background-color: #675d6e;
+  filter: blur(0.35vw);
+}
+.css-house-wrap .cml__front {
+  width: 16vw;
+  height: 1vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(18vw);
+}
+.css-house-wrap .cml__back {
+  width: 16vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-16vw) translateY(-1vw);
+}
+.css-house-wrap .cml__right {
+  width: 19vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(16vw) translateX(-19vw) translateY(-1vw);
+}
+.css-house-wrap .cml__left {
+  width: 19vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1vw);
+}
+.css-house-wrap .cml__top {
+  width: 16vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .cml__bottom {
+  width: 16vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-16vw);
+}
+.css-house-wrap .cml {
+  width: 16vw;
+  height: 19vw;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateZ(12.41vw);
+}
+.css-house-wrap .cml__front {
+  background-image: linear-gradient(to bottom, rgb(187.15, 184.85, 207.85), #c4c2d6);
+}
+.css-house-wrap .cml__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cml__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .cml__left {
+  background-color: rgb(107.5, 102.5, 152.5);
+}
+.css-house-wrap .cml__top {
+  background-image: linear-gradient(to right, #8985ad, rgb(166.5, 163.5, 193.5) 30%, rgb(151.1584158416, 206.8415841584, 197.8118811881));
+  box-shadow: inset 0.3vw 0.3vw 2vw rgba(103, 93, 110, 0.1), inset -0.3vw 0.3vw 2vw rgba(103, 93, 110, 0.1), inset 0.3vw -0.3vw 2vw rgba(103, 93, 110, 0.1), inset -0.3vw -0.3vw 2vw rgba(103, 93, 110, 0.1);
+}
+.css-house-wrap .cml__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cmr__front {
+  width: 16vw;
+  height: 1vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(17vw);
+}
+.css-house-wrap .cmr__back {
+  width: 16vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-16vw) translateY(-1vw);
+}
+.css-house-wrap .cmr__right {
+  width: 18vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(16vw) translateX(-18vw) translateY(-1vw);
+}
+.css-house-wrap .cmr__left {
+  width: 18vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1vw);
+}
+.css-house-wrap .cmr__top {
+  width: 16vw;
+  height: 18vw;
+  transform-origin: top left;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .cmr__bottom {
+  width: 16vw;
+  height: 18vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-16vw);
+}
+.css-house-wrap .cmr {
+  width: 16vw;
+  height: 18vw;
+  position: absolute;
+  left: 16vw;
+  top: 0;
+  transform: translateZ(12.41vw);
+}
+.css-house-wrap .cmr__front {
+  background-image: linear-gradient(to bottom, rgb(181.25, 178.75, 203.75), #c4c2d6);
+}
+.css-house-wrap .cmr__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cmr__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .cmr__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cmr__top {
+  background-image: linear-gradient(to right, #f2f2f2, rgb(236.9, 236.9, 236.9));
+}
+.css-house-wrap .cmr__top::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(48.5deg, rgb(247.1, 247.1, 247.1) 50%, transparent 50%);
+  opacity: 0.35;
+}
+.css-house-wrap .cmr__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cmt__front {
+  width: 12vw;
+  height: 1vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(18vw);
+}
+.css-house-wrap .cmt__back {
+  width: 12vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-12vw) translateY(-1vw);
+}
+.css-house-wrap .cmt__right {
+  width: 19vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(12vw) translateX(-19vw) translateY(-1vw);
+}
+.css-house-wrap .cmt__left {
+  width: 19vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1vw);
+}
+.css-house-wrap .cmt__top {
+  width: 12vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .cmt__bottom {
+  width: 12vw;
+  height: 19vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-12vw);
+}
+.css-house-wrap .cmt {
+  width: 12vw;
+  height: 19vw;
+  position: absolute;
+  left: 3vw;
+  top: 0;
+  transform: translateZ(24vw);
+}
+.css-house-wrap .cmt__front {
+  background-image: linear-gradient(to bottom, rgb(181.25, 178.75, 203.75), #c4c2d6);
+}
+.css-house-wrap .cmt__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .cmt__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .cmt__left {
+  background-color: rgb(166.5, 163.5, 193.5);
+}
+.css-house-wrap .cmt__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .cmt__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .dl__front {
+  width: 2vw;
+  height: 11vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-10vw);
+}
+.css-house-wrap .dl__back {
+  width: 2vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-2vw) translateY(-11vw);
+}
+.css-house-wrap .dl__right {
+  width: 1vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(2vw) translateX(-1vw) translateY(-11vw);
+}
+.css-house-wrap .dl__left {
+  width: 1vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11vw);
+}
+.css-house-wrap .dl__top {
+  width: 2vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: translateZ(11vw);
+}
+.css-house-wrap .dl__bottom {
+  width: 2vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-2vw);
+}
+.css-house-wrap .dl {
+  width: 2vw;
+  height: 1vw;
+  position: absolute;
+  left: 21.9vw;
+  bottom: 7vw;
+  transform: translateZ(1.5vw);
+}
+.css-house-wrap .dl__front {
+  background-image: linear-gradient(to bottom, #8985ad, rgb(151.75, 148.25, 183.25) 35%, rgb(166.5, 163.5, 193.5) 72%, #badfd9);
+}
+.css-house-wrap .dl__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dl__right {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dl__left {
+  background-color: rgb(151.75, 148.25, 183.25);
+}
+.css-house-wrap .dl__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .dl__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dl__bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 102%;
+  height: 101%;
+  background-color: #675d6e;
+  filter: blur(0.35vw);
+}
+.css-house-wrap .dm__front {
+  width: 6vw;
+  height: 4vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-3vw);
+}
+.css-house-wrap .dm__back {
+  width: 6vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-6vw) translateY(-4vw);
+}
+.css-house-wrap .dm__right {
+  width: 1vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(6vw) translateX(-1vw) translateY(-4vw);
+}
+.css-house-wrap .dm__left {
+  width: 1vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-4vw);
+}
+.css-house-wrap .dm__top {
+  width: 6vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: translateZ(4vw);
+}
+.css-house-wrap .dm__bottom {
+  width: 6vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-6vw);
+}
+.css-house-wrap .dm {
+  width: 6vw;
+  height: 1vw;
+  position: absolute;
+  left: 16vw;
+  bottom: 7vw;
+  transform: translateZ(8.5vw);
+}
+.css-house-wrap .dm__front {
+  background-image: linear-gradient(to bottom, #8985ad, rgb(151.75, 148.25, 183.25));
+}
+.css-house-wrap .dm__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dm__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .dm__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dm__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .dm__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dt__front {
+  width: 8vw;
+  height: 11vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-10vw);
+}
+.css-house-wrap .dt__back {
+  width: 8vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-8vw) translateY(-11vw);
+}
+.css-house-wrap .dt__right {
+  width: 1vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(8vw) translateX(-1vw) translateY(-11vw);
+}
+.css-house-wrap .dt__left {
+  width: 1vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11vw);
+}
+.css-house-wrap .dt__top {
+  width: 8vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: translateZ(11vw);
+}
+.css-house-wrap .dt__bottom {
+  width: 8vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-8vw);
+}
+.css-house-wrap .dt {
+  width: 8vw;
+  height: 1vw;
+  position: absolute;
+  left: 14vw;
+  top: 0;
+  transform: translateZ(1.5vw);
+}
+.css-house-wrap .dt__front {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .dt__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .dt__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .dt__left {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .dt__top {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .dt__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .el__front {
+  width: 11.4vw;
+  height: 11.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-11vw);
+}
+.css-house-wrap .el__back {
+  width: 11.4vw;
+  height: 11.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-11.4vw) translateY(-11.5vw);
+}
+.css-house-wrap .el__right {
+  width: 0.5vw;
+  height: 11.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(11.4vw) translateX(-0.5vw) translateY(-11.5vw);
+}
+.css-house-wrap .el__left {
+  width: 0.5vw;
+  height: 11.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11.5vw);
+}
+.css-house-wrap .el__top {
+  width: 11.4vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: translateZ(11.5vw);
+}
+.css-house-wrap .el__bottom {
+  width: 11.4vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-11.4vw);
+}
+.css-house-wrap .el {
+  width: 11.4vw;
+  height: 1vw;
+  position: absolute;
+  left: 3.5vw;
+  bottom: 7vw;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .el__front {
+  border: 0.1vw solid rgba(77, 109, 152, 0.5);
+  overflow: hidden;
+  background-image: repeating-linear-gradient(-45deg, rgba(97, 135, 190, 0.1) 1vw, rgba(112, 149, 201, 0.1) 1.5vw);
+}
+.css-house-wrap .ec__front {
+  width: 14vw;
+  height: 11vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-10.5vw);
+}
+.css-house-wrap .ec__back {
+  width: 14vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-14vw) translateY(-11vw);
+}
+.css-house-wrap .ec__right {
+  width: 0.5vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(14vw) translateX(-0.5vw) translateY(-11vw);
+}
+.css-house-wrap .ec__left {
+  width: 0.5vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11vw);
+}
+.css-house-wrap .ec__top {
+  width: 14vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: translateZ(11vw);
+}
+.css-house-wrap .ec__bottom {
+  width: 14vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-14vw);
+}
+.css-house-wrap .ec {
+  width: 14vw;
+  height: 1vw;
+  position: absolute;
+  left: 16vw;
+  bottom: 7vw;
+  transform: translateZ(1.5vw);
+}
+.css-house-wrap .ec__front {
+  border: 0.1vw solid rgba(77, 109, 152, 0.5);
+  overflow: hidden;
+  background-image: linear-gradient(to right, rgba(97, 135, 190, 0.1), rgba(112, 149, 201, 0.1));
+}
+.css-house-wrap .er__front {
+  width: 0.1vw;
+  height: 11vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(5.6vw);
+}
+.css-house-wrap .er__back {
+  width: 0.1vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-0.1vw) translateY(-11vw);
+}
+.css-house-wrap .er__right {
+  width: 16.6vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(0.1vw) translateX(-16.6vw) translateY(-11vw);
+}
+.css-house-wrap .er__left {
+  width: 16.6vw;
+  height: 11vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11vw);
+}
+.css-house-wrap .er__top {
+  width: 0.1vw;
+  height: 16.6vw;
+  transform-origin: top left;
+  transform: translateZ(11vw);
+}
+.css-house-wrap .er__bottom {
+  width: 0.1vw;
+  height: 16.6vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-0.1vw);
+}
+.css-house-wrap .er {
+  width: 14vw;
+  height: 1vw;
+  position: absolute;
+  left: 29.8vw;
+  top: 0;
+  transform: translateZ(1.5vw);
+}
+.css-house-wrap .er__right {
+  border: 0.1vw solid rgba(77, 109, 152, 0.5);
+  overflow: hidden;
+  background-image: linear-gradient(to right, rgba(97, 135, 190, 0.1), rgba(112, 149, 201, 0.1));
+}
+.css-house-wrap .eb__front {
+  width: 26.4vw;
+  height: 11.4vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-10.9vw);
+}
+.css-house-wrap .eb__back {
+  width: 26.4vw;
+  height: 11.4vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-26.4vw) translateY(-11.4vw);
+}
+.css-house-wrap .eb__right {
+  width: 0.5vw;
+  height: 11.4vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(26.4vw) translateX(-0.5vw) translateY(-11.4vw);
+}
+.css-house-wrap .eb__left {
+  width: 0.5vw;
+  height: 11.4vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-11.4vw);
+}
+.css-house-wrap .eb__top {
+  width: 26.4vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: translateZ(11.4vw);
+}
+.css-house-wrap .eb__bottom {
+  width: 26.4vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-26.4vw);
+}
+.css-house-wrap .eb {
+  width: 26.4vw;
+  height: 1vw;
+  position: absolute;
+  left: 3.5vw;
+  top: 0;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .eb__back {
+  border: 0.1vw solid rgba(77, 109, 152, 0.5);
+  overflow: hidden;
+  background-image: linear-gradient(to right, rgba(97, 135, 190, 0.1), rgba(112, 149, 201, 0.1));
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .fl__front {
+  width: 0.25vw;
+  height: 0.25vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(16.65vw);
+}
+.css-house-wrap .fl__back {
+  width: 0.25vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-0.25vw) translateY(-0.25vw);
+}
+.css-house-wrap .fl__right {
+  width: 16.9vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(0.25vw) translateX(-16.9vw) translateY(-0.25vw);
+}
+.css-house-wrap .fl__left {
+  width: 16.9vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.25vw);
+}
+.css-house-wrap .fl__top {
+  width: 0.25vw;
+  height: 16.9vw;
+  transform-origin: top left;
+  transform: translateZ(0.25vw);
+}
+.css-house-wrap .fl__bottom {
+  width: 0.25vw;
+  height: 16.9vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-0.25vw);
+}
+.css-house-wrap .fl {
+  width: 1vw;
+  height: 8.45vw;
+  position: absolute;
+  left: 1.5vw;
+  top: 1vw;
+  transform: translateZ(16.75vw);
+}
+.css-house-wrap .fl__front {
+  background-color: rgb(166.5, 163.5, 193.5);
+}
+.css-house-wrap .fl__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .fl__right {
+  background-image: linear-gradient(to bottom, rgb(166.5, 163.5, 193.5), rgb(148.8, 145.2, 181.2) 50%);
+}
+.css-house-wrap .fl__left {
+  background-color: #8985ad;
+}
+.css-house-wrap .fl__left::before {
+  content: "";
+  position: absolute;
+  top: 0.25vw;
+  right: 0;
+  width: 100%;
+  height: 3.25vw;
+  border: 0.1vw solid rgba(77, 109, 152, 0.5);
+}
+.css-house-wrap .fl__top {
+  background-image: linear-gradient(to bottom, rgb(166.5, 163.5, 193.5), rgb(229.25, 229.25, 229.25));
+}
+.css-house-wrap .fl__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .fb__front,
+.css-house-wrap .ft__front {
+  width: 14vw;
+  height: 0.25vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(0vw);
+}
+.css-house-wrap .fb__back,
+.css-house-wrap .ft__back {
+  width: 14vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-14vw) translateY(-0.25vw);
+}
+.css-house-wrap .fb__right,
+.css-house-wrap .ft__right {
+  width: 0.25vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(14vw) translateX(-0.25vw) translateY(-0.25vw);
+}
+.css-house-wrap .fb__left,
+.css-house-wrap .ft__left {
+  width: 0.25vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.25vw);
+}
+.css-house-wrap .fb__top,
+.css-house-wrap .ft__top {
+  width: 14vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: translateZ(0.25vw);
+}
+.css-house-wrap .fb__bottom,
+.css-house-wrap .ft__bottom {
+  width: 14vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-14vw);
+}
+.css-house-wrap .fb,
+.css-house-wrap .ft {
+  width: 5vw;
+  height: 0.25vw;
+  position: absolute;
+  left: 1.5vw;
+  bottom: 6.1vw;
+  transform: translateZ(16.75vw);
+}
+.css-house-wrap .fb__front,
+.css-house-wrap .ft__front {
+  background-color: rgb(166.5, 163.5, 193.5);
+}
+.css-house-wrap .fb__front::before,
+.css-house-wrap .ft__front::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(to right, rgba(251, 251, 251, 0.4), rgb(181.25, 178.75, 203.75));
+}
+.css-house-wrap .fb__back,
+.css-house-wrap .ft__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .fb__right,
+.css-house-wrap .ft__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .fb__left,
+.css-house-wrap .ft__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .fb__top,
+.css-house-wrap .ft__top {
+  background-image: linear-gradient(to bottom, rgb(151.1584158416, 206.8415841584, 197.8118811881), rgb(229.25, 229.25, 229.25));
+}
+.css-house-wrap .fb__bottom,
+.css-house-wrap .ft__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .ft {
+  top: 1vw;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .table__front {
+  width: 3vw;
+  height: 0.25vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(4.75vw);
+}
+.css-house-wrap .table__back {
+  width: 3vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-3vw) translateY(-0.25vw);
+}
+.css-house-wrap .table__right {
+  width: 5vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(3vw) translateX(-5vw) translateY(-0.25vw);
+}
+.css-house-wrap .table__left {
+  width: 5vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.25vw);
+}
+.css-house-wrap .table__top {
+  width: 3vw;
+  height: 5vw;
+  transform-origin: top left;
+  transform: translateZ(0.25vw);
+}
+.css-house-wrap .table__bottom {
+  width: 3vw;
+  height: 5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-3vw);
+}
+.css-house-wrap .table {
+  width: 3vw;
+  height: 5vw;
+  right: 10.5vw;
+  bottom: 13vw;
+  position: absolute;
+  transform: translateZ(2.25vw);
+}
+.css-house-wrap .table__front {
+  background-color: rgb(204.85, 203.15, 220.15);
+}
+.css-house-wrap .table__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .table__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .table__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .table__top {
+  background-color: rgb(234.35, 234.35, 234.35);
+}
+.css-house-wrap .table__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .table::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  top: -10%;
+  width: 120%;
+  height: 120%;
+  background-color: rgb(181.25, 178.75, 203.75);
+  filter: blur(0.5vw);
+  transform: translateZ(-0.81vw);
+}
+.css-house-wrap .foot__front {
+  width: 0.25vw;
+  height: 1vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-0.75vw);
+}
+.css-house-wrap .foot__back {
+  width: 0.25vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-0.25vw) translateY(-1vw);
+}
+.css-house-wrap .foot__right {
+  width: 0.25vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(0.25vw) translateX(-0.25vw) translateY(-1vw);
+}
+.css-house-wrap .foot__left {
+  width: 0.25vw;
+  height: 1vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1vw);
+}
+.css-house-wrap .foot__top {
+  width: 0.25vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: translateZ(1vw);
+}
+.css-house-wrap .foot__bottom {
+  width: 0.25vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-0.25vw);
+}
+.css-house-wrap .foot {
+  width: 0.25vw;
+  height: 0.25vw;
+  position: absolute;
+}
+.css-house-wrap .foot__front {
+  background-color: rgb(204.85, 203.15, 220.15);
+}
+.css-house-wrap .foot__back {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .foot__right {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .foot__left {
+  background-color: #f2f2f2;
+}
+.css-house-wrap .foot__top {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .foot__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .foot:nth-of-type(1) {
+  bottom: 0;
+  right: 0;
+}
+.css-house-wrap .foot:nth-of-type(2) {
+  bottom: 0;
+  left: 0;
+}
+.css-house-wrap .foot:nth-of-type(3) {
+  top: 0;
+  right: 0;
+}
+.css-house-wrap .foot:nth-of-type(4) {
+  top: 0;
+  left: 0;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .lamp {
+  position: absolute;
+  top: 2.5vw;
+  width: 0.75vw;
+  height: 2.5vw;
+  border-radius: 5vw;
+  opacity: 0.95;
+  background-color: #def5f1;
+  box-shadow: 0.15vw 0.15vw 0.75vw rgba(186, 223, 217, 0.5), 0.15vw -0.15vw 0.75vw rgba(186, 223, 217, 0.5), -0.15vw 0.15vw 0.75vw rgba(186, 223, 217, 0.5), -0.15vw -0.15vw 0.75vw rgba(186, 223, 217, 0.5);
+  filter: blur(0.15vw);
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .kitchen__front {
+  width: 2vw;
+  height: 0.25vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(11.75vw);
+}
+.css-house-wrap .kitchen__back {
+  width: 2vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-2vw) translateY(-0.25vw);
+}
+.css-house-wrap .kitchen__right {
+  width: 12vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(2vw) translateX(-12vw) translateY(-0.25vw);
+}
+.css-house-wrap .kitchen__left {
+  width: 12vw;
+  height: 0.25vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.25vw);
+}
+.css-house-wrap .kitchen__top {
+  width: 2vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: translateZ(0.25vw);
+}
+.css-house-wrap .kitchen__bottom {
+  width: 2vw;
+  height: 12vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-2vw);
+}
+.css-house-wrap .kitchen {
+  width: 2vw;
+  height: 12vw;
+  top: 3vw;
+  left: 3.5vw;
+  transform: translateZ(3vw);
+  position: absolute;
+}
+.css-house-wrap .kitchen__front {
+  background-color: rgb(166.5, 163.5, 193.5);
+}
+.css-house-wrap .kitchen__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .kitchen__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .kitchen__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .kitchen__left::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  top: 0.25vw;
+  height: 1.25vw;
+  background-color: rgba(154.0147783251, 143.9162561576, 161.0837438424, 0.75);
+  filter: blur(0.5vw);
+}
+.css-house-wrap .kitchen__top {
+  background-image: linear-gradient(to right, rgb(233.7418604651, 248.5581395349, 245.9813953488), rgb(241.5697674419, 250.9302325581, 249.3023255814) 60%);
+}
+.css-house-wrap .kitchen__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .couch__front {
+  width: 5vw;
+  height: 2vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(1vw);
+}
+.css-house-wrap .couch__back {
+  width: 5vw;
+  height: 2vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-5vw) translateY(-2vw);
+}
+.css-house-wrap .couch__right {
+  width: 3vw;
+  height: 2vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(5vw) translateX(-3vw) translateY(-2vw);
+}
+.css-house-wrap .couch__left {
+  width: 3vw;
+  height: 2vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-2vw);
+}
+.css-house-wrap .couch__top {
+  width: 5vw;
+  height: 3vw;
+  transform-origin: top left;
+  transform: translateZ(2vw);
+}
+.css-house-wrap .couch__bottom {
+  width: 5vw;
+  height: 3vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-5vw);
+}
+.css-house-wrap .couch {
+  width: 5vw;
+  height: 3vw;
+  top: 0.5vw;
+  left: 16vw;
+  transform: translateZ(1.5vw);
+  position: absolute;
+}
+.css-house-wrap .couch__front {
+  background-color: rgb(213.7, 212.3, 226.3);
+}
+.css-house-wrap .couch__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couch__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .couch__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couch__top {
+  background-color: rgb(234.35, 234.35, 234.35);
+}
+.css-house-wrap .couch__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couch__bottom::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  top: -10%;
+  width: 120%;
+  height: 120%;
+  background-color: rgba(166.5, 163.5, 193.5, 0.5);
+  filter: blur(0.25vw);
+}
+.css-house-wrap .couchb__front {
+  width: 7vw;
+  height: 0.75vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(4.25vw);
+}
+.css-house-wrap .couchb__back {
+  width: 7vw;
+  height: 0.75vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-7vw) translateY(-0.75vw);
+}
+.css-house-wrap .couchb__right {
+  width: 5vw;
+  height: 0.75vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(7vw) translateX(-5vw) translateY(-0.75vw);
+}
+.css-house-wrap .couchb__left {
+  width: 5vw;
+  height: 0.75vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.75vw);
+}
+.css-house-wrap .couchb__top {
+  width: 7vw;
+  height: 5vw;
+  transform-origin: top left;
+  transform: translateZ(0.75vw);
+}
+.css-house-wrap .couchb__bottom {
+  width: 7vw;
+  height: 5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-7vw);
+}
+.css-house-wrap .couchb {
+  width: 7vw;
+  height: 1vw;
+  bottom: 17vw;
+  left: 6vw;
+  transform: translateZ(1vw);
+  position: absolute;
+}
+.css-house-wrap .couchb__front {
+  background-color: rgb(213.7, 212.3, 226.3);
+}
+.css-house-wrap .couchb__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couchb__right {
+  background-color: #fbfbfb;
+}
+.css-house-wrap .couchb__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couchb__top {
+  background-image: linear-gradient(to right, rgb(233.7418604651, 248.5581395349, 245.9813953488), rgb(241.5697674419, 250.9302325581, 249.3023255814) 60%);
+}
+.css-house-wrap .couchb__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couchb__bottom::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  top: -10%;
+  width: 120%;
+  height: 120%;
+  background-color: rgba(166.5, 163.5, 193.5, 0.5);
+  filter: blur(0.25vw);
+}
+.css-house-wrap .couchc__front,
+.css-house-wrap .couchd__front {
+  width: 5vw;
+  height: 1.5vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(0vw);
+}
+.css-house-wrap .couchc__back,
+.css-house-wrap .couchd__back {
+  width: 5vw;
+  height: 1.5vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-5vw) translateY(-1.5vw);
+}
+.css-house-wrap .couchc__right,
+.css-house-wrap .couchd__right {
+  width: 1.5vw;
+  height: 1.5vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(5vw) translateX(-1.5vw) translateY(-1.5vw);
+}
+.css-house-wrap .couchc__left,
+.css-house-wrap .couchd__left {
+  width: 1.5vw;
+  height: 1.5vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-1.5vw);
+}
+.css-house-wrap .couchc__top,
+.css-house-wrap .couchd__top {
+  width: 5vw;
+  height: 1.5vw;
+  transform-origin: top left;
+  transform: translateZ(1.5vw);
+}
+.css-house-wrap .couchc__bottom,
+.css-house-wrap .couchd__bottom {
+  width: 5vw;
+  height: 1.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-5vw);
+}
+.css-house-wrap .couchc,
+.css-house-wrap .couchd {
+  width: 5vw;
+  height: 1.5vw;
+  bottom: 6.5vw;
+  left: 9vw;
+  transform: translateZ(13.5vw);
+  position: absolute;
+}
+.css-house-wrap .couchc__front,
+.css-house-wrap .couchd__front {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couchc__back,
+.css-house-wrap .couchd__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couchc__right,
+.css-house-wrap .couchd__right {
+  background-image: linear-gradient(to bottom, rgb(202.4302325581, 239.0697674419, 232.6976744186), #def5f1, #f2f2f2);
+}
+.css-house-wrap .couchc__left,
+.css-house-wrap .couchd__left {
+  background-color: rgb(151.75, 148.25, 183.25);
+}
+.css-house-wrap .couchc__top,
+.css-house-wrap .couchd__top {
+  background-image: linear-gradient(to left, rgb(202.4302325581, 239.0697674419, 232.6976744186), #def5f1, #f2f2f2);
+}
+.css-house-wrap .couchc__bottom,
+.css-house-wrap .couchd__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .couchc__bottom::before,
+.css-house-wrap .couchd__bottom::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  top: -10%;
+  width: 120%;
+  height: 120%;
+  background-color: rgba(107.5, 102.5, 152.5, 0.5);
+  filter: blur(0.25vw);
+}
+.css-house-wrap .couchd {
+  top: 1.5vw;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .picture__front {
+  width: 0.35vw;
+  height: 4vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-1vw);
+}
+.css-house-wrap .picture__back {
+  width: 0.35vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-0.35vw) translateY(-4vw);
+}
+.css-house-wrap .picture__right {
+  width: 3vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(0.35vw) translateX(-3vw) translateY(-4vw);
+}
+.css-house-wrap .picture__left {
+  width: 3vw;
+  height: 4vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-4vw);
+}
+.css-house-wrap .picture__top {
+  width: 0.35vw;
+  height: 3vw;
+  transform-origin: top left;
+  transform: translateZ(4vw);
+}
+.css-house-wrap .picture__bottom {
+  width: 0.35vw;
+  height: 3vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-0.35vw);
+}
+.css-house-wrap .picture {
+  width: 0.5vw;
+  height: 3vw;
+  bottom: 14vw;
+  left: 3.35vw;
+  transform: translateZ(6vw);
+  position: absolute;
+}
+.css-house-wrap .picture__front {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .picture__back {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .picture__right {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-image: linear-gradient(to bottom, #def5f1, #fbfbfb);
+}
+.css-house-wrap .picture__right::before, .css-house-wrap .picture__right::after {
+  content: "";
+  position: absolute;
+  width: 1.1vw;
+  height: 1.1vw;
+  border: 0.125vw solid rgba(196, 194, 214, 0.5);
+}
+.css-house-wrap .picture__right::before {
+  top: 40%;
+  left: 25%;
+}
+.css-house-wrap .picture__right::after {
+  top: 55%;
+  left: 45%;
+}
+.css-house-wrap .picture__left {
+  background-color: #c4c2d6;
+}
+.css-house-wrap .picture__top {
+  background-color: rgb(234.35, 234.35, 234.35);
+}
+.css-house-wrap .picture__bottom {
+  background-color: #c4c2d6;
+}
+.css-house-wrap {
+  /***************/
+}
+.css-house-wrap .door-l__front {
+  width: 0.125vw;
+  height: 7vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-6.5vw);
+}
+.css-house-wrap .door-l__back {
+  width: 0.125vw;
+  height: 7vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-0.125vw) translateY(-7vw);
+}
+.css-house-wrap .door-l__right {
+  width: 0.5vw;
+  height: 7vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(0.125vw) translateX(-0.5vw) translateY(-7vw);
+}
+.css-house-wrap .door-l__left {
+  width: 0.5vw;
+  height: 7vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-7vw);
+}
+.css-house-wrap .door-l__top {
+  width: 0.125vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: translateZ(7vw);
+}
+.css-house-wrap .door-l__bottom {
+  width: 0.125vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-0.125vw);
+}
+.css-house-wrap .door-l {
+  width: 0.125vw;
+  height: 1vw;
+  left: 17vw;
+  bottom: 6.75vw;
+  transform: translateZ(1.5vw);
+  position: absolute;
+}
+.css-house-wrap .door-l__front {
+  background-color: rgb(64.5, 61.5, 91.5);
+}
+.css-house-wrap .door-l__back {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-l__right {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-l__left {
+  background-color: rgb(64.5, 61.5, 91.5);
+}
+.css-house-wrap .door-l__top {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-l__bottom {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-r__front {
+  width: 2vw;
+  height: 7vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(-6.5vw);
+}
+.css-house-wrap .door-r__back {
+  width: 2vw;
+  height: 7vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-2vw) translateY(-7vw);
+}
+.css-house-wrap .door-r__right {
+  width: 0.5vw;
+  height: 7vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(2vw) translateX(-0.5vw) translateY(-7vw);
+}
+.css-house-wrap .door-r__left {
+  width: 0.5vw;
+  height: 7vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-7vw);
+}
+.css-house-wrap .door-r__top {
+  width: 2vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: translateZ(7vw);
+}
+.css-house-wrap .door-r__bottom {
+  width: 2vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-2vw);
+}
+.css-house-wrap .door-r {
+  width: 2vw;
+  height: 1vw;
+  left: 20vw;
+  bottom: 6.75vw;
+  transform: translateZ(1.5vw);
+  position: absolute;
+}
+.css-house-wrap .door-r__front {
+  background-color: rgb(64.5, 61.5, 91.5);
+}
+.css-house-wrap .door-r__back {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-r__right {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-r__left {
+  background-color: rgb(64.5, 61.5, 91.5);
+}
+.css-house-wrap .door-r__top {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-r__bottom {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-b__front,
+.css-house-wrap .door-t__front {
+  width: 6vw;
+  height: 0.125vw;
+  transform-origin: bottom left;
+  transform: rotateX(-90deg) translateZ(0.375vw);
+}
+.css-house-wrap .door-b__back,
+.css-house-wrap .door-t__back {
+  width: 6vw;
+  height: 0.125vw;
+  transform-origin: top left;
+  transform: rotateX(-90deg) rotateY(180deg) translateX(-6vw) translateY(-0.125vw);
+}
+.css-house-wrap .door-b__right,
+.css-house-wrap .door-t__right {
+  width: 0.5vw;
+  height: 0.125vw;
+  transform-origin: top left;
+  transform: rotateY(90deg) rotateZ(-90deg) translateZ(6vw) translateX(-0.5vw) translateY(-0.125vw);
+}
+.css-house-wrap .door-b__left,
+.css-house-wrap .door-t__left {
+  width: 0.5vw;
+  height: 0.125vw;
+  transform-origin: top left;
+  transform: rotateY(-90deg) rotateZ(90deg) translateY(-0.125vw);
+}
+.css-house-wrap .door-b__top,
+.css-house-wrap .door-t__top {
+  width: 6vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: translateZ(0.125vw);
+}
+.css-house-wrap .door-b__bottom,
+.css-house-wrap .door-t__bottom {
+  width: 6vw;
+  height: 0.5vw;
+  transform-origin: top left;
+  transform: rotateY(180deg) translateX(-6vw);
+}
+.css-house-wrap .door-b,
+.css-house-wrap .door-t {
+  width: 2vw;
+  height: 1vw;
+  left: 16vw;
+  bottom: 6.75vw;
+  transform: translateZ(1.5vw);
+  position: absolute;
+}
+.css-house-wrap .door-b__front,
+.css-house-wrap .door-t__front {
+  background-color: rgb(64.5, 61.5, 91.5);
+}
+.css-house-wrap .door-b__back,
+.css-house-wrap .door-t__back {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-b__right,
+.css-house-wrap .door-t__right {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-b__left,
+.css-house-wrap .door-t__left {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-b__top,
+.css-house-wrap .door-t__top {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-b__bottom,
+.css-house-wrap .door-t__bottom {
+  background-color: rgb(113.4, 108.6, 156.6);
+}
+.css-house-wrap .door-t {
+  transform: translateZ(8.4vw);
+}
+
+@keyframes css-house-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .css-house-wrap {
+    animation: none;
+    opacity: 1;
+  }
+}

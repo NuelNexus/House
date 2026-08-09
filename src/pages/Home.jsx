@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SphereBackground from "../components/SphereBackground";
+import CssHouse from "../components/CssHouse";
 import Marquee from "../components/Marquee";
 import ProgramCards from "../components/ProgramCards";
 
@@ -34,6 +35,9 @@ export default function Home({ setTab, onIntroDone }) {
           onIntroDone();
         }}
       />
+
+      {/* Pure-CSS 3D villa — the centerpiece, right where the bubbles are */}
+      <CssHouse />
 
       <h1 className={`main-txt ${ready ? "fade-out" : ""}`}>Festivity</h1>
 

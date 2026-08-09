@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import gsap from "gsap";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { POSITIONS, RADII } from "../data/sphereData";
 
 export default function SphereBackground({ onReady }) {
@@ -80,80 +79,6 @@ export default function SphereBackground({ onReady }) {
 
     let loadingComplete = false;
 
-    // The tower — centerpiece model, sat right where the bubble cluster is.
-    // Served from /public so the 22MB binary stays out of the JS bundle.
-    const towerGroup = new THREE.Group();
-    scene.add(towerGroup);
-    let towerModel = null;
-    let towerMixer = null;
-
-    const showTower = () => {
-      if (!towerModel || towerGroup.visible) return;
-      towerGroup.visible = true;
-      gsap.fromTo(
-        towerGroup.scale,
-        { x: 0.7, y: 0.7, z: 0.7 },
-        { x: 1, y: 1, z: 1, duration: 0.9, ease: "power2.out" }
-      );
-    };
-
-    new GLTFLoader().load(
-      "/tower.glb",
-      (gltf) => {
-        towerModel = gltf.scene;
-        // Fit the model so its longest side is ~6 scene units (the cluster
-        // spans about that, so the tower feels at home in the middle).
-        const box = new THREE.Box3().setFromObject(towerModel);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const longest = Math.max(size.x, size.y, size.z) || 1;
-        const scale = 6 / longest;
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        towerModel.scale.setScalar(scale);
-        towerModel.position.sub(center.multiplyScalar(scale));
-
-        // The GLB uses the deprecated KHR_materials_pbrSpecularGlossiness
-        // extension, which three.js skips — so most materials come through
-        // as flat defaults. Give anything without a real texture the same
-        // glossy pink treatment as the bubbles so the tower feels at home.
-        const pinkMat = new THREE.MeshStandardMaterial({
-          color: "#e9b9c6",
-          metalness: 0.45,
-          roughness: 0.32,
-          emissive: "#ff5f7a",
-          emissiveIntensity: 0.12,
-        });
-        towerModel.traverse((obj) => {
-          if (obj.isMesh) {
-            obj.castShadow = true;
-            obj.receiveShadow = true;
-            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-            if (mats.some((m) => m && !m.map)) {
-              mats.forEach((m) => m && m.dispose());
-              obj.material = pinkMat;
-            }
-          }
-        });
-        towerGroup.add(towerModel);
-
-        // Play the model's own idle animation if it has one.
-        if (gltf.animations && gltf.animations.length) {
-          towerMixer = new THREE.AnimationMixer(towerModel);
-          towerMixer.clipAction(gltf.animations[0]).play();
-        }
-
-        // If the intro is already done, fade the tower in right away.
-        // (Respect reduced motion — no tween, just show it.)
-        if (loadingComplete) {
-          if (reduceMotion) towerGroup.visible = true;
-          else showTower();
-        }
-      },
-      undefined,
-      (err) => console.warn("Couldn't load the tower model:", err)
-    );
-
     // Environment reflections (studio lighting map) — this is what sells the
     // glossy 3D bubble look on MeshStandardMaterial.
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -202,7 +127,6 @@ export default function SphereBackground({ onReady }) {
       loadingComplete = true;
       timers.push(
         window.setTimeout(() => {
-          if (towerModel) towerGroup.visible = true;
           onReadyRef.current?.();
         }, 150)
       );
@@ -248,7 +172,6 @@ export default function SphereBackground({ onReady }) {
       timers.push(
         window.setTimeout(() => {
           loadingComplete = true;
-          showTower();
           onReadyRef.current?.();
         }, (revolutionDuration + 0.9) * 1000)
       );
@@ -297,10 +220,8 @@ export default function SphereBackground({ onReady }) {
     }
 
     let raf = 0;
-    const clock = new THREE.Clock();
     const animate = () => {
       raf = requestAnimationFrame(animate);
-      const delta = clock.getDelta();
 
       if (loadingComplete) {
         const time = Date.now() * breathingSpeed;
@@ -326,12 +247,6 @@ export default function SphereBackground({ onReady }) {
         });
 
         handleCollisions();
-
-        // Slow spin for the tower centerpiece once it's on screen.
-        if (towerGroup.visible) {
-          towerGroup.rotation.y += 0.1 * delta;
-          if (towerMixer) towerMixer.update(delta);
-        }
       }
 
       renderer.render(scene, camera);
@@ -353,16 +268,6 @@ export default function SphereBackground({ onReady }) {
       window.removeEventListener("resize", onResize);
       timelines.forEach((tl) => tl.kill());
       timers.forEach((t) => window.clearTimeout(t));
-      if (towerModel) {
-        towerModel.traverse((obj) => {
-          if (obj.geometry) obj.geometry.dispose();
-          if (obj.material) {
-            (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(
-              (m) => m.dispose()
-            );
-          }
-        });
-      }
       pmremGenerator.dispose();
       geometry.dispose();
       material.dispose();
