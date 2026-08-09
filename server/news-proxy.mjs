@@ -12,7 +12,7 @@
 // ============================================================
 
 import { createServer } from "node:http";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,6 +55,87 @@ const MIME = {
 const CACHE = new Map(); // query -> { expires, json }
 const CACHE_TTL = 5 * 60 * 1000;
 
+// ---- User content backup -----------------------------------
+// Local mirror of the deployed Netlify /api/data function (Blobs).
+// Backed by a JSON file in .data/ (gitignored) so `npm run dev` +
+// this server behaves exactly like the live site.
+const CONTENT_TYPES = new Set(["posts", "parties", "reviews", "tickets"]);
+const DATA_FILE = join(ROOT, ".data", "content.json");
+
+function readContentStore() {
+  try {
+    return JSON.parse(readFileSync(DATA_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeContentStore(store) {
+  const dir = join(ROOT, ".data");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(DATA_FILE, JSON.stringify(store));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (c) => (data += c));
+    req.on("end", () => resolve(data));
+    req.on("error", reject);
+  });
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(payload));
+}
+
+async function handleData(req, res, url) {
+  const store = readContentStore();
+
+  if (req.method === "GET") {
+    const user = url.searchParams.get("user");
+    const type = url.searchParams.get("type");
+    if (!user || !type || !CONTENT_TYPES.has(type)) {
+      return sendJson(res, 400, { status: "error", message: "user and type are required" });
+    }
+    const prefix = `${type}:${user}:`;
+    const items = Object.entries(store)
+      .filter(([k]) => k.startsWith(prefix))
+      .map(([k, v]) => ({ id: k.slice(prefix.length), ...v }));
+    return sendJson(res, 200, { status: "ok", items });
+  }
+
+  let body = {};
+  try {
+    body = JSON.parse(await readBody(req));
+  } catch {
+    return sendJson(res, 400, { status: "error", message: "invalid JSON body" });
+  }
+
+  if (req.method === "POST") {
+    const { user, type, id, data } = body;
+    if (!user || !type || !CONTENT_TYPES.has(type) || !id || data == null) {
+      return sendJson(res, 400, { status: "error", message: "user, type, id and data are required" });
+    }
+    store[`${type}:${user}:${id}`] = data;
+    writeContentStore(store);
+    return sendJson(res, 200, { status: "ok" });
+  }
+
+  if (req.method === "DELETE") {
+    const { user, type, id } = body;
+    if (!user || !type || !CONTENT_TYPES.has(type) || !id) {
+      return sendJson(res, 400, { status: "error", message: "user, type and id are required" });
+    }
+    delete store[`${type}:${user}:${id}`];
+    writeContentStore(store);
+    return sendJson(res, 200, { status: "ok" });
+  }
+
+  return sendJson(res, 405, { status: "error", message: "method not allowed" });
+}
+
 async function fetchNews(params) {
   // Protected values are pinned AFTER the spread so a client can
   // never override the key, language or page size.
@@ -87,6 +168,11 @@ function sendFile(res, filePath) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   res.setHeader("Access-Control-Allow-Origin", "*");
+
+  // ---- User content backup (mirror of the Netlify Blobs function) --
+  if (url.pathname === "/api/data") {
+    return handleData(req, res, url);
+  }
 
   // ---- News proxy -------------------------------------------------
   if (url.pathname === "/api/news") {

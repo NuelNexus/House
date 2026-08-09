@@ -117,77 +117,11 @@ const COLLECTIONS = {
     ],
     indexes: [],
   },
-  // User content mirror (posts, parties, reviews, tickets). These use
-  // documentSecurity: true so each document honors its own read/write/
-  // delete permissions — tickets stay private to their owner while
-  // posts/parties/reviews are public-facing. The client passes explicit
-  // per-document permissions on every create.
-  posts: {
-    name: "Posts",
-    security: true,
-    attributes: [
-      ["string", "user_id", { size: 64 }],
-      ["string", "title", { size: 255 }],
-      ["string", "category", { size: 64, required: false }],
-      ["string", "body", { size: 20000 }],
-      ["string", "author", { size: 255, required: false }],
-      ["string", "accent", { size: 32, required: false }],
-      ["string", "date", { size: 64, required: false }],
-      ["string", "readTime", { size: 64, required: false }],
-      ["string", "excerpt", { size: 2000, required: false }],
-      ["string", "created_at", { size: 64, required: false }],
-    ],
-    indexes: [["key", "idx_user", ["user_id"]]],
-  },
-  parties: {
-    name: "Parties",
-    security: true,
-    attributes: [
-      ["string", "user_id", { size: 64 }],
-      ["string", "title", { size: 255 }],
-      ["string", "host", { size: 255, required: false }],
-      ["string", "date", { size: 64, required: false }],
-      ["string", "location", { size: 255, required: false }],
-      ["integer", "price", { required: false }],
-      ["string", "capacity", { size: 64, required: false }],
-      ["string", "description", { size: 5000, required: false }],
-      ["string", "category", { size: 64, required: false }],
-      ["integer", "rsvps", { required: false }],
-      ["string", "created_at", { size: 64, required: false }],
-    ],
-    indexes: [["key", "idx_user", ["user_id"]]],
-  },
-  reviews: {
-    name: "Reviews",
-    security: true,
-    attributes: [
-      ["string", "user_id", { size: 64 }],
-      ["string", "partyName", { size: 255, required: false }],
-      ["integer", "rating", { required: false }],
-      ["string", "title", { size: 255, required: false }],
-      ["string", "comment", { size: 5000, required: false }],
-      ["string", "author", { size: 255, required: false }],
-      ["string", "date", { size: 64, required: false }],
-      ["string", "created_at", { size: 64, required: false }],
-    ],
-    indexes: [["key", "idx_user", ["user_id"]]],
-  },
-  tickets: {
-    name: "Tickets",
-    security: true,
-    attributes: [
-      ["string", "user_id", { size: 64 }],
-      ["string", "ticket_id", { size: 64, required: false }],
-      ["string", "name", { size: 255, required: false }],
-      ["string", "date", { size: 255, required: false }],
-      ["string", "location", { size: 255, required: false }],
-      ["integer", "price", { required: false }],
-      ["string", "holder", { size: 255, required: false }],
-      ["string", "created_at", { size: 64, required: false }],
-    ],
-    indexes: [["key", "idx_user", ["user_id"]]],
-  },
 };
+
+// Note: posts/parties/reviews/tickets are NOT Appwrite collections —
+// user content backs up to Netlify Blobs via /api/data (see
+// src/lib/contentApi.js). Nothing to provision here for them.
 
 const PERMS = [
   'read("any")',
@@ -234,9 +168,7 @@ for (const [id, def] of Object.entries(COLLECTIONS)) {
       collectionId: id,
       name: def.name,
       permissions: PERMS,
-      // User-content collections lock down documents to their owner;
-      // the rest follow the app-wide open permissions.
-      documentSecurity: def.security ?? false,
+      documentSecurity: false,
       enabled: true,
     });
     console.log("✔ collection:", id);

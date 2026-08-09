@@ -7,8 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Query } from "appwrite";
-import { databases, DB_ID, COLLECTIONS } from "../lib/appwrite";
+import { apiSaveContent, apiDeleteContent, apiListContent } from "../lib/contentApi";
 import { SEED_PARTIES, SEED_REVIEWS, SEED_TICKETS, SEED_BLOG } from "../data/seed";
 
 const StoreContext = createContext(null);
@@ -70,40 +69,35 @@ export function StoreProvider({ children }) {
   }, []);
 
   // ----------------------------------------------------------
-  // Cloud sync (Appwrite). User content (posts, parties, reviews,
-  // tickets) mirrors to the database so it survives sign-out and
-  // follows the account across devices. Every write is best-effort:
-  // if a collection is missing or the device is offline, the row just
-  // stays local and importCloud pushes it up on the next sign-in.
+  // Cloud backup (Netlify Blobs via /api/data). User content
+  // (posts, parties, reviews, tickets) is backed up to Netlify's
+  // built-in storage — no external service, no setup — so it
+  // survives sign-out, browser wipes and other devices.
+  // localStorage is the fast offline cache; every write is
+  // best-effort, so if the API is unreachable the row stays local
+  // and importCloud pushes it up on the next sign-in.
   // ----------------------------------------------------------
   const attachCloud = useCallback((user) => {
     cloudUserRef.current = user;
   }, []);
 
-  const cloudCreate = useCallback((collection, docId, data, userId, readPerm = "any") => {
-    if (!userId) return Promise.resolve(false);
-    return databases
-      .createDocument(DB_ID, collection, docId, data, [
-        `read("${readPerm}")`,
-        `write("user:${userId}")`,
-        `delete("user:${userId}")`,
-      ])
-      .then(() => true)
-      .catch((e) => {
-        console.warn(`cloud create ${collection}:`, e.message);
-        return false;
-      });
+  const saveContent = useCallback(
+    (type, id, data) => {
+      const me = cloudUserRef.current?.id;
+      if (!me || !id) return Promise.resolve(false);
+      return apiSaveContent(me, type, id, data);
+    },
+    []
+  );
+
+  const deleteContent = useCallback((type, id) => {
+    const me = cloudUserRef.current?.id;
+    if (!me || !id) return;
+    apiDeleteContent(me, type, id);
   }, []);
 
-  const cloudDelete = useCallback((collection, docId) => {
-    if (!docId) return;
-    databases.deleteDocument(DB_ID, collection, docId).catch(() => {
-      /* not in cloud (offline/local-only) — nothing to remove */
-    });
-  }, []);
-
-  // Pull the signed-in user's content back from the cloud and merge it
-  // with anything local (e.g. rows written while the cloud was
+  // Pull the signed-in user's content back from the Netlify backup and
+  // merge it with anything local (e.g. rows written while the API was
   // unreachable). Local-only rows are pushed up so they're safe too.
   // Note: without tombstones, a stale local copy on another device can
   // re-push a row deleted elsewhere — acceptable for this app.
@@ -113,208 +107,136 @@ export function StoreProvider({ children }) {
       if (cloudImportingRef.current) return; // StrictMode double-invoke guard
       cloudImportingRef.current = true;
       try {
-      const me = userId;
-      const fetchCloud = async (collection) => {
+        const me = userId;
+
+        // Shared-device privacy: the local cache is per-account. When a
+        // different account signs in, drop the previous account's backed-up
+        // rows before merging (the same account keeps everything on
+        // sign-out). The RSVP list (going) is intentionally left alone —
+        // it isn't backed up, so clearing it would permanently lose it;
+        // party names are public anyway. Session-only RSVP patches reset.
+        let owner = "";
         try {
-          const res = await databases.listDocuments(DB_ID, collection, [
-            Query.equal("user_id", me),
-            Query.limit(300),
-          ]);
-          return res.documents || [];
+          owner = localStorage.getItem("festivity.contentOwner") || "";
         } catch {
-          return null; // collection missing / offline — keep local rows
+          /* storage unavailable */
         }
-      };
-      const readLocal = (key) => {
+        if (owner && owner !== me) {
+          [
+            "festivity.posts",
+            "festivity.parties",
+            "festivity.reviews",
+            "festivity.tickets",
+          ].forEach((k) => {
+            try {
+              localStorage.removeItem(k);
+            } catch {
+              /* ignore */
+            }
+          });
+          setUserPosts([]);
+          setUserParties([]);
+          setUserReviews([]);
+          setMyTickets([]);
+          setRsvpPatches({});
+        }
         try {
-          const raw = localStorage.getItem(key);
-          return raw ? JSON.parse(raw) : [];
+          localStorage.setItem("festivity.contentOwner", me);
         } catch {
-          return [];
+          /* ignore */
         }
-      };
-      const merge = (cloud, localRows, key) => {
-        if (!cloud) return null; // cloud unavailable — keep local as-is
-        const cloudIds = new Set(cloud.map((c) => c[key]));
-        return [...cloud, ...localRows.filter((r) => !cloudIds.has(r[key]))];
-      };
-      // Appwrite list order is unspecified — keep the merged feed
-      // newest-first so the Blog "featured" slot is always the latest.
-      const sortNewest = (rows) =>
-        rows.sort((a, b) =>
-          String(b.created_at || b.date || "").localeCompare(
-            String(a.created_at || a.date || "")
-          )
-        );
-      const pushUp = (collection, rows, key, toData) => {
-        rows.forEach((row) => cloudCreate(collection, row[key], toData(row), me));
-      };
 
-      // --- posts ---
-      const postDocs = await fetchCloud(COLLECTIONS.posts);
-      if (postDocs) {
-        const cloud = postDocs.map((d) => ({
-          id: d.$id,
-          title: d.title,
-          category: d.category,
-          body: d.body,
-          author: d.author,
-          accent: d.accent,
-          date: d.date,
-          readTime: d.readTime,
-          excerpt: d.excerpt,
-          isUser: true,
-          userId: d.user_id,
-          cloud: true,
-          created_at: d.created_at,
-        }));
-        const local = readLocal("festivity.posts");
-        const merged = merge(cloud, local, "id");
-        if (merged) {
-          pushUp(
-            COLLECTIONS.posts,
-            local.filter((p) => !cloud.some((c) => c.id === p.id)),
-            "id",
-            (p) => ({
-              user_id: me,
-              title: p.title || "",
-              category: p.category || "",
-              body: p.body || "",
-              author: p.author || "",
-              accent: p.accent || "",
-              date: p.date || "",
-              readTime: p.readTime || "",
-              excerpt: p.excerpt || "",
-              created_at: p.created_at || new Date().toISOString(),
-            })
-          );
-          setUserPosts(sortNewest(merged));
-        }
-      }
+        const remote = await apiListContent(me); // { posts?, parties?, ... }
 
-      // --- parties ---
-      const partyDocs = await fetchCloud(COLLECTIONS.parties);
-      if (partyDocs) {
-        const cloud = partyDocs.map((d) => ({
-          id: d.$id,
-          title: d.title,
-          host: d.host,
-          date: d.date,
-          location: d.location,
-          price: d.price ?? 0,
-          capacity: d.capacity || "",
-          description: d.description,
-          category: d.category,
-          rsvps: d.rsvps ?? 0,
-          isUser: true,
-          userId: d.user_id,
-          cloud: true,
-          created_at: d.created_at,
-        }));
-        const local = readLocal("festivity.parties");
-        const merged = merge(cloud, local, "id");
-        if (merged) {
-          pushUp(
-            COLLECTIONS.parties,
-            local.filter((p) => !cloud.some((c) => c.id === p.id)),
-            "id",
-            (p) => ({
-              user_id: me,
-              title: p.title || "",
-              host: p.host || "",
-              date: p.date || "",
-              location: p.location || "",
-              price: p.price ?? 0,
-              capacity: p.capacity || "",
-              description: p.description || "",
-              category: p.category || "",
-              rsvps: p.rsvps ?? 0,
-              created_at: p.created_at || new Date().toISOString(),
-            })
+        const readLocal = (key) => {
+          try {
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : [];
+          } catch {
+            return [];
+          }
+        };
+        const merge = (rows, localRows, key) => {
+          if (!rows) return null; // backup unavailable — keep local as-is
+          const ids = new Set(rows.map((r) => r[key]));
+          return [...rows, ...localRows.filter((r) => !ids.has(r[key]))];
+        };
+        // Backup list order is unspecified — keep the merged feed
+        // newest-first so the Blog "featured" slot is always the latest.
+        const sortNewest = (rows) =>
+          rows.sort((a, b) =>
+            String(b.created_at || b.date || "").localeCompare(
+              String(a.created_at || a.date || "")
+            )
           );
-          setUserParties(sortNewest(merged));
-        }
-      }
+        const pushUp = (type, rows, key, toData) => {
+          rows.forEach((row) => saveContent(type, row[key], toData(row)));
+        };
 
-      // --- reviews ---
-      const reviewDocs = await fetchCloud(COLLECTIONS.reviews);
-      if (reviewDocs) {
-        const cloud = reviewDocs.map((d) => ({
-          id: d.$id,
-          partyName: d.partyName,
-          rating: d.rating ?? 0,
-          title: d.title,
-          comment: d.comment,
-          author: d.author,
-          date: d.date,
-          verified: false,
-          userId: d.user_id,
-          cloud: true,
-          created_at: d.created_at,
-        }));
-        const local = readLocal("festivity.reviews");
-        const merged = merge(cloud, local, "id");
-        if (merged) {
-          pushUp(
-            COLLECTIONS.reviews,
-            local.filter((r) => !cloud.some((c) => c.id === r.id)),
-            "id",
-            (r) => ({
-              user_id: me,
-              partyName: r.partyName || "",
-              rating: r.rating ?? 0,
-              title: r.title || "",
-              comment: r.comment || "",
-              author: r.author || "",
-              date: r.date || "",
-              created_at: r.created_at || new Date().toISOString(),
-            })
-          );
-          setUserReviews(sortNewest(merged));
+        // --- posts ---
+        if (remote.posts) {
+          const local = readLocal("festivity.posts");
+          const merged = merge(remote.posts, local, "id");
+          if (merged) {
+            pushUp(
+              "posts",
+              local.filter((p) => !remote.posts.some((c) => c.id === p.id)),
+              "id",
+              (p) => p
+            );
+            setUserPosts(sortNewest(merged));
+          }
         }
-      }
 
-      // --- tickets ---
-      const ticketDocs = await fetchCloud(COLLECTIONS.tickets);
-      if (ticketDocs) {
-        const cloud = ticketDocs.map((d) => ({
-          code: d.$id,
-          ticketId: d.ticket_id,
-          name: d.name,
-          date: d.date,
-          location: d.location,
-          price: d.price ?? 0,
-          holder: d.holder,
-          cloud: true,
-          userId: d.user_id,
-          created_at: d.created_at,
-        }));
-        const local = readLocal("festivity.tickets");
-        const merged = merge(cloud, local, "code");
-        if (merged) {
-          pushUp(
-            COLLECTIONS.tickets,
-            local.filter((t) => !cloud.some((c) => c.code === t.code)),
-            "code",
-            (t) => ({
-              user_id: me,
-              ticket_id: t.ticketId || "",
-              name: t.name || "",
-              date: t.date || "",
-              location: t.location || "",
-              price: t.price ?? 0,
-              holder: t.holder?.name || t.holder || "",
-              created_at: t.created_at || new Date().toISOString(),
-            })
-          );
-          setMyTickets(sortNewest(merged));
+        // --- parties ---
+        if (remote.parties) {
+          const local = readLocal("festivity.parties");
+          const merged = merge(remote.parties, local, "id");
+          if (merged) {
+            pushUp(
+              "parties",
+              local.filter((p) => !remote.parties.some((c) => c.id === p.id)),
+              "id",
+              (p) => p
+            );
+            setUserParties(sortNewest(merged));
+          }
         }
-      }
+
+        // --- reviews ---
+        if (remote.reviews) {
+          const local = readLocal("festivity.reviews");
+          const merged = merge(remote.reviews, local, "id");
+          if (merged) {
+            pushUp(
+              "reviews",
+              local.filter((r) => !remote.reviews.some((c) => c.id === r.id)),
+              "id",
+              (r) => r
+            );
+            setUserReviews(sortNewest(merged));
+          }
+        }
+
+        // --- tickets ---
+        if (remote.tickets) {
+          const local = readLocal("festivity.tickets");
+          const merged = merge(remote.tickets, local, "code");
+          if (merged) {
+            pushUp(
+              "tickets",
+              local.filter((t) => !remote.tickets.some((c) => c.code === t.code)),
+              "code",
+              (t) => t
+            );
+            setMyTickets(sortNewest(merged));
+          }
+        }
       } finally {
         cloudImportingRef.current = false;
       }
     },
-    [cloudCreate]
+    [saveContent]
   );
 
   const addToCart = useCallback(
@@ -365,34 +287,15 @@ export function StoreProvider({ children }) {
       setMyTickets((prev) => [...purchased, ...prev]);
       setCart([]);
 
-      // Mirror each pass to the cloud (private to this account) so they
-      // come back after sign-out / on another device.
-      const me = cloudUserRef.current?.id;
-      if (me) {
-        purchased.forEach((t) =>
-          cloudCreate(
-            COLLECTIONS.tickets,
-            t.code,
-            {
-              user_id: me,
-              ticket_id: t.ticketId,
-              name: t.name,
-              date: t.date,
-              location: t.location,
-              price: t.price,
-              holder: holder.name || "",
-              created_at: new Date().toISOString(),
-            },
-            me,
-            `user:${me}`
-          )
-        );
-      }
+      // Back each pass up to Netlify so it comes back after sign-out /
+      // on another device. Fire-and-forget: the passes are already shown
+      // instantly, the backup settles in the background.
+      purchased.forEach((t) => saveContent("tickets", t.code, t));
 
       notify("Payment received — your tickets are ready");
       return purchased;
     },
-    [cart, cloudCreate, notify]
+    [cart, saveContent, notify]
   );
 
   const postParty = useCallback(
@@ -409,31 +312,14 @@ export function StoreProvider({ children }) {
 
       const me = cloudUserRef.current?.id;
       if (me) {
-        // Await the cloud write so the success toast only fires once the
-        // party is backed up — a quick sign-out can no longer lose it.
-        await cloudCreate(
-          COLLECTIONS.parties,
-          record.id,
-          {
-            user_id: me,
-            title: record.title || "",
-            host: record.host || "",
-            date: record.date || "",
-            location: record.location || "",
-            price: Number(record.price) || 0,
-            capacity: record.capacity || "",
-            description: record.description || "",
-            category: record.category || "",
-            rsvps: 0,
-            created_at: record.created_at,
-          },
-          me
-        );
+        // Await the backup so the success toast only fires once the
+        // party is safe — a quick sign-out can no longer lose it.
+        await saveContent("parties", record.id, record);
       }
 
       notify("Your party is live on the scene!");
     },
-    [cloudCreate, notify]
+    [saveContent, notify]
   );
 
   // Display count = the database counter + this session's own toggles.
@@ -470,48 +356,34 @@ export function StoreProvider({ children }) {
 
       const me = cloudUserRef.current?.id;
       if (me) {
-        // Wait for the cloud write so the success toast only appears
-        // once the review is actually safe (survives sign-out).
-        await cloudCreate(
-          COLLECTIONS.reviews,
-          record.id,
-          {
-            user_id: me,
-            partyName: record.partyName || "",
-            rating: Number(record.rating) || 0,
-            title: record.title || "",
-            comment: record.comment || "",
-            author: record.author || "",
-            date: record.date || "",
-            created_at: record.created_at,
-          },
-          me
-        );
+        // Await the backup so the success toast only appears once the
+        // review is safe (survives sign-out).
+        await saveContent("reviews", record.id, record);
       }
 
       notify("Thanks for the review!");
     },
-    [cloudCreate, notify]
+    [saveContent, notify]
   );
 
-  // ---- Delete own content (local + cloud) ---------------------
+  // ---- Delete own content (local + backup) --------------------
   const deleteParty = useCallback(
     (id) => {
       setUserParties((prev) => prev.filter((p) => p.id !== id));
       setGoing((prev) => prev.filter((g) => g !== id));
-      cloudDelete(COLLECTIONS.parties, id);
+      deleteContent("parties", id);
       notify("Party removed");
     },
-    [cloudDelete, notify]
+    [deleteContent, notify]
   );
 
   const deleteReview = useCallback(
     (id) => {
       setUserReviews((prev) => prev.filter((r) => r.id !== id));
-      cloudDelete(COLLECTIONS.reviews, id);
+      deleteContent("reviews", id);
       notify("Review removed");
     },
-    [cloudDelete, notify]
+    [deleteContent, notify]
   );
 
   const addPost = useCallback(
@@ -527,70 +399,41 @@ export function StoreProvider({ children }) {
 
       const me = cloudUserRef.current?.id;
       if (me) {
-        // Await the cloud write so the "live" toast only fires once the
-        // post is backed up — a quick sign-out can no longer lose it.
-        await cloudCreate(
-          COLLECTIONS.posts,
-          record.id,
-          {
-            user_id: me,
-            title: record.title || "",
-            category: record.category || "",
-            body: record.body || "",
-            author: record.author || "",
-            accent: record.accent || "",
-            date: record.date || "",
-            readTime: record.readTime || "",
-            excerpt: record.excerpt || "",
-            created_at: record.created_at,
-          },
-          me
-        );
+        // Await the backup so the "live" toast only fires once the post
+        // is safe — a quick sign-out can no longer lose it.
+        await saveContent("posts", record.id, record);
       }
 
       notify("Your post is live on the blog!");
     },
-    [cloudCreate, notify]
+    [saveContent, notify]
   );
 
   const deletePost = useCallback(
     (id) => {
       setUserPosts((prev) => prev.filter((p) => p.id !== id));
-      cloudDelete(COLLECTIONS.posts, id);
+      deleteContent("posts", id);
       notify("Post removed");
     },
-    [cloudDelete, notify]
+    [deleteContent, notify]
   );
 
   const deleteTicket = useCallback(
     (code) => {
       setMyTickets((prev) => prev.filter((t) => t.code !== code));
-      cloudDelete(COLLECTIONS.tickets, code);
+      deleteContent("tickets", code);
       notify("Pass removed");
     },
-    [cloudDelete, notify]
+    [deleteContent, notify]
   );
 
-  // Wipe user content when someone signs out so the next person on
-  // this device never sees the previous account's parties, reviews
-  // or passes. Their cloud data comes back when they sign in again.
-  const resetUserContent = useCallback(() => {
-    setUserParties([]);
-    setUserReviews([]);
-    setUserPosts([]);
-    setMyTickets([]);
-    setGoing([]);
-    setRsvpPatches({});
-    try {
-      localStorage.removeItem("festivity.parties");
-      localStorage.removeItem("festivity.reviews");
-      localStorage.removeItem("festivity.posts");
-      localStorage.removeItem("festivity.tickets");
-      localStorage.removeItem("festivity.going");
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  // Sign-out deliberately does NOT wipe user content anymore — posts,
+  // parties, reviews and tickets survive in localStorage AND the Netlify
+  // backup, RSVPs survive locally, so nothing "goes anywhere". Privacy
+  // on shared devices is handled by the content-owner check in
+  // importCloud, which drops the previous account's cache when a
+  // different account signs in.
+  const resetUserContent = useCallback(() => {}, []);
 
   const allParties = useMemo(
     () => [...userParties, ...SEED_PARTIES],

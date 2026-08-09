@@ -3,3 +3,6 @@ dist
 .env
 *.local
 *.png
+
+# Local dev data store (mirror of the Netlify Blobs backup)
+.data/

@@ -14,6 +14,12 @@
   to = "/.netlify/functions/news"
   status = 200
 
+# User content backup (posts/parties/reviews/tickets) → Netlify Blobs.
+[[redirects]]
+  from = "/api/data"
+  to = "/.netlify/functions/data"
+  status = 200
+
 # SPA fallback (the app uses hash routing, so this is a safety net).
 [[redirects]]
   from = "/*"

@@ -140,6 +140,10 @@ export function AuthProvider({ children }) {
       /* no session */
     }
     setUser(null);
+    // Content is intentionally NOT wiped on sign-out — posts, parties,
+    // reviews, tickets and RSVPs stay on the device and in the Netlify
+    // backup, so nothing disappears. (StoreContext.resetUserContent is
+    // a no-op; privacy on shared devices is handled by its owner check.)
     resetUserContent();
     notify("Signed out. See you at the next party!");
   }, [notify, resetUserContent]);

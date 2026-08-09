@@ -30,14 +30,9 @@ export const COLLECTIONS = {
   hypes: "hypes",
   streaks: "hype_streaks",
   contactRequests: "contact_requests",
-  // User-generated content mirrored to the cloud so posts, parties,
-  // reviews and tickets survive sign-out and follow the account across
-  // devices (created by scripts/setup-appwrite.mjs).
-  posts: "posts",
-  parties: "parties",
-  reviews: "reviews",
-  tickets: "tickets",
 };
+// Posts, parties, reviews and tickets do NOT use Appwrite — they back
+// up to Netlify Blobs via the /api/data function (see src/lib/contentApi.js).
 // Single shared storage bucket (the free plan allows one) — holds
 // avatars AND hype videos.
 export const MEDIA_BUCKET = "avatars";
