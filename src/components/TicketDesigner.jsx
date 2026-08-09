@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PRESETS } from "../lib/ticketPresets";
 import DesignedTicket from "./DesignedTicket";
 
@@ -7,6 +7,28 @@ import DesignedTicket from "./DesignedTicket";
 // one. Renders controls on the left and a live preview on the right.
 export default function TicketDesigner({ value, onChange }) {
   const fileRef = useRef(null);
+  const previewRef = useRef(null);
+  const [zoom, setZoom] = useState(100);
+
+  // The ticket is designed at 680px wide. On larger preview areas it's
+  // scaled up (CSS zoom, layout-aware) so the generator fills the screen
+  // edge-to-edge; smaller screens keep the responsive stacked layout.
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return undefined;
+    const update = () => {
+      const w = el.clientWidth;
+      setZoom(w > 680 ? Math.min(185, Math.round((w / 680) * 100)) : 100);
+    };
+    update();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const set = (key) => (e) => onChange({ ...value, [key]: e.target.value });
   const pickPreset = (id) => onChange({ ...value, preset: id });
@@ -218,17 +240,19 @@ export default function TicketDesigner({ value, onChange }) {
           </div>
         </div>
 
-        <div className="designer-preview">
+        <div className="designer-preview" ref={previewRef}>
           <div className="section-label" style={{ marginTop: 0 }}>
             Live preview
           </div>
-          <DesignedTicket
-            design={value}
-            passenger="You"
-            code="FST-2026-0001"
-            hash="A1B2-C3D4-E5F6-A7B8"
-            price={value.price}
-          />
+          <div style={{ zoom: `${zoom}%` }}>
+            <DesignedTicket
+              design={value}
+              passenger="You"
+              code="FST-2026-0001"
+              hash="A1B2-C3D4-E5F6-A7B8"
+              price={value.price}
+            />
+          </div>
           <p className="designer-hint">
             Every buyer's ticket carries their own name, pass code and a unique
             security hash at the bottom.
