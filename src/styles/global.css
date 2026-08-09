@@ -6774,6 +6774,16 @@ html[data-mode="dark"][data-bg="image"] body::before {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
+/* Row toolbar (Lock button beside a section label) */
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 60px 0 26px;
+}
+
 /* Toolbar above the sales log (verify button) */
 .host-toolbar {
   display: flex;

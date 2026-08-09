@@ -13,7 +13,22 @@ import CoverArt from "../components/CoverArt";
 // hypes, follows, posts) plus this account's own sales log, and
 // combines them into orders / income / hype / scene overviews.
 // No admin role, no extra tables, no configuration.
+//
+// Access is gated by a password. Only a one-way hash of the password
+// lives in the bundle (so it isn't readable in source), and a correct
+// entry unlocks the dashboard for the browser session.
 // ------------------------------------------------------------------
+
+// djb2 hash of the admin password — compare hashes, never the plaintext.
+const ADMIN_PW_HASH = 4279517490;
+
+function hashPw(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = (h * 33 + str.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
 
 function usePlatformStats() {
   const [stats, setStats] = useState(null);
@@ -101,6 +116,45 @@ export default function Admin({ setTab }) {
   const { allParties, hostLogs, myTickets } = useStore();
   const { hypeFeed } = useSocial();
 
+  // Password gate — stays unlocked for this browser session.
+  const [unlocked, setUnlocked] = useState(
+    () => {
+      try {
+        return sessionStorage.getItem("festivity.adminUnlock") === "1";
+      } catch {
+        return false;
+      }
+    }
+  );
+  const [pw, setPw] = useState("");
+  const [pwError, setPwError] = useState("");
+
+  const unlock = (e) => {
+    e.preventDefault();
+    if (hashPw(pw.trim()) === ADMIN_PW_HASH) {
+      try {
+        sessionStorage.setItem("festivity.adminUnlock", "1");
+      } catch {
+        /* storage unavailable — stay unlocked for this render */
+      }
+      setUnlocked(true);
+      setPw("");
+      setPwError("");
+    } else {
+      setPwError("That's not the right password.");
+      setPw("");
+    }
+  };
+
+  const lock = () => {
+    setUnlocked(false);
+    try {
+      sessionStorage.removeItem("festivity.adminUnlock");
+    } catch {
+      /* ignore */
+    }
+  };
+
   const revenueByParty = useMemo(() => {
     const map = new Map();
     hostLogs.forEach((l) => {
@@ -142,6 +196,56 @@ export default function Admin({ setTab }) {
     </header>
   );
 
+  // ------------------------- Gate -----------------------------
+  if (!unlocked) {
+    return (
+      <div className="page">
+        {head}
+        <div className="form-panel gate-panel">
+          <div className="gate-icon">
+            <i className="fa-solid fa-lock" />
+          </div>
+          <h2>Admin only</h2>
+          <p>
+            Enter the admin password to open the platform dashboard.
+          </p>
+          <form onSubmit={unlock}>
+            <div className="field" style={{ textAlign: "left" }}>
+              <label htmlFor="admin-pw">Password</label>
+              <input
+                id="admin-pw"
+                className="input"
+                type="password"
+                placeholder="••••••••••"
+                value={pw}
+                onChange={(e) => {
+                  setPw(e.target.value);
+                  setPwError("");
+                }}
+                autoFocus
+              />
+            </div>
+            {pwError && (
+              <p
+                style={{
+                  color: "var(--rose-deep)",
+                  margin: "-6px 0 14px",
+                  fontSize: 14,
+                  textAlign: "left",
+                }}
+              >
+                {pwError}
+              </p>
+            )}
+            <button className="btn" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+              <i className="fa-solid fa-unlock-keyhole icon" /> Unlock dashboard
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (!stats) {
     return (
       <div className="page">
@@ -167,7 +271,14 @@ export default function Admin({ setTab }) {
       {head}
 
       <Reveal>
-        <div className="section-label" style={{ marginTop: 0 }}>Platform overview</div>
+        <div className="admin-toolbar" style={{ marginTop: 0 }}>
+          <div className="section-label" style={{ margin: 0 }}>
+            Platform overview
+          </div>
+          <button className="btn btn-sm btn-outline" onClick={lock}>
+            <i className="fa-solid fa-lock icon" /> Lock
+          </button>
+        </div>
         <div className="admin-kpis">
           {kpis.map((k) => (
             <StatCard key={k.label} {...k} />
