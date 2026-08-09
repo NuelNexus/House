@@ -6101,12 +6101,29 @@ html[data-mode="dark"][data-bg="image"] body::before {
   padding-top: 18px;
 }
 
-.host-designer-modal .modal {
+/* The Modal puts its className on the .modal element itself, so the
+   wide-designer rule must target .modal.host-designer-modal (a
+   descendant selector here never matched, leaving the ticket cramped
+   in a 560px modal). */
+.modal.host-designer-modal {
   width: min(1080px, 100vw);
+}
+
+.modal.host-designer-modal .designer-grid {
+  /* Roomier ticket preview so the design shows at near-full size. */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 640px);
 }
 
 .host-designer-modal .designer-preview {
   position: static;
+}
+
+/* The rule above outranks the shared responsive collapse by specificity,
+   so restate it here — on phones the designer stacks to one column. */
+@media (max-width: 980px) {
+  .modal.host-designer-modal .designer-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ------------------------------------------------------------

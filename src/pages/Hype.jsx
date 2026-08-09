@@ -53,9 +53,9 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
 
   // Play/pause + the sound preference. React's `muted` prop doesn't
   // reliably push changes to the video element, so we set it directly.
-  // Videos start muted (autoplay-safe); tapping the speaker unmutes.
-  // Only (re)plays when the clip is actually paused, so toggling sound
-  // mid-watch never restarts it from the top.
+  // Sound is on by default; the browser may hold the very first
+  // autoplay until the user taps once. Only (re)plays when the clip is
+  // actually paused, so toggling sound mid-watch never restarts it.
   useEffect(() => {
     if (image) return;
     const v = videoRef.current;
@@ -90,6 +90,27 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
     e.stopPropagation();
     onToggleSound();
   };
+
+  // Browsers block audible autoplay until the user's first interaction.
+  // Sound is on by default, so the first tap anywhere on the page starts
+  // the active clip with audio (taps on the slide itself are left to
+  // togglePlay so one tap never double-toggles).
+  useEffect(() => {
+    if (image || !isActive) return undefined;
+    const v = videoRef.current;
+    const kick = (e) => {
+      if (e.target && e.target.closest && e.target.closest(".hype-feed-slide")) return;
+      if (v && v.paused) {
+        v.play().then(() => setPaused(false)).catch(() => {});
+      }
+    };
+    window.addEventListener("pointerdown", kick, { once: true });
+    window.addEventListener("keydown", kick, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", kick);
+      window.removeEventListener("keydown", kick);
+    };
+  }, [isActive, image]);
 
   const doFollow = async (e) => {
     // Never let this bubble up to the avatar's profile navigation.
@@ -251,7 +272,9 @@ export default function Hype({ send, q, setTab }) {
   const [query, setQuery] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedTab, setFeedTab] = useState("foryou"); // "foryou" | "following"
-  const [soundOn, setSoundOn] = useState(false); // shared across slides
+  // Sound is ON by default (browsers only pause the first autoplay until
+  // the first tap — the kick effect above handles that). Users can mute.
+  const [soundOn, setSoundOn] = useState(true); // shared across slides
   const wheelLock = useRef(0);
   const touchStartY = useRef(null);
 
