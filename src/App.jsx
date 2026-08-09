@@ -9,8 +9,7 @@ import Footer from "./components/Footer";
 import CartDrawer from "./components/CartDrawer";
 import Toast from "./components/Toast";
 import Home from "./pages/Home";
-import Tickets from "./pages/Tickets";
-import Parties from "./pages/Parties";
+import Events from "./pages/Events";
 import Blog from "./pages/Blog";
 import PartyDetail from "./pages/PartyDetail";
 import Profile from "./pages/Profile";
@@ -98,6 +97,7 @@ function CloudSync() {
 const VALID_TABS = [
   "home",
   "fyp",
+  "events",
   "tickets",
   "parties",
   "blog",
@@ -155,6 +155,11 @@ function parseHash(hash) {
     return { ...base, tab: "party", partyId: decodeURIComponent(parts[1]) };
   if (head === "parties" && parts[1] === "new") return { ...base, tab: "post-party" };
   if (head === "reviews" && parts[1] === "new") return { ...base, tab: "write-review" };
+  // Merged Events tab: #events is the new home, old #tickets / #parties
+  // links land on the same page with their view preselected.
+  if (head === "events") return { ...base, tab: "events" };
+  if (head === "tickets") return { ...base, tab: "tickets" };
+  if (head === "parties") return { ...base, tab: "parties" };
   if (head === "blog" && parts[1] === "new") return { ...base, tab: "new-post" };
   if (head === "profile" && parts[1] === "edit") return { ...base, tab: "edit-profile" };
   if (head === "checkout") return { ...base, tab: "checkout" };
@@ -219,8 +224,9 @@ function Shell() {
         {tab === "home" && (
           <Home setTab={setTab} onIntroDone={() => setIntroDone(true)} />
         )}
-        {tab === "tickets" && <Tickets />}
-        {tab === "parties" && <Parties setTab={setTab} />}
+        {tab === "events" && <Events initialView="all" setTab={setTab} />}
+        {tab === "tickets" && <Events initialView="tickets" setTab={setTab} />}
+        {tab === "parties" && <Events initialView="parties" setTab={setTab} />}
         {tab === "blog" && <Blog setTab={setTab} />}
         {tab === "party" && <PartyDetail partyId={partyId} setTab={setTab} />}
         {tab === "profile" && <Profile setTab={setTab} />}

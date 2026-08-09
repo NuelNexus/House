@@ -6,8 +6,7 @@ import Avatar from "./Avatar";
 const LINKS = [
   { id: "home",    label: "Home",    icon: "fa-house" },
   { id: "fyp",     label: "For You", icon: "fa-wand-magic-sparkles" },
-  { id: "tickets", label: "Tickets", icon: "fa-ticket" },
-  { id: "parties", label: "Parties", icon: "fa-champagne-glasses" },
+  { id: "events",  label: "Events",  icon: "fa-champagne-glasses" },
   { id: "blog",    label: "Blog",    icon: "fa-newspaper" },
   { id: "hype",    label: "Hype",    icon: "fa-fire" },
 ];

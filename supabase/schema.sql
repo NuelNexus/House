@@ -72,6 +72,7 @@ create table if not exists public.tickets (
   date text,
   location text,
   price numeric not null default 0,
+  commission numeric not null default 0,
   holder text,
   created_at timestamptz not null default now()
 );
@@ -80,6 +81,7 @@ alter table public.tickets add column if not exists party_id text;
 alter table public.tickets add column if not exists hash text;
 alter table public.tickets add column if not exists design jsonb;
 alter table public.tickets add column if not exists promo_used jsonb;
+alter table public.tickets add column if not exists commission numeric not null default 0;
 
 -- Hosts' sales log: one row per pass sold on a host's party ticket.
 -- Hosts read this to see every buyer (name / email / phone) and the
@@ -96,9 +98,11 @@ create table if not exists public.ticket_purchases (
   code text,
   hash text not null,
   price numeric not null default 0,
+  commission numeric not null default 0,
   created_at timestamptz not null default now()
 );
 create index if not exists ticket_purchases_host on public.ticket_purchases (host_id, created_at desc);
+alter table public.ticket_purchases add column if not exists commission numeric not null default 0;
 
 -- Keep each party's tickets_sold counter accurate whenever a pass is
 -- sold. Runs as the table owner so RLS (the buyer owns the insert)

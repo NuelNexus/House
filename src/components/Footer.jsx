@@ -4,8 +4,7 @@ export default function Footer({ setTab }) {
   const { userParties } = useStore();
   const links = [
     { id: "fyp", label: "For You" },
-    { id: "tickets", label: "Tickets" },
-    { id: "parties", label: "Parties" },
+    { id: "events", label: "Events" },
     { id: "blog", label: "Blog" },
     { id: "hype", label: "Hype" },
     // The Host link only appears once the user has hosted a party.

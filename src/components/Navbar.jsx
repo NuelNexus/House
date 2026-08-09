@@ -6,10 +6,18 @@ import { useSocial } from "../context/SocialContext";
 const LINKS = [
   { id: "home", label: "Home", idx: "00" },
   { id: "fyp", label: "For You", idx: "01" },
-  { id: "tickets", label: "Tickets", idx: "02" },
-  { id: "parties", label: "Parties", idx: "03" },
-  { id: "blog", label: "Blog", idx: "04" },
-  { id: "hype", label: "Hype", idx: "05" },
+  { id: "events", label: "Events", idx: "02" },
+  { id: "blog", label: "Blog", idx: "03" },
+  { id: "hype", label: "Hype", idx: "04" },
+];
+
+// Bottom tab bar shown on phones — the essentials, one thumb away.
+const MOBILE_TABS = [
+  { id: "home", label: "Home", icon: "fa-house" },
+  { id: "events", label: "Events", icon: "fa-champagne-glasses" },
+  { id: "hype", label: "Hype", icon: "fa-fire" },
+  { id: "messages", label: "Chat", icon: "fa-comment-dots" },
+  { id: "profile", label: "Profile", icon: "fa-user" },
 ];
 
 export default function Navbar({ tab, setTab, hidden }) {
@@ -17,16 +25,16 @@ export default function Navbar({ tab, setTab, hidden }) {
   // The Host tab only appears once the user has hosted a party.
   const isHost = userParties.length > 0;
   const links = isHost
-    ? [...LINKS, { id: "host", label: "Host", idx: "06" }]
+    ? [...LINKS, { id: "host", label: "Host", idx: "05" }]
     : LINKS;
   const mobileExtras = [
-    ...(isHost ? [{ id: "host", label: "Host", idx: "06" }] : []),
-    { id: "messages", label: "Messages", idx: isHost ? "07" : "06" },
-    { id: "appearance", label: "Appearance", idx: isHost ? "08" : "07" },
-    { id: "profile", label: "Profile", idx: isHost ? "09" : "08" },
-    { id: "admin", label: "Admin", idx: isHost ? "10" : "09" },
-    { id: "verify", label: "Verify", idx: isHost ? "11" : "10" },
+    ...(isHost ? [{ id: "host", label: "Host", idx: "05" }] : []),
+    { id: "appearance", label: "Appearance", idx: isHost ? "06" : "05" },
+    { id: "admin", label: "Admin", idx: isHost ? "07" : "06" },
+    { id: "verify", label: "Verify", idx: isHost ? "08" : "07" },
   ];
+  // Events tab is active for its merged aliases too.
+  const eventsActive = tab === "events" || tab === "tickets" || tab === "parties";
   const { user, name, initial, profile, openAuth, signOut, authLoading } = useAuth();
   const { unreadTotal } = useSocial();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -91,7 +99,11 @@ export default function Navbar({ tab, setTab, hidden }) {
                 <li key={l.id}>
                   <a
                     href={`#${l.id}`}
-                    className={tab === l.id ? "active" : ""}
+                    className={
+                      (l.id === "events" ? eventsActive : tab === l.id)
+                        ? "active"
+                        : ""
+                    }
                     onClick={(e) => {
                       e.preventDefault();
                       go(l.id);
@@ -215,6 +227,28 @@ export default function Navbar({ tab, setTab, hidden }) {
         </div>
       </header>
 
+      {/* Bottom tab bar — phones only (CSS hides it on bigger screens). */}
+      <nav className="mobile-tabbar" aria-label="Quick navigation">
+        {MOBILE_TABS.map((t) => {
+          const active =
+            t.id === "events" ? eventsActive : tab === t.id;
+          return (
+            <button
+              key={t.id}
+              className={`mtab ${active ? "active" : ""}`}
+              aria-label={t.label}
+              onClick={() => go(t.id)}
+            >
+              <i className={`fa-solid ${t.icon}`} aria-hidden="true" />
+              <span>{t.label}</span>
+              {t.id === "messages" && unreadTotal > 0 && (
+                <b className="mtab-badge">{unreadTotal}</b>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
       <div className={`mobile-menu ${menuOpen ? "open" : ""}`} aria-hidden={!menuOpen}>
         <button className="close-menu" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
           <i className="fa-solid fa-xmark" />
@@ -244,21 +278,26 @@ export default function Navbar({ tab, setTab, hidden }) {
           </button>
         )}
         <ul>
-          {links.map((l, i) => (
-            <li key={l.id}>
-              <a
-                href={`#${l.id}`}
-                style={{ transitionDelay: menuOpen ? `${0.08 + i * 0.05}s` : "0s" }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  go(l.id);
-                }}
-              >
-                <span className="idx">{l.idx}</span>
-                {l.label}
-              </a>
-            </li>
-          ))}
+          {links.map((l, i) => {
+            const active =
+              l.id === "events" ? eventsActive : tab === l.id;
+            return (
+              <li key={l.id}>
+                <a
+                  href={`#${l.id}`}
+                  className={active ? "active" : ""}
+                  style={{ transitionDelay: menuOpen ? `${0.08 + i * 0.05}s` : "0s" }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    go(l.id);
+                  }}
+                >
+                  <span className="idx">{l.idx}</span>
+                  {l.label}
+                </a>
+              </li>
+            );
+          })}
           {user &&
             mobileExtras.map((l, i) => (
               <li key={l.id}>

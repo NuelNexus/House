@@ -2,25 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
-import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
+import { COMMISSION_RATE } from "../context/StoreContext";
 import Reveal from "../components/Reveal";
 import CoverArt from "../components/CoverArt";
 
 // ------------------------------------------------------------------
-// Admin dashboard — a zero-setup platform monitor. It reads the same
-// public tables the site already uses (parties, reviews, profiles,
-// hypes, follows, posts) plus this account's own sales log, and
-// combines them into orders / income / hype / scene overviews.
-// No admin role, no extra tables, no configuration.
-//
-// Access is gated by a password. Only a one-way hash of the password
-// lives in the bundle (so it isn't readable in source), and a correct
-// entry unlocks the dashboard for the browser session.
+// Admin dashboard — the creator's private command center. Password
+// gated (hashed, session unlock + attempt limiter). It shows the
+// platform overview, every order, and — most importantly — the
+// creator's 20% commission on every ticket sold, broken down per
+// party. Reads the same public tables the site already uses, so it
+// needs zero setup.
 // ------------------------------------------------------------------
 
 // djb2 hash of the admin password — compare hashes, never the plaintext.
 const ADMIN_PW_HASH = 4279517490;
+const MAX_ATTEMPTS = 5;
+const LOCK_MS = 30000; // 30s lock after too many wrong attempts
 
 function hashPw(str) {
   let h = 5381;
@@ -116,32 +115,90 @@ export default function Admin({ setTab }) {
   const { allParties, hostLogs, myTickets } = useStore();
   const { hypeFeed } = useSocial();
 
-  // Password gate — stays unlocked for this browser session.
-  const [unlocked, setUnlocked] = useState(
-    () => {
-      try {
-        return sessionStorage.getItem("festivity.adminUnlock") === "1";
-      } catch {
-        return false;
-      }
+  // ------------------------------------------------------------
+  // Password gate — session unlock + attempt limiter.
+  // ------------------------------------------------------------
+  const [unlocked, setUnlocked] = useState(() => {
+    try {
+      return sessionStorage.getItem("festivity.adminUnlock") === "1";
+    } catch {
+      return false;
     }
-  );
+  });
   const [pw, setPw] = useState("");
   const [pwError, setPwError] = useState("");
+  const [attempts, setAttempts] = useState(() => {
+    try {
+      return Number(sessionStorage.getItem("festivity.adminAttempts")) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [lockedUntil, setLockedUntil] = useState(() => {
+    try {
+      return Number(sessionStorage.getItem("festivity.adminLockUntil")) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [now, setNow] = useState(Date.now());
+
+  // Countdown ticker while locked. Self-clears the moment the lock
+  // expires so the interval never outlives the lockout.
+  useEffect(() => {
+    if (lockedUntil <= Date.now()) return undefined;
+    const t = window.setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= lockedUntil) window.clearInterval(t);
+    }, 250);
+    return () => window.clearInterval(t);
+  }, [lockedUntil]);
+
+  const lockRemaining = Math.max(0, Math.ceil((lockedUntil - now) / 1000));
+  const locked = lockedUntil > now;
 
   const unlock = (e) => {
     e.preventDefault();
+    if (locked) return;
     if (hashPw(pw.trim()) === ADMIN_PW_HASH) {
       try {
         sessionStorage.setItem("festivity.adminUnlock", "1");
+        sessionStorage.removeItem("festivity.adminAttempts");
+        sessionStorage.removeItem("festivity.adminLockUntil");
       } catch {
-        /* storage unavailable — stay unlocked for this render */
+        /* storage unavailable */
       }
       setUnlocked(true);
       setPw("");
       setPwError("");
+      setAttempts(0);
+      setLockedUntil(0);
+      return;
+    }
+    const next = attempts + 1;
+    setAttempts(next);
+    try {
+      sessionStorage.setItem("festivity.adminAttempts", String(next));
+    } catch {
+      /* ignore */
+    }
+    if (next >= MAX_ATTEMPTS) {
+      const until = Date.now() + LOCK_MS;
+      setLockedUntil(until);
+      setNow(Date.now());
+      try {
+        sessionStorage.setItem("festivity.adminLockUntil", String(until));
+      } catch {
+        /* ignore */
+      }
+      setPwError(`Too many attempts — locked for 30 seconds.`);
+      setPw("");
     } else {
-      setPwError("That's not the right password.");
+      setPwError(
+        `That's not the right password. ${MAX_ATTEMPTS - next} attempt${
+          MAX_ATTEMPTS - next === 1 ? "" : "s"
+        } left.`
+      );
       setPw("");
     }
   };
@@ -155,12 +212,18 @@ export default function Admin({ setTab }) {
     }
   };
 
+  // ------------------------------------------------------------
+  // Revenue + the creator's 20% commission.
+  // ------------------------------------------------------------
+  const commissionOf = (price) => Math.round((Number(price) || 0) * COMMISSION_RATE);
+
   const revenueByParty = useMemo(() => {
     const map = new Map();
     hostLogs.forEach((l) => {
-      const cur = map.get(l.party_id) || { count: 0, income: 0 };
+      const cur = map.get(l.party_id) || { count: 0, income: 0, commission: 0 };
       cur.count += 1;
       cur.income += Number(l.price) || 0;
+      cur.commission += commissionOf(l.price);
       map.set(l.party_id, cur);
     });
     return map;
@@ -182,16 +245,26 @@ export default function Admin({ setTab }) {
   );
 
   const ownIncome = hostLogs.reduce((s, l) => s + (Number(l.price) || 0), 0);
+  // Creator commission on confirmed sales in the host log (20% of each).
+  const ownCommission = hostLogs.reduce((s, l) => s + commissionOf(l.price), 0);
+  // Creator commission on tickets bought on this device.
+  const boughtCommission = myTickets.reduce(
+    (s, t) => s + (Number(t.commission) || commissionOf(t.price)),
+    0
+  );
+  // Platform-wide estimate: 20% of the gross the public data shows.
+  const estCommission = stats ? Math.round(stats.estIncome * COMMISSION_RATE) : 0;
 
   const head = (
     <header className="page-head reveal in">
-      <div className="kicker">Platform · Monitor</div>
+      <div className="kicker">Creator · Command center</div>
       <h1>
         Admin<span className="outline">.</span>
       </h1>
       <p className="lede">
-        A live view of the whole scene — orders, income, hype and growth —
-        drawn straight from the community's own data. No setup required.
+        Your private dashboard. Every ticket sold earns you a{" "}
+        {Math.round(COMMISSION_RATE * 100)}% commission — here's the whole
+        picture: orders, income, commission per party, hype and growth.
       </p>
     </header>
   );
@@ -218,6 +291,7 @@ export default function Admin({ setTab }) {
                 type="password"
                 placeholder="••••••••••"
                 value={pw}
+                disabled={locked}
                 onChange={(e) => {
                   setPw(e.target.value);
                   setPwError("");
@@ -225,19 +299,34 @@ export default function Admin({ setTab }) {
                 autoFocus
               />
             </div>
-            {pwError && (
+            {locked ? (
               <p
-                style={{
-                  color: "var(--rose-deep)",
-                  margin: "-6px 0 14px",
-                  fontSize: 14,
-                  textAlign: "left",
-                }}
+                className="admin-lock-msg"
+                role="status"
               >
-                {pwError}
+                <i className="fa-solid fa-hourglass-half" aria-hidden="true" />{" "}
+                Too many attempts — try again in {lockRemaining}s
               </p>
+            ) : (
+              pwError && (
+                <p
+                  style={{
+                    color: "var(--rose-deep)",
+                    margin: "-6px 0 14px",
+                    fontSize: 14,
+                    textAlign: "left",
+                  }}
+                >
+                  {pwError}
+                </p>
+              )
             )}
-            <button className="btn" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+            <button
+              className="btn"
+              type="submit"
+              disabled={locked}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
               <i className="fa-solid fa-unlock-keyhole icon" /> Unlock dashboard
             </button>
           </form>
@@ -256,14 +345,14 @@ export default function Admin({ setTab }) {
   }
 
   const kpis = [
+    { icon: "fa-coins", label: "Your commission", value: GH_CD(estCommission), sub: `${Math.round(COMMISSION_RATE * 100)}% of every ticket`, accent: "#1f7a4d" },
     { icon: "fa-champagne-glasses", label: "Parties", value: stats.parties, sub: `${stats.rsvps} RSVPs total` },
     { icon: "fa-ticket", label: "Tickets sold", value: stats.ticketsSold, sub: "across all parties" },
-    { icon: "fa-coins", label: "Est. income", value: GH_CD(stats.estIncome), sub: "from party ticket sales" },
+    { icon: "fa-sack-dollar", label: "Gross income", value: GH_CD(stats.estIncome), sub: "before your 20% cut" },
     { icon: "fa-star", label: "Reviews", value: stats.reviews, sub: `${stats.avgRating.toFixed(1)}/5 avg · ${stats.verifiedReviews} verified` },
     { icon: "fa-users", label: "Users", value: stats.users, sub: "signed-up members" },
     { icon: "fa-fire", label: "Hypes", value: stats.hypes, sub: "public clips posted" },
     { icon: "fa-user-plus", label: "Follows", value: stats.follows, sub: "social connections" },
-    { icon: "fa-newspaper", label: "Posts", value: stats.posts, sub: "community stories" },
   ];
 
   return (
@@ -304,6 +393,7 @@ export default function Admin({ setTab }) {
                       <th>Party</th>
                       <th>Buyer</th>
                       <th>Price</th>
+                      <th>Your 20%</th>
                       <th>Date</th>
                     </tr>
                   </thead>
@@ -313,6 +403,9 @@ export default function Admin({ setTab }) {
                         <td>{partyName(l.party_id)}</td>
                         <td>{l.buyer_name || "—"}</td>
                         <td>{GH_CD(Number(l.price) || 0)}</td>
+                        <td className="admin-commission-cell">
+                          {GH_CD(commissionOf(l.price))}
+                        </td>
                         <td>
                           {new Date(l.created_at).toLocaleDateString("en-GB", {
                             day: "numeric",
@@ -334,7 +427,12 @@ export default function Admin({ setTab }) {
                     <b>{t.name}</b>
                     <small>{t.code}</small>
                   </span>
-                  <span>{GH_CD(Number(t.price) || 0)}</span>
+                  <span>
+                    {GH_CD(Number(t.price) || 0)}
+                    <small style={{ display: "block", color: "#1f7a4d" }}>
+                      commission {GH_CD(Number(t.commission) || commissionOf(t.price))}
+                    </small>
+                  </span>
                 </div>
               ))}
               {myTickets.length === 0 && (
@@ -344,12 +442,12 @@ export default function Admin({ setTab }) {
           </div>
 
           <div>
-            <div className="section-label">Income by party · you</div>
+            <div className="section-label">Commission by party · you</div>
             {topParties.length === 0 ? (
               <div className="empty-state" style={{ padding: 40 }}>
                 <i className="fa-solid fa-chart-simple" />
-                <h3>No income yet</h3>
-                <p>Your total: {GH_CD(0)}.</p>
+                <h3>No commission yet</h3>
+                <p>Your cut so far: {GH_CD(ownCommission)}.</p>
               </div>
             ) : (
               <div className="income-bars">
@@ -358,7 +456,7 @@ export default function Admin({ setTab }) {
                     <div className="income-row-head">
                       <span>{p.name}</span>
                       <b>
-                        {p.count} sold · {GH_CD(p.income)}
+                        {p.count} sold · your {GH_CD(p.commission)}
                       </b>
                     </div>
                     <div className="income-bar">
@@ -367,7 +465,7 @@ export default function Admin({ setTab }) {
                         style={{
                           width: `${Math.max(
                             6,
-                            (p.income / Math.max(1, topParties[0].income)) * 100
+                            (p.commission / Math.max(1, topParties[0].commission)) * 100
                           )}%`,
                         }}
                       />
@@ -375,7 +473,14 @@ export default function Admin({ setTab }) {
                   </div>
                 ))}
                 <div className="income-total">
-                  Your total income: <b>{GH_CD(ownIncome)}</b>
+                  Your confirmed commission: <b>{GH_CD(ownCommission)}</b>
+                  <span className="income-total-sub">
+                    ({Math.round(COMMISSION_RATE * 100)}% of {GH_CD(ownIncome)} in sales)
+                  </span>
+                </div>
+                <div className="income-total">
+                  Commission from this device's purchases:{" "}
+                  <b>{GH_CD(boughtCommission)}</b>
                 </div>
               </div>
             )}

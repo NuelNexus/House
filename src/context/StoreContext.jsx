@@ -32,6 +32,9 @@ function save(key, value) {
 const genCode = () =>
   `FST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+// The creator's share of every ticket sale (the platform fee).
+export const COMMISSION_RATE = 0.2;
+
 // Unique per-ticket security hash shown to the buyer and logged for
 // the host (e.g. "A1B2-C3D4-E5F6-A7B8").
 const genHash = () => {
@@ -375,6 +378,7 @@ export function StoreProvider({ children }) {
             date: t.date,
             location: t.location,
             price: Number(t.price),
+            commission: t.commission ?? null,
             holder: parseHolder(t.holder),
             promoUsed: t.promo_used ?? null,
           }));
@@ -478,6 +482,7 @@ export function StoreProvider({ children }) {
           date: t.date,
           location: t.location,
           price: unit,
+          commission: Math.round(unit * COMMISSION_RATE),
           holder,
           partyId: item.partyId || null,
           hostId: item.hostId || null,
@@ -503,6 +508,7 @@ export function StoreProvider({ children }) {
               date: t.date,
               location: t.location,
               price: t.price,
+              commission: t.commission ?? null,
               holder: JSON.stringify(t.holder),
               design: t.design ? JSON.stringify(t.design) : null,
               promo_used: t.promoUsed ? JSON.stringify(t.promoUsed) : null,
@@ -526,6 +532,7 @@ export function StoreProvider({ children }) {
             code: t.code,
             hash: t.hash,
             price: t.price,
+            commission: t.commission ?? null,
           }));
         if (logRows.length) {
           supabase
