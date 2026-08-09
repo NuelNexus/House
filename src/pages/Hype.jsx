@@ -187,7 +187,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
         </div>
       </div>
 
-      {/* Right action rail */}
+      {/* Right action rail — creator row + horizontal action row */}
       <div className="hype-rail" onClick={(e) => e.stopPropagation()}>
         <div className="hype-rail-creator">
           <button
@@ -213,14 +213,18 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
             )}
           </button>
           {!isMe && (
-            <>
-              <span className="hype-rail-label">
+            <div className="hype-rail-follow-box">
+              <button
+                className={`hype-rail-follow-pill${follows ? " following" : ""}`}
+                aria-label={follows ? "Unfollow" : "Follow"}
+                onClick={doFollow}
+              >
                 {follows ? "Following" : "Follow"}
-              </span>
+              </button>
               {followCount > 0 && (
                 <span className="hype-rail-count">{followCount}</span>
               )}
-            </>
+            </div>
           )}
         </div>
 

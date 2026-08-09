@@ -5528,15 +5528,58 @@ html[data-mode="dark"][data-bg="image"] body::before {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 18px;
+  align-items: flex-end;
+  gap: 16px;
 }
 
+/* Horizontal creator row: avatar on the left, follow pill + count beside it */
 .hype-rail-creator {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
+}
+
+.hype-rail-follow-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.hype-rail-follow-box .hype-rail-follow-pill {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.hype-rail-follow-box .hype-rail-follow-pill:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.hype-rail-follow-box .hype-rail-follow-pill.following {
+  background: #23be7e;
+  border-color: transparent;
+}
+
+.hype-rail-follow-box .hype-rail-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  padding-left: 11px;
 }
 
 .hype-rail-avatar {
@@ -5813,14 +5856,37 @@ html[data-mode="dark"][data-bg="image"] body::before {
     top: 12px;
   }
   .hype-rail {
-    right: 12px;
-    bottom: 96px;
+    right: 10px;
+    bottom: 100px;
+    gap: 12px;
+    /* One cohesive floating control group instead of scattered icons */
+    padding: 12px 10px;
+    border-radius: 22px;
+    background: rgba(0, 0, 0, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  }
+  .hype-rail-actions {
+    gap: 16px;
+  }
+  .hype-rail-btn i {
+    font-size: 22px;
+  }
+  .hype-rail-btn .hype-rail-label {
+    font-size: 9.5px;
+  }
+  .hype-rail-disc {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
   }
   .hype-feed-arrows {
-    left: 12px;
+    left: 10px;
   }
   .hype-slide-info {
-    max-width: 74%;
+    max-width: 58%;
   }
 }
 /* ============================================================
