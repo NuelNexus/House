@@ -480,6 +480,32 @@ create policy "posts_delete" on public.posts
 grant select on table public.follows, public.messages, public.hypes, public.hype_streaks, public.contact_requests, public.posts to anon;
 grant all on table public.follows, public.messages, public.hypes, public.hype_streaks, public.contact_requests, public.posts to authenticated;
 
+-- Global promo codes created from the Admin dashboard. One row per
+-- code; buyers see them at checkout (discounts every ticket in an
+-- order) once the creator publishes them here.
+create table if not exists public.promo_codes (
+  code text primary key,
+  pct integer not null default 10 check (pct between 1 and 100),
+  created_at timestamptz not null default now()
+);
+
+alter table public.promo_codes enable row level security;
+
+drop policy if exists "promo_codes_select" on public.promo_codes;
+create policy "promo_codes_select" on public.promo_codes
+  for select using (true);
+
+drop policy if exists "promo_codes_insert" on public.promo_codes;
+create policy "promo_codes_insert" on public.promo_codes
+  for insert with check (true);
+
+drop policy if exists "promo_codes_delete" on public.promo_codes;
+create policy "promo_codes_delete" on public.promo_codes
+  for delete using (true);
+
+grant select on table public.promo_codes to anon;
+grant all on table public.promo_codes to authenticated;
+
 -- Realtime: live messenger + hype + follow updates. Safe to re-run.
 do $$
 declare t text;

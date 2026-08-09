@@ -4,6 +4,7 @@ import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
 import { GH_CD } from "../data/seed";
 import { COMMISSION_RATE } from "../context/StoreContext";
+import { promoOf } from "../lib/ticketPresets";
 import Reveal from "../components/Reveal";
 import CoverArt from "../components/CoverArt";
 
@@ -112,8 +113,14 @@ function StatCard({ icon, label, value, sub, accent }) {
 
 export default function Admin({ setTab }) {
   const stats = usePlatformStats();
-  const { allParties, hostLogs, myTickets } = useStore();
+  const { allParties, hostLogs, myTickets, globalPromos, addGlobalPromo, removeGlobalPromo } =
+    useStore();
   const { hypeFeed } = useSocial();
+
+  // Promo-code creator form.
+  const [newCode, setNewCode] = useState("");
+  const [newPct, setNewPct] = useState("");
+  const [promoError, setPromoError] = useState("");
 
   // ------------------------------------------------------------
   // Password gate — session unlock + attempt limiter.
@@ -255,6 +262,54 @@ export default function Admin({ setTab }) {
   // Platform-wide estimate: 20% of the gross the public data shows.
   const estCommission = stats ? Math.round(stats.estIncome * COMMISSION_RATE) : 0;
 
+  // ------------------------------------------------------------
+  // Promo codes — every live discount: the ones the creator runs
+  // (global, apply everywhere) plus host promos on party designs.
+  // ------------------------------------------------------------
+  const allPromos = useMemo(() => {
+    const map = new Map();
+    globalPromos.forEach((g) => {
+      if (g && g.code) map.set(g.code, { code: g.code, pct: g.pct, scope: "global" });
+    });
+    allParties.forEach((p) => {
+      const pr = promoOf(p.ticketDesign || null);
+      if (pr && !map.has(pr.code)) {
+        map.set(pr.code, { code: pr.code, pct: pr.pct, scope: "host", party: p.title });
+      }
+    });
+    return [...map.values()].sort((a, b) =>
+      a.scope === b.scope ? a.code.localeCompare(b.code) : a.scope === "global" ? -1 : 1
+    );
+  }, [globalPromos, allParties]);
+
+  // Usage + money saved for buyers, counted from purchases on this device.
+  const promoStats = (code) => {
+    let used = 0;
+    let saved = 0;
+    myTickets.forEach((t) => {
+      if (t.promoUsed && t.promoUsed.code === code) {
+        used += 1;
+        const pct = Math.max(0, Math.min(99, Number(t.promoUsed.pct) || 0));
+        saved += Math.round(Number(t.price) / (1 - pct / 100)) - Number(t.price);
+      }
+    });
+    return { used, saved };
+  };
+
+  const createPromo = () => {
+    const pct = Number(newPct);
+    if (!newCode.trim() || !pct || pct < 1 || pct > 100) {
+      setPromoError("Enter a code and a discount between 1 and 100%.");
+      return;
+    }
+    const ok = addGlobalPromo(newCode, pct);
+    if (ok) {
+      setNewCode("");
+      setNewPct("");
+      setPromoError("");
+    }
+  };
+
   const head = (
     <header className="page-head reveal in">
       <div className="kicker">Creator · Command center</div>
@@ -372,6 +427,111 @@ export default function Admin({ setTab }) {
           {kpis.map((k) => (
             <StatCard key={k.label} {...k} />
           ))}
+        </div>
+      </Reveal>
+
+      <Reveal>
+        <div className="section-label">
+          Promo codes · {allPromos.length} live
+        </div>
+        <div className="admin-promo">
+          <div className="promo-create">
+            <input
+              className="input promo-code-input"
+              placeholder="CODE · e.g. LAUNCH20"
+              value={newCode}
+              maxLength={20}
+              onChange={(e) => {
+                setNewCode(e.target.value);
+                setPromoError("");
+              }}
+              aria-label="Promo code"
+            />
+            <input
+              className="input promo-pct-input"
+              type="number"
+              min={1}
+              max={100}
+              placeholder="% off"
+              value={newPct}
+              onChange={(e) => {
+                setNewPct(e.target.value);
+                setPromoError("");
+              }}
+              aria-label="Discount percent"
+            />
+            <button
+              className="btn btn-sm"
+              onClick={createPromo}
+              disabled={!newCode.trim() || !newPct}
+            >
+              <i className="fa-solid fa-tag icon" /> Create promo
+            </button>
+          </div>
+          {promoError && <p className="promo-err">{promoError}</p>}
+          <p className="admin-promo-note">
+            Global codes work at any checkout, on any device — perfect for
+            launch discounts or influencer codes. Host promos on party
+            tickets are listed here too. You still earn your{" "}
+            {Math.round(COMMISSION_RATE * 100)}% commission on the
+            discounted price. Usage counts purchases made on this device.
+          </p>
+          {allPromos.length === 0 ? (
+            <div className="empty-state" style={{ padding: 36 }}>
+              <i className="fa-solid fa-tags" />
+              <h3>No promos running</h3>
+              <p>
+                Create one above and buyers get the discount at checkout.
+              </p>
+            </div>
+          ) : (
+            <div className="table-scroll">
+              <table className="sales-table admin-promo-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Discount</th>
+                    <th>Scope</th>
+                    <th>Used</th>
+                    <th>Saved for buyers</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {allPromos.map((r) => {
+                    const st = promoStats(r.code);
+                    return (
+                      <tr key={r.code}>
+                        <td>
+                          <b>{r.code}</b>
+                        </td>
+                        <td>−{r.pct}%</td>
+                        <td>
+                          <span
+                            className={`promo-chip ${r.scope === "global" ? "global" : "host"}`}
+                          >
+                            {r.scope === "global" ? "Global · you" : `By host · ${r.party}`}
+                          </span>
+                        </td>
+                        <td>{st.used}×</td>
+                        <td>{GH_CD(st.saved)}</td>
+                        <td>
+                          {r.scope === "global" && (
+                            <button
+                              className="btn btn-sm btn-outline"
+                              onClick={() => removeGlobalPromo(r.code)}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </Reveal>
 

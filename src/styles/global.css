@@ -7740,3 +7740,16 @@ html[data-mode="dark"][data-bg="image"] body::before {
     margin-bottom: 64px;
   }
 }
+/* Admin promo codes */
+.admin-promo { margin-top: 14px; }
+.promo-create { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.promo-code-input { flex: 1 1 200px; max-width: 260px; text-transform: uppercase; letter-spacing: 1px; }
+.promo-pct-input { width: 100px; }
+.admin-promo-note { font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin: 0 0 16px; max-width: 660px; }
+.promo-chip { display: inline-block; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.promo-chip.global { color: #1f7a4d; border-color: rgba(31, 122, 77, .35); background: rgba(31, 122, 77, .08); }
+.admin-promo-table td:first-child b { letter-spacing: 1px; }
+.admin-promo-table .btn { padding: 6px 12px; }
+@media (max-width: 560px) {
+  .promo-code-input { max-width: none; flex: 1 1 100%; }
+}

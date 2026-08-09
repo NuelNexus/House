@@ -10,7 +10,7 @@ import Reveal from "../components/Reveal";
 const STEP_LABELS = ["Order", "Details", "Done"];
 
 export default function Checkout({ setTab }) {
-  const { cartItems, total, checkout } = useStore();
+  const { cartItems, total, checkout, globalPromos } = useStore();
   const { user, authLoading, name: authName, openAuth } = useAuth();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: authName || "", email: "", phone: "" });
@@ -22,27 +22,37 @@ export default function Checkout({ setTab }) {
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  // Every cart item that carries a promo code a host configured.
+  // Every discount code that could apply to this order: the host's own
+  // per-party promos plus any platform-wide codes the creator runs.
+  // Used to validate the code and as a placeholder hint.
   const promos = useMemo(() => {
     const out = {};
     cartItems.forEach((i) => {
       const p = promoOf(i.design);
       if (p) out[p.code] = p;
     });
+    globalPromos.forEach((g) => {
+      if (g && g.code) out[g.code] = { code: g.code, pct: g.pct };
+    });
     return out;
-  }, [cartItems]);
+  }, [cartItems, globalPromos]);
 
+  // Mirrors StoreContext.checkout exactly: a host promo discounts only
+  // its own ticket, a global code discounts every ticket, max wins.
   const savings = useMemo(() => {
     if (!promoApplied) return 0;
+    const g = globalPromos.find((x) => x.code === promoApplied);
     let s = 0;
     cartItems.forEach((i) => {
       const p = promoOf(i.design);
-      if (p && p.code === promoApplied) {
-        s += Math.round(i.ticket.price * (p.pct / 100)) * i.qty;
-      }
+      const pct = Math.max(
+        p && p.code === promoApplied ? p.pct : 0,
+        g ? Math.max(0, Math.min(100, Number(g.pct) || 0)) : 0
+      );
+      if (pct > 0) s += Math.round(i.ticket.price * (pct / 100)) * i.qty;
     });
     return s;
-  }, [promoApplied, cartItems]);
+  }, [promoApplied, cartItems, globalPromos]);
 
   const finalTotal = Math.max(0, total - savings);
 
@@ -174,10 +184,14 @@ export default function Checkout({ setTab }) {
               {cartItems.map((item) => {
                 const { ticket, qty } = item;
                 const p = promoOf(item.design || null);
+                const gPromo = globalPromos.find((x) => x.code === promoApplied);
                 const linePrice = ticket.price * qty;
-                const lineSave =
-                  promoApplied && p && p.code === promoApplied
-                    ? Math.round(ticket.price * (p.pct / 100)) * qty
+                const linePct = Math.max(
+                  p && p.code === promoApplied ? p.pct : 0,
+                  gPromo ? Math.max(0, Math.min(100, Number(gPromo.pct) || 0)) : 0
+                );
+                const lineSave = promoApplied && linePct > 0
+                    ? Math.round(ticket.price * (linePct / 100)) * qty
                     : 0;
                 return (
                   <div className="order-row" key={ticket.id}>

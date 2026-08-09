@@ -92,6 +92,13 @@ export function StoreProvider({ children }) {
   const [going, setGoing] = useState(() => load("festivity.going", []));
   // Saved parties (wishlist) — stored locally, shown in the FYP + profile.
   const [saved, setSaved] = useState(() => load("festivity.saved", []));
+  // Global promo codes created from the Admin dashboard. These apply to
+  // every ticket in any checkout, on any device. They're saved locally
+  // first (so they work offline) and mirrored to the promo_codes table
+  // so the whole platform sees them.
+  const [globalPromos, setGlobalPromos] = useState(() =>
+    load("festivity.globalPromos", [])
+  );
   // Every party on the scene (all users), so the Parties page shows the
   // whole community — not just the signed-in user's own parties.
   const [communityParties, setCommunityParties] = useState([]);
@@ -118,6 +125,7 @@ export function StoreProvider({ children }) {
   useEffect(() => save("festivity.posts", userPosts), [userPosts]);
   useEffect(() => save("festivity.going", going), [going]);
   useEffect(() => save("festivity.saved", saved), [saved]);
+  useEffect(() => save("festivity.globalPromos", globalPromos), [globalPromos]);
 
   // ----------------------------------------------------------
   // Derived lists. Declared before the callbacks below because
@@ -243,6 +251,37 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     fetchSceneParties();
   }, [fetchSceneParties]);
+
+  // Pull any promo codes the creator saved to the promo_codes table, so
+  // buyers on other devices can use them at checkout too. Merges with
+  // local copies (cloud wins on a code collision).
+  const fetchGlobalPromos = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("promo_codes").select("*");
+      if (error) return;
+      if (data && data.length) {
+        setGlobalPromos((prev) => {
+          const map = new Map(prev.map((g) => [g.code, g]));
+          data.forEach((g) => {
+            const code = String(g.code || "").trim().toUpperCase();
+            if (code)
+              map.set(code, {
+                code,
+                pct: Number(g.pct) || 0,
+                createdAt: g.created_at ?? null,
+              });
+          });
+          return [...map.values()];
+        });
+      }
+    } catch {
+      /* offline — keep local */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGlobalPromos();
+  }, [fetchGlobalPromos]);
 
   // Live scene: a party posted by anyone appears on every user's
   // Parties page instantly (needs `parties` in the realtime publication).
@@ -455,6 +494,48 @@ export function StoreProvider({ children }) {
   );
   const isSaved = useCallback((partyId) => saved.includes(partyId), [saved]);
 
+  // ---- Admin: platform-wide promo codes ---------------------------
+  // A global code discounts every ticket in any checkout. Saved
+  // locally instantly (works offline) and upserted to the promo_codes
+  // table so buyers on other devices see it too.
+  const addGlobalPromo = useCallback(
+    (code, pct) => {
+      const c = String(code || "").trim().toUpperCase();
+      const p = Math.max(1, Math.min(100, Math.round(Number(pct) || 0)));
+      if (!c || !p) return false;
+      if (globalPromos.some((g) => g.code === c)) {
+        notify(`Promo ${c} already exists`);
+        return false;
+      }
+      const row = { code: c, pct: p, createdAt: new Date().toISOString() };
+      setGlobalPromos((prev) => [...prev, row]);
+      supabase
+        .from("promo_codes")
+        .upsert({ code: c, pct: p })
+        .then(({ error }) => {
+          if (error) console.warn("promo sync:", error.message);
+        });
+      notify(`Promo ${c} is live — ${p}% off everywhere`);
+      return true;
+    },
+    [globalPromos, notify]
+  );
+
+  const removeGlobalPromo = useCallback(
+    (code) => {
+      setGlobalPromos((prev) => prev.filter((g) => g.code !== code));
+      supabase
+        .from("promo_codes")
+        .delete()
+        .eq("code", code)
+        .then(({ error }) => {
+          if (error) console.warn("promo delete:", error.message);
+        });
+      notify("Promo code removed");
+    },
+    [notify]
+  );
+
   const removeFromCart = useCallback((id) => {
     setCart((prev) => prev.filter((i) => i.id !== id));
   }, []);
@@ -464,15 +545,22 @@ export function StoreProvider({ children }) {
   const checkout = useCallback(
     (holder, promoCode) => {
       const code = (promoCode || "").trim().toUpperCase();
+      // A platform-wide code the creator runs — applies to every ticket.
+      const gPromo = globalPromos.find((g) => g.code === code);
       const purchased = cartItems.flatMap((item) => {
         const t = item.ticket;
         if (!t) return [];
-        // Apply the host's promo code when it matches this ticket's design.
+        // Discount = the host's own promo when it matches this ticket's
+        // design, otherwise a global code (applies to everything).
         const promo = item.design && item.design.promo ? item.design.promo : null;
-        const pct =
+        const designPct =
           promo && code && String(promo.code).trim().toUpperCase() === code
             ? Math.max(0, Math.min(100, Number(promo.pct) || 0))
             : 0;
+        const pct = Math.max(
+          designPct,
+          gPromo ? Math.max(0, Math.min(100, Number(gPromo.pct) || 0)) : 0
+        );
         const unit = pct > 0 ? Math.round(t.price * (1 - pct / 100)) : t.price;
         return Array.from({ length: item.qty }, () => ({
           code: genCode(),
@@ -547,7 +635,7 @@ export function StoreProvider({ children }) {
       notify("Payment received — your tickets are ready");
       return purchased;
     },
-    [cartItems, notify]
+    [cartItems, notify, globalPromos]
   );
 
   const postParty = useCallback(
@@ -911,6 +999,9 @@ export function StoreProvider({ children }) {
     saved,
     toggleSave,
     isSaved,
+    globalPromos,
+    addGlobalPromo,
+    removeGlobalPromo,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
