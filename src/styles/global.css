@@ -2018,6 +2018,38 @@ textarea.input {
   border-color: var(--ink);
 }
 
+/* Google sign-in + "or" divider */
+.btn-google {
+  width: 100%;
+  justify-content: center;
+  color: var(--ink);
+}
+
+.btn-google i {
+  font-size: 17px;
+  z-index: 1;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 22px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
 .pw-wrap {
   position: relative;
 }

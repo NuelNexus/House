@@ -95,7 +95,9 @@ create trigger going_rsvps
   after insert or delete on public.going
   for each row execute function public.sync_party_rsvps();
 
--- Auto-create a profile row when someone signs up
+-- Auto-create a profile row when someone signs up (email or Google).
+-- For Google users the name + photo (avatar_url) come from the OAuth
+-- metadata, so their profile is ready immediately.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -103,8 +105,15 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, name)
-  values (new.id, new.raw_user_meta_data ->> 'name')
+  insert into public.profiles (id, name, avatar_url)
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data ->> 'name',
+      new.raw_user_meta_data ->> 'full_name'
+    ),
+    new.raw_user_meta_data ->> 'avatar_url'
+  )
   on conflict (id) do nothing;
   return new;
 end;
