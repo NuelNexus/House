@@ -81,6 +81,7 @@ export default function Tickets() {
                     code={t.code}
                     hash={t.hash}
                     price={t.price}
+                    promo={t.promoUsed}
                   />
                 ) : (
                   <TicketStub key={t.code} ticket={t} />

@@ -239,7 +239,14 @@ export default function Host({ setTab }) {
       </Reveal>
 
       <Reveal>
-        <div className="section-label">Sales log ({hostLogs.length})</div>
+        <div className="host-toolbar">
+          <div className="section-label" style={{ margin: 0 }}>
+            Sales log ({hostLogs.length})
+          </div>
+          <button className="btn btn-sm btn-outline" onClick={() => setTab("verify")}>
+            <i className="fa-solid fa-shield-halved icon" /> Verify a ticket
+          </button>
+        </div>
         {hostLogs.length === 0 ? (
           <div className="empty-state">
             <i className="fa-solid fa-receipt" />

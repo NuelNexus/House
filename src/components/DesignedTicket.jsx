@@ -11,6 +11,7 @@ export default function DesignedTicket({
   code = "",
   hash = "",
   price,
+  promo,
 }) {
   const d = design || {};
   const priceNum = Number(price !== undefined ? price : d.price) || 0;
@@ -57,6 +58,12 @@ export default function DesignedTicket({
           <b>{priceText}</b>
         </div>
         <div className="dt-note">{d.footnote}</div>
+        {promo && promo.code && (
+          <div className="dt-promo">
+            <i className="fa-solid fa-tag" aria-hidden="true" />
+            Promo {promo.code} · {promo.pct}% off applied
+          </div>
+        )}
         <div className="dt-meta">
           <span className="dt-code">{code || "PENDING"}</span>
           <span className="dt-hash">{hash}</span>

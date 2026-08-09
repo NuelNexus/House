@@ -5,7 +5,7 @@ import { goUser, contactHostHref } from "../lib/nav";
 import CoverArt from "./CoverArt";
 
 export default function PartyCard({ party }) {
-  const { going, toggleGoing, displayRsvps } = useStore();
+  const { going, toggleGoing, displayRsvps, isSaved, toggleSave } = useStore();
   const { user } = useAuth();
   // "Hosted by you" is based on the signed-in user's id, not a flag —
   // so it's correct now that everyone's parties share one list.
@@ -36,6 +36,20 @@ export default function PartyCard({ party }) {
       <div className="cover">
         {isMine && <span className="hosted-badge">Hosted by you</span>}
         <CoverArt category={party.category} />
+        <button
+          className={`save-btn ${isSaved(party.id) ? "on" : ""}`}
+          aria-label={isSaved(party.id) ? "Remove from saved" : "Save party"}
+          title={isSaved(party.id) ? "Remove from saved" : "Save party"}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleSave(party.id);
+          }}
+        >
+          <i
+            className={`fa-${isSaved(party.id) ? "solid" : "regular"} fa-heart`}
+            aria-hidden="true"
+          />
+        </button>
       </div>
       <div className="party-meta">
         <span>{party.category}</span>

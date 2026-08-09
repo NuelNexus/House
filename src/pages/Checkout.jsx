@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
+import { promoOf } from "../lib/ticketPresets";
 import TicketStub from "../components/TicketStub";
 import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
@@ -15,8 +16,47 @@ export default function Checkout({ setTab }) {
   const [form, setForm] = useState({ name: authName || "", email: "", phone: "" });
   const [tickets, setTickets] = useState([]);
   const [error, setError] = useState("");
+  const [promoInput, setPromoInput] = useState("");
+  const [promoApplied, setPromoApplied] = useState("");
+  const [promoError, setPromoError] = useState("");
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  // Every cart item that carries a promo code a host configured.
+  const promos = useMemo(() => {
+    const out = {};
+    cartItems.forEach((i) => {
+      const p = promoOf(i.design);
+      if (p) out[p.code] = p;
+    });
+    return out;
+  }, [cartItems]);
+
+  const savings = useMemo(() => {
+    if (!promoApplied) return 0;
+    let s = 0;
+    cartItems.forEach((i) => {
+      const p = promoOf(i.design);
+      if (p && p.code === promoApplied) {
+        s += Math.round(i.ticket.price * (p.pct / 100)) * i.qty;
+      }
+    });
+    return s;
+  }, [promoApplied, cartItems]);
+
+  const finalTotal = Math.max(0, total - savings);
+
+  const applyPromo = () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return;
+    if (promos[code]) {
+      setPromoApplied(code);
+      setPromoError("");
+    } else {
+      setPromoApplied("");
+      setPromoError("That code doesn't match this order.");
+    }
+  };
 
   const submitDetails = (e) => {
     e.preventDefault();
@@ -25,11 +65,14 @@ export default function Checkout({ setTab }) {
       return;
     }
     setError("");
-    const purchased = checkout({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-    });
+    const purchased = checkout(
+      {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+      },
+      promoApplied
+    );
     setTickets(purchased);
     setStep(3);
   };
@@ -128,23 +171,101 @@ export default function Checkout({ setTab }) {
 
           {step === 1 && (
             <>
-              {cartItems.map(({ ticket, qty }) => (
-                <div className="order-row" key={ticket.id}>
-                  <span>
-                    {ticket.name}
-                    <span className="sub">
-                      {qty} × {GH_CD(ticket.price)} · {ticket.date}
+              {cartItems.map((item) => {
+                const { ticket, qty } = item;
+                const p = promoOf(item.design || null);
+                const linePrice = ticket.price * qty;
+                const lineSave =
+                  promoApplied && p && p.code === promoApplied
+                    ? Math.round(ticket.price * (p.pct / 100)) * qty
+                    : 0;
+                return (
+                  <div className="order-row" key={ticket.id}>
+                    <span>
+                      {ticket.name}
+                      <span className="sub">
+                        {qty} × {GH_CD(ticket.price)} · {ticket.date}
+                        {p && (
+                          <b style={{ color: "var(--rose-deep)" }}>
+                            {" "}
+                            · promo {p.code} −{p.pct}%
+                          </b>
+                        )}
+                      </span>
                     </span>
-                  </span>
-                  <span>{GH_CD(ticket.price * qty)}</span>
+                    <span>
+                      {lineSave > 0 && (
+                        <span
+                          style={{
+                            textDecoration: "line-through",
+                            opacity: 0.5,
+                            marginRight: 8,
+                          }}
+                        >
+                          {GH_CD(linePrice)}
+                        </span>
+                      )}
+                      {GH_CD(linePrice - lineSave)}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {Object.keys(promos).length > 0 && (
+                <div className="promo-box">
+                  <label htmlFor="chk-promo">Have a promo code?</label>
+                  <div className="promo-row">
+                    <input
+                      id="chk-promo"
+                      className="input"
+                      placeholder={Object.keys(promos)[0]}
+                      value={promoInput}
+                      onChange={(e) => {
+                        setPromoInput(e.target.value);
+                        setPromoError("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          applyPromo();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={applyPromo}
+                    >
+                      {promoApplied ? (
+                        <>
+                          <i className="fa-solid fa-check" /> Applied
+                        </>
+                      ) : (
+                        "Apply"
+                      )}
+                    </button>
+                  </div>
+                  {promoApplied && (
+                    <p className="promo-ok">
+                      <i className="fa-solid fa-tag" aria-hidden="true" />{" "}
+                      {promoApplied} applied — you save {GH_CD(savings)}
+                    </p>
+                  )}
+                  {promoError && <p className="promo-err">{promoError}</p>}
                 </div>
-              ))}
+              )}
+
               <div
                 className="order-row"
                 style={{ borderBottom: "none", fontWeight: 700, fontSize: 18 }}
               >
-                <span>Total</span>
-                <span>{GH_CD(total)}</span>
+                <span>
+                  Total
+                  {savings > 0 && (
+                    <span className="sub">incl. {GH_CD(savings)} off</span>
+                  )}
+                </span>
+                <span>{GH_CD(finalTotal)}</span>
               </div>
               <button
                 className="btn"
@@ -204,7 +325,7 @@ export default function Checkout({ setTab }) {
                   Back
                 </button>
                 <button type="submit" className="btn" style={{ flex: 2, justifyContent: "center" }}>
-                  Pay {GH_CD(total)} <i className="fa-solid fa-lock icon" />
+                  Pay {GH_CD(finalTotal)} <i className="fa-solid fa-lock icon" />
                 </button>
               </div>
               <p
@@ -249,6 +370,7 @@ export default function Checkout({ setTab }) {
                     code={t.code}
                     hash={t.hash}
                     price={t.price}
+                    promo={t.promoUsed}
                   />
                 ) : (
                   <TicketStub key={t.code} ticket={t} />

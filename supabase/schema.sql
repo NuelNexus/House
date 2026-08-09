@@ -79,6 +79,7 @@ create table if not exists public.tickets (
 alter table public.tickets add column if not exists party_id text;
 alter table public.tickets add column if not exists hash text;
 alter table public.tickets add column if not exists design jsonb;
+alter table public.tickets add column if not exists promo_used jsonb;
 
 -- Hosts' sales log: one row per pass sold on a host's party ticket.
 -- Hosts read this to see every buyer (name / email / phone) and the

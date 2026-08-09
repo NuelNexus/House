@@ -6320,6 +6320,20 @@ html[data-mode="dark"][data-bg="image"] body::before {
   );
 }
 
+/* Promo code used on the pass */
+.dt-promo {
+  grid-column: 1 / -1;
+  font: 700 11px var(--dt-font-mono);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dt-accent);
+  border-top: 1px dashed var(--dt-ink);
+  padding: 6px 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* QR code on the pass — scan to verify the unique hash at the door. */
 .ticket-qr {
   display: inline-flex;
@@ -6760,6 +6774,16 @@ html[data-mode="dark"][data-bg="image"] body::before {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
+/* Toolbar above the sales log (verify button) */
+.host-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 60px 0 26px;
+}
+
 /* Manage ticket stock right from the host card. */
 .stock-control {
   display: flex;
@@ -6991,5 +7015,518 @@ html[data-mode="dark"][data-bg="image"] body::before {
   .dt-meta,
   .dt-barcode {
     grid-column: 1 / -1;
+  }
+}
+/* ============================================================
+   For You (FYP) feed
+   ============================================================ */
+.fyp-grid {
+  align-items: start;
+}
+
+.fyp-wrap {
+  position: relative;
+}
+
+.fyp-reason {
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fyp-reason i {
+  color: var(--rose-deep);
+}
+
+/* Save (heart) on party card cover */
+.save-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(var(--paper-rgb), 0.92);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+  z-index: 2;
+}
+
+.save-btn:hover {
+  transform: scale(1.12);
+  color: var(--rose-deep);
+  border-color: var(--rose-deep);
+}
+
+.save-btn.on {
+  background: var(--rose-deep);
+  color: var(--paper);
+  border-color: var(--rose-deep);
+}
+
+/* ============================================================
+   Admin dashboard
+   ============================================================ */
+.admin-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.admin-stat {
+  padding: 18px 20px;
+  gap: 10px;
+}
+
+.admin-stat-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-stat-icon {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--rose-deep);
+}
+
+.admin-stat-label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.admin-stat-value {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.admin-stat-sub {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.admin-cols {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.admin-orders td {
+  padding: 10px 12px;
+}
+
+.admin-ticket-list {
+  border: 1px solid var(--line);
+  background: rgba(var(--paper-rgb), 0.5);
+}
+
+.admin-ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.admin-ticket-row:last-child {
+  border-bottom: none;
+}
+
+.admin-ticket-row b {
+  display: block;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-ticket-row small {
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+  font-family: "Jura", monospace;
+}
+
+.income-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.income-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+
+.income-row-head b {
+  color: var(--ink);
+}
+
+.income-bar {
+  height: 10px;
+  background: rgba(var(--ink-rgb), 0.08);
+}
+
+.income-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--rose-deep), var(--ink));
+  transition: width 0.6s ease;
+}
+
+.income-total {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+}
+
+.income-total b {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.admin-hypes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-hype {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--line);
+  background: rgba(var(--paper-rgb), 0.5);
+  padding: 10px;
+}
+
+.admin-hype-thumb {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--paper);
+  font-size: 18px;
+  background-size: cover;
+  background-position: center;
+}
+
+.admin-hype b {
+  display: block;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-hype small {
+  font-size: 13px;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-latest {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.admin-latest-party {
+  position: relative;
+  border: 1px solid var(--line);
+  background: rgba(var(--paper-rgb), 0.6);
+  text-align: left;
+  font-family: var(--font);
+  color: var(--ink);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.admin-latest-party:hover {
+  transform: translateY(-3px);
+  box-shadow: 4px 4px 0 rgba(var(--ink-rgb), 0.15);
+  border-color: var(--ink);
+}
+
+.admin-latest-party .cover-art {
+  position: relative;
+  height: 90px;
+  display: block;
+}
+
+.admin-latest-party > span {
+  display: block;
+  padding: 12px 14px;
+}
+
+.admin-latest-party b {
+  display: block;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0px;
+}
+
+.admin-latest-party small {
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   Verify page
+   ============================================================ */
+.verify-wrap {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.verify-panel .btn {
+  white-space: nowrap;
+}
+
+.verify-camera {
+  position: relative;
+  margin-top: 18px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  overflow: hidden;
+}
+
+.verify-camera video {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  display: block;
+}
+
+.verify-scan-frame {
+  position: absolute;
+  inset: 40px 22%;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+.verify-camera p {
+  padding: 10px;
+  text-align: center;
+  color: rgba(var(--paper-rgb), 0.8);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.verify-result {
+  margin-top: 18px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border: 2px solid;
+  padding: 16px;
+}
+
+.verify-result.ok {
+  border-color: #1f7a4d;
+  background: rgba(31, 122, 77, 0.07);
+  color: #14532d;
+}
+
+.verify-result.bad {
+  border-color: var(--rose-deep);
+  background: rgba(160, 70, 70, 0.07);
+  color: var(--rose-deep);
+}
+
+.verify-result-icon {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.verify-result-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.verify-result-body b {
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.verify-result-body span {
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.verify-party-stats {
+  border: 1px solid var(--line);
+  background: rgba(var(--paper-rgb), 0.5);
+}
+
+.verify-party-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px dashed var(--line);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.verify-party-row:last-child {
+  border-bottom: none;
+}
+
+.verify-hint {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  letter-spacing: 0.5px;
+  line-height: 1.6;
+}
+
+.verify-hint i {
+  color: var(--rose-deep);
+  margin-right: 6px;
+}
+
+/* ============================================================
+   Promo codes at checkout
+   ============================================================ */
+.promo-box {
+  margin-top: 14px;
+  border: 1px dashed var(--line);
+  padding: 14px 16px;
+  background: rgba(var(--paper-rgb), 0.5);
+}
+
+.promo-box label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.promo-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.promo-row .input {
+  flex: 1;
+}
+
+.promo-ok {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #1f7a4d;
+  letter-spacing: 0.5px;
+}
+
+.promo-ok i {
+  margin-right: 5px;
+}
+
+.promo-err {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--rose-deep);
+}
+
+.designer-field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 0.5px;
+  line-height: 1.5;
+}
+
+/* Save button on party detail */
+.pd-save.on {
+  background: var(--rose-deep);
+  color: var(--paper);
+  border-color: var(--rose-deep);
+}
+
+.pd-save.on::after {
+  background: var(--paper);
+}
+
+.pd-save.on:hover {
+  color: var(--rose-deep);
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 900px) {
+  .admin-cols,
+  .verify-wrap {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-kpis {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .admin-stat-value {
+    font-size: 26px;
+  }
+
+  .promo-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .verify-result {
+    flex-direction: column;
   }
 }

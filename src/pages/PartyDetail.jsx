@@ -7,6 +7,16 @@ import CoverArt from "../components/CoverArt";
 import ReviewCard from "../components/ReviewCard";
 import Reveal from "../components/Reveal";
 
+export function shareParty(id, title) {
+  const url = `${window.location.origin}${window.location.pathname}#party/${id}`;
+  try {
+    navigator.clipboard?.writeText(url);
+  } catch {
+    /* clipboard unavailable */
+  }
+  return url;
+}
+
 const STAR_LABELS = ["", "Terrible", "Meh", "Decent", "Great", "Unforgettable"];
 
 export default function PartyDetail({ partyId, setTab }) {
@@ -18,6 +28,9 @@ export default function PartyDetail({ partyId, setTab }) {
     toggleGoing,
     displayRsvps,
     addToCart,
+    isSaved,
+    toggleSave,
+    notify,
   } = useStore();
   const { ensureAuth } = useAuth();
 
@@ -130,6 +143,15 @@ export default function PartyDetail({ partyId, setTab }) {
             <p className="pd-desc">{party.vibe || party.description}</p>
 
             <div className="pd-actions">
+              <button
+                className={`btn btn-outline pd-save ${isSaved(party.id) ? "on" : ""}`}
+                aria-label={isSaved(party.id) ? "Remove from saved" : "Save party"}
+                title={isSaved(party.id) ? "Remove from saved" : "Save party"}
+                onClick={() => toggleSave(party.id)}
+              >
+                <i className="fa-solid fa-heart icon" />{" "}
+                {isSaved(party.id) ? "Saved" : "Save"}
+              </button>
               {isTicket ? (
                 <button className="btn" onClick={() => addToCart(party)}>
                   <i className="fa-solid fa-ticket icon" /> Add to cart
@@ -172,6 +194,17 @@ export default function PartyDetail({ partyId, setTab }) {
               >
                 <i className="fa-solid fa-briefcase icon" /> Offer service
               </a>
+              <button
+                className="btn btn-outline"
+                aria-label="Copy link to this party"
+                title="Copy link"
+                onClick={() => {
+                  shareParty(party.id, title);
+                  notify("Link copied — share it with your crew");
+                }}
+              >
+                <i className="fa-solid fa-share-nodes icon" /> Share
+              </button>
             </div>
           </div>
         </div>

@@ -96,6 +96,15 @@ export const DEFAULT_DESIGN = {
   footnote: "Admission by ticket only. This pass is non-refundable.",
   bg: null,          // background image (URL or uploaded data-URL)
   stock: 100,        // how many tickets can be sold
+  promo: null,       // { code: "EARLY10", pct: 10 } — optional discount
 };
+
+// True when a design carries a usable discount code.
+export function promoOf(design) {
+  const p = design && design.promo;
+  if (!p || !p.code) return null;
+  const pct = Math.max(0, Math.min(100, Number(p.pct) || 0));
+  return pct > 0 ? { code: String(p.code).trim().toUpperCase(), pct } : null;
+}
 
 

@@ -87,6 +87,8 @@ export function StoreProvider({ children }) {
   const [userReviews, setUserReviews] = useState(() => load("festivity.reviews", []));
   const [userPosts, setUserPosts] = useState(() => load("festivity.posts", []));
   const [going, setGoing] = useState(() => load("festivity.going", []));
+  // Saved parties (wishlist) — stored locally, shown in the FYP + profile.
+  const [saved, setSaved] = useState(() => load("festivity.saved", []));
   // Every party on the scene (all users), so the Parties page shows the
   // whole community — not just the signed-in user's own parties.
   const [communityParties, setCommunityParties] = useState([]);
@@ -112,6 +114,7 @@ export function StoreProvider({ children }) {
   useEffect(() => save("festivity.reviews", userReviews), [userReviews]);
   useEffect(() => save("festivity.posts", userPosts), [userPosts]);
   useEffect(() => save("festivity.going", going), [going]);
+  useEffect(() => save("festivity.saved", saved), [saved]);
 
   // ----------------------------------------------------------
   // Derived lists. Declared before the callbacks below because
@@ -373,6 +376,7 @@ export function StoreProvider({ children }) {
             location: t.location,
             price: Number(t.price),
             holder: parseHolder(t.holder),
+            promoUsed: t.promo_used ?? null,
           }));
           return [...mapped, ...prev.filter((t) => !have.has(t.code))];
         });
@@ -435,6 +439,18 @@ export function StoreProvider({ children }) {
     );
   }, []);
 
+  // Wishlist: save a party so it shows up in your For You feed + profile.
+  const toggleSave = useCallback(
+    (partyId) => {
+      const on = !saved.includes(partyId);
+      setSaved(on ? [...saved, partyId] : saved.filter((x) => x !== partyId));
+      notify(on ? "Saved to your list" : "Removed from your list");
+      return on;
+    },
+    [saved, notify]
+  );
+  const isSaved = useCallback((partyId) => saved.includes(partyId), [saved]);
+
   const removeFromCart = useCallback((id) => {
     setCart((prev) => prev.filter((i) => i.id !== id));
   }, []);
@@ -442,10 +458,18 @@ export function StoreProvider({ children }) {
   const clearCart = useCallback(() => setCart([]), []);
 
   const checkout = useCallback(
-    (holder) => {
+    (holder, promoCode) => {
+      const code = (promoCode || "").trim().toUpperCase();
       const purchased = cartItems.flatMap((item) => {
         const t = item.ticket;
         if (!t) return [];
+        // Apply the host's promo code when it matches this ticket's design.
+        const promo = item.design && item.design.promo ? item.design.promo : null;
+        const pct =
+          promo && code && String(promo.code).trim().toUpperCase() === code
+            ? Math.max(0, Math.min(100, Number(promo.pct) || 0))
+            : 0;
+        const unit = pct > 0 ? Math.round(t.price * (1 - pct / 100)) : t.price;
         return Array.from({ length: item.qty }, () => ({
           code: genCode(),
           hash: genHash(),
@@ -453,11 +477,12 @@ export function StoreProvider({ children }) {
           name: t.name,
           date: t.date,
           location: t.location,
-          price: t.price,
+          price: unit,
           holder,
           partyId: item.partyId || null,
           hostId: item.hostId || null,
           design: item.design || null,
+          promoUsed: pct > 0 ? { code, pct } : null,
         }));
       });
       setMyTickets((prev) => [...purchased, ...prev]);
@@ -480,6 +505,7 @@ export function StoreProvider({ children }) {
               price: t.price,
               holder: JSON.stringify(t.holder),
               design: t.design ? JSON.stringify(t.design) : null,
+              promo_used: t.promoUsed ? JSON.stringify(t.promoUsed) : null,
             }))
           )
           .then(({ error }) => {
@@ -875,6 +901,9 @@ export function StoreProvider({ children }) {
     fetchHostLogs,
     saveTicketDesign,
     updateTicketStock,
+    saved,
+    toggleSave,
+    isSaved,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

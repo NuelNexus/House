@@ -5,6 +5,7 @@ import Avatar from "./Avatar";
 
 const LINKS = [
   { id: "home",    label: "Home",    icon: "fa-house" },
+  { id: "fyp",     label: "For You", icon: "fa-wand-magic-sparkles" },
   { id: "tickets", label: "Tickets", icon: "fa-ticket" },
   { id: "parties", label: "Parties", icon: "fa-champagne-glasses" },
   { id: "blog",    label: "Blog",    icon: "fa-newspaper" },
@@ -96,6 +97,10 @@ export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
             <button className="hype-sidebar-mini" onClick={() => setTab("profile")}>
               <i className="fa-solid fa-user" />
               Profile
+            </button>
+            <button className="hype-sidebar-mini" onClick={() => setTab("admin")}>
+              <i className="fa-solid fa-chart-simple" />
+              Admin
             </button>
             <div className="hype-sidebar-user">
               <Avatar

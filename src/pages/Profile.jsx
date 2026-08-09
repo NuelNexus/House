@@ -6,7 +6,7 @@ import Avatar from "../components/Avatar";
 import CoverArt from "../components/CoverArt";
 import ProfileItemModal from "../components/ProfileItemModal";
 
-const FILTERS = ["All", "Parties", "Reviews", "Tickets"];
+const FILTERS = ["All", "Saved", "Parties", "Reviews", "Tickets"];
 
 const KIND_ICON = {
   party: "fa-people-group",
@@ -30,6 +30,8 @@ export default function Profile({ setTab }) {
     myTickets,
     tickets,
     allParties,
+    saved,
+    toggleSave,
     deleteParty,
     deleteReview,
     deleteTicket,
@@ -84,8 +86,20 @@ export default function Profile({ setTab }) {
       sub: `GH₵ ${t.price}`,
       coverCat: categoryFor(t.name, tickets, allParties),
     }));
-    return [...partyItems, ...reviewItems, ...ticketItems];
-  }, [userParties, userReviews, myTickets, tickets, allParties]);
+    // Saved parties (wishlist) from anywhere on the scene.
+    const savedItems = saved
+      .map((id) => allParties.find((p) => p.id === id))
+      .filter(Boolean)
+      .map((p) => ({
+        kind: "saved",
+        id: p.id,
+        ref: p,
+        label: p.title,
+        sub: `${p.rsvps} going`,
+        coverCat: p.category,
+      }));
+    return [...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
+  }, [userParties, userReviews, myTickets, tickets, allParties, saved]);
 
   const visible = useMemo(
     () =>
@@ -96,10 +110,19 @@ export default function Profile({ setTab }) {
   );
 
   const removeItem = (item) => {
-    if (item.kind === "party") deleteParty(item.id);
+    if (item.kind === "saved") toggleSave(item.id);
+    else if (item.kind === "party") deleteParty(item.id);
     else if (item.kind === "review") deleteReview(item.id);
     else deleteTicket(item.id);
     if (detail?.id === item.id) setDetail(null);
+  };
+
+  const openItem = (item) => {
+    if (item.kind === "saved") {
+      window.location.hash = `party/${item.id}`;
+      return;
+    }
+    setDetail(item);
   };
 
   // ----- Signed-out gate -------------------------------------
@@ -203,7 +226,9 @@ export default function Profile({ setTab }) {
             <i className="fa-solid fa-images" />
             <h3>Nothing here yet</h3>
             <p>
-              {filter === "Parties"
+              {filter === "Saved"
+                ? "Tap the heart on any party to keep it here."
+                : filter === "Parties"
                 ? "Post your first party from the Parties tab."
                 : filter === "Reviews"
                 ? "Write a review after your next party."
@@ -222,7 +247,7 @@ export default function Profile({ setTab }) {
                 role="button"
                 aria-label={`Open ${item.label}`}
                 style={{ animationDelay: `${Math.min(i, 10) * 50}ms` }}
-                onClick={() => setDetail(item)}
+                onClick={() => openItem(item)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();

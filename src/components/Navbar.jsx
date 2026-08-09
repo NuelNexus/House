@@ -5,10 +5,11 @@ import { useSocial } from "../context/SocialContext";
 
 const LINKS = [
   { id: "home", label: "Home", idx: "00" },
-  { id: "tickets", label: "Tickets", idx: "01" },
-  { id: "parties", label: "Parties", idx: "02" },
-  { id: "blog", label: "Blog", idx: "03" },
-  { id: "hype", label: "Hype", idx: "04" },
+  { id: "fyp", label: "For You", idx: "01" },
+  { id: "tickets", label: "Tickets", idx: "02" },
+  { id: "parties", label: "Parties", idx: "03" },
+  { id: "blog", label: "Blog", idx: "04" },
+  { id: "hype", label: "Hype", idx: "05" },
 ];
 
 export default function Navbar({ tab, setTab, hidden }) {
@@ -16,13 +17,15 @@ export default function Navbar({ tab, setTab, hidden }) {
   // The Host tab only appears once the user has hosted a party.
   const isHost = userParties.length > 0;
   const links = isHost
-    ? [...LINKS, { id: "host", label: "Host", idx: "05" }]
+    ? [...LINKS, { id: "host", label: "Host", idx: "06" }]
     : LINKS;
   const mobileExtras = [
-    ...(isHost ? [{ id: "host", label: "Host", idx: "05" }] : []),
-    { id: "messages", label: "Messages", idx: isHost ? "06" : "05" },
-    { id: "appearance", label: "Appearance", idx: isHost ? "07" : "06" },
-    { id: "profile", label: "Profile", idx: isHost ? "08" : "07" },
+    ...(isHost ? [{ id: "host", label: "Host", idx: "06" }] : []),
+    { id: "messages", label: "Messages", idx: isHost ? "07" : "06" },
+    { id: "appearance", label: "Appearance", idx: isHost ? "08" : "07" },
+    { id: "profile", label: "Profile", idx: isHost ? "09" : "08" },
+    { id: "admin", label: "Admin", idx: isHost ? "10" : "09" },
+    { id: "verify", label: "Verify", idx: isHost ? "11" : "10" },
   ];
   const { user, name, initial, profile, openAuth, signOut, authLoading } = useAuth();
   const { unreadTotal } = useSocial();
@@ -154,8 +157,17 @@ export default function Navbar({ tab, setTab, hidden }) {
                         <i className="fa-solid fa-wand-magic-sparkles" /> Host dashboard
                       </button>
                     )}
+                    <button className="user-menu-item" onClick={() => go("fyp")}>
+                      <i className="fa-solid fa-wand-magic-sparkles" /> For You
+                    </button>
                     <button className="user-menu-item" onClick={() => go("appearance")}>
                       <i className="fa-solid fa-palette" /> Appearance
+                    </button>
+                    <button className="user-menu-item" onClick={() => go("admin")}>
+                      <i className="fa-solid fa-chart-simple" /> Admin
+                    </button>
+                    <button className="user-menu-item" onClick={() => go("verify")}>
+                      <i className="fa-solid fa-shield-halved" /> Verify ticket
                     </button>
                     <button className="user-menu-item" onClick={handleSignOut}>
                       <i className="fa-solid fa-right-from-bracket" /> Sign out

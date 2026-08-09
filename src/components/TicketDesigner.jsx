@@ -116,6 +116,61 @@ export default function TicketDesigner({ value, onChange }) {
               {field("Tickets available", "stock", { type: "number", placeholder: "100" })}
             </div>
             <div className="field">
+              <label>Promo code (optional)</label>
+              <div className="field-row">
+                <div style={{ flex: 1.4 }}>
+                  <input
+                    className="input"
+                    placeholder="e.g. EARLY10"
+                    value={value.promo?.code || ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...value,
+                        promo: {
+                          code: e.target.value.trim().toUpperCase(),
+                          pct: Number(value.promo?.pct) || 0,
+                        },
+                      })
+                    }
+                    aria-label="Promo code"
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="% off"
+                    value={value.promo?.pct || ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...value,
+                        promo: {
+                          code: (value.promo?.code || "").trim().toUpperCase(),
+                          pct: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                        },
+                      })
+                    }
+                    aria-label="Promo discount percent"
+                  />
+                </div>
+                {(value.promo?.code || value.promo?.pct) && (
+                  <button
+                    type="button"
+                    className="bg-clear"
+                    onClick={() => onChange({ ...value, promo: null })}
+                  >
+                    <i className="fa-solid fa-xmark" aria-hidden="true" /> Remove
+                  </button>
+                )}
+              </div>
+              <small className="designer-field-hint">
+                Buyers type this code at checkout for the discount — e.g.
+                EARLY10 = 10% off.
+              </small>
+            </div>
+            <div className="field">
               <label htmlFor="td-footnote">Fine print</label>
               <textarea
                 id="td-footnote"

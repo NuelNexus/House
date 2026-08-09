@@ -18,6 +18,9 @@ import PublicProfile from "./pages/PublicProfile";
 import Auth from "./pages/Auth";
 import PostParty from "./pages/PostParty";
 import Host from "./pages/Host";
+import ForYou from "./pages/ForYou";
+import Admin from "./pages/Admin";
+import Verify from "./pages/Verify";
 import WriteReview from "./pages/WriteReview";
 import NewPost from "./pages/NewPost";
 import Checkout from "./pages/Checkout";
@@ -94,6 +97,7 @@ function CloudSync() {
 
 const VALID_TABS = [
   "home",
+  "fyp",
   "tickets",
   "parties",
   "blog",
@@ -102,6 +106,8 @@ const VALID_TABS = [
   "messages",
   "appearance",
   "host",
+  "admin",
+  "verify",
 ];
 const AUTH_MODES = ["signin", "signup", "forgot"];
 
@@ -220,8 +226,11 @@ function Shell() {
         {tab === "profile" && <Profile setTab={setTab} />}
         {tab === "user" && <PublicProfile userId={userId} />}
         {tab === "auth" && <Auth authMode={authMode} />}
+        {tab === "fyp" && <ForYou />}
         {tab === "post-party" && <PostParty setTab={setTab} />}
         {tab === "host" && <Host setTab={setTab} />}
+        {tab === "admin" && <Admin setTab={setTab} />}
+        {tab === "verify" && <Verify setTab={setTab} />}
         {tab === "write-review" && <WriteReview setTab={setTab} q={q} />}
         {tab === "new-post" && <NewPost setTab={setTab} />}
         {tab === "checkout" && <Checkout setTab={setTab} />}
