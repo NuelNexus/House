@@ -145,6 +145,9 @@ export default function Messages({ compose, q, setTab }) {
     setSending(true);
     const body = draft.trim();
     setDraft("");
+    // A lingering in-chat search must never hide the message you just
+    // sent — clear it so the fresh bubble is always visible.
+    setChatSearch("");
     await sendMessage(recipient, body);
     // Leave the composer deep link behind so back/forward stays clean.
     if (window.location.hash.startsWith("#messages/new")) {
@@ -347,7 +350,10 @@ export default function Messages({ compose, q, setTab }) {
                 {filteredMessages.map((m) => {
                   const mine = m.sender_id === user?.id;
                   return (
-                    <div key={m.id} className={`chat-msg ${mine ? "owner" : ""}`}>
+                    <div
+                      key={m.$id || m.id}
+                      className={`chat-msg ${mine ? "owner" : ""}`}
+                    >
                       <div className="chat-msg-profile">
                         <Avatar
                           name={mine ? name : recipientName}

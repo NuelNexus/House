@@ -30,6 +30,13 @@ export const COLLECTIONS = {
   hypes: "hypes",
   streaks: "hype_streaks",
   contactRequests: "contact_requests",
+  // User-generated content mirrored to the cloud so posts, parties,
+  // reviews and tickets survive sign-out and follow the account across
+  // devices (created by scripts/setup-appwrite.mjs).
+  posts: "posts",
+  parties: "parties",
+  reviews: "reviews",
+  tickets: "tickets",
 };
 // Single shared storage bucket (the free plan allows one) — holds
 // avatars AND hype videos.
