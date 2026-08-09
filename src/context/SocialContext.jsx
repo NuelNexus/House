@@ -50,11 +50,14 @@ export function SocialProvider({ children }) {
   const [following, setFollowing] = useState([]);
   const [myFollowers, setMyFollowers] = useState(0);
   const [followCounts, setFollowCounts] = useState({});
+  // People who follow me — the only people I can start a chat with.
+  const [followers, setFollowers] = useState([]);
 
   const loadFollows = useCallback(async () => {
     if (!uidRef.current) {
       setFollowing([]);
       setMyFollowers(0);
+      setFollowers([]);
       return;
     }
     const me = uidRef.current;
@@ -62,12 +65,15 @@ export function SocialProvider({ children }) {
       supabase.from("follows").select("following_id").eq("follower_id", me),
       supabase
         .from("follows")
-        .select("follower_id", { count: "exact", head: true })
+        .select("follower_id")
         .eq("following_id", me),
     ]);
     if (!outgoing.error) setFollowing((outgoing.data || []).map((r) => r.following_id));
-    setMyFollowers(incoming.count ?? 0);
-  }, []);
+    const fids = (incoming.data || []).map((r) => r.follower_id);
+    setMyFollowers(fids.length);
+    const profs = await fetchProfiles(fids);
+    setFollowers(fids.map((id) => ({ id, ...(profs[id] || {}) })));
+  }, [fetchProfiles]);
 
   useEffect(() => {
     loadFollows();
@@ -486,6 +492,7 @@ export function SocialProvider({ children }) {
       // follows
       following,
       myFollowers,
+      followers,
       isFollowing,
       toggleFollow,
       followCounts,
@@ -516,6 +523,7 @@ export function SocialProvider({ children }) {
     [
       following,
       myFollowers,
+      followers,
       isFollowing,
       toggleFollow,
       followCounts,

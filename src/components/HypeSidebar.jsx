@@ -11,7 +11,7 @@ const LINKS = [
   { id: "hype",    label: "Hype",    icon: "fa-fire" },
 ];
 
-export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
+export default function HypeSidebar({ tab, setTab, onPost }) {
   const { user, name, profile, openAuth, signOut } = useAuth();
   const { userParties } = useStore();
   const { streaks, unreadTotal } = useSocial();
@@ -24,11 +24,6 @@ export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
   const handlePost = () => {
     if (!user) { openAuth(); return; }
     onPost();
-  };
-
-  const handleSend = () => {
-    if (!user) { openAuth(); return; }
-    onSend();
   };
 
   return (
@@ -61,9 +56,6 @@ export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
       <div className="hype-sidebar-actions">
         <button className="btn btn-sm" onClick={handlePost}>
           <i className="fa-solid fa-fire" /> Post a hype
-        </button>
-        <button className="btn btn-sm btn-outline" onClick={handleSend}>
-          <i className="fa-solid fa-paper-plane" /> Send to a friend
         </button>
       </div>
 

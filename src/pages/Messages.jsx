@@ -4,6 +4,7 @@ import { useSocial } from "../context/SocialContext";
 import { useTheme } from "../context/ThemeContext";
 import { goUser } from "../lib/nav";
 import Avatar from "../components/Avatar";
+import VideoRecorder from "../components/VideoRecorder";
 
 // Chat accent palette (Instagram-style "change color" swatches).
 const CHAT_COLORS = [
@@ -35,7 +36,28 @@ function formatDay(iso) {
   });
 }
 
-export default function Messages({ compose, q, setTab }) {
+// Hypes can be photos (posted from the camera) or clips.
+function isImageHype(url) {
+  return /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url || "");
+}
+
+// Hype clip that plays in the inbox player. Audible autoplay can be
+// blocked even right after a tap (Safari especially), so start muted,
+// then unmute once playback is actually going.
+function HypeVideo({ src }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    v.muted = true;
+    v.play().then(() => {
+      v.muted = false;
+    }).catch(() => {});
+  }, [src]);
+  return <video ref={ref} src={src} loop playsInline controls />;
+}
+
+export default function Messages({ compose, sendHype, q, setTab }) {
   const { user, name, profile, authLoading, openAuth } = useAuth();
   const {
     conversations,
@@ -45,13 +67,15 @@ export default function Messages({ compose, q, setTab }) {
     sendMessage,
     people,
     loadPeople,
+    followers,
+    incomingHypes,
+    postHype,
   } = useSocial();
   const { theme, setMode } = useTheme();
 
   const [recipient, setRecipient] = useState(null);
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [memberSearch, setMemberSearch] = useState("");
   const [chatSearch, setChatSearch] = useState("");
   const [sending, setSending] = useState(false);
   const [accent, setAccent] = useState(() => {
@@ -61,11 +85,17 @@ export default function Messages({ compose, q, setTab }) {
       return "rose";
     }
   });
+  // Hype inbox + send-hype flow.
+  const [hypeView, setHypeView] = useState(null); // { user, hype } to play
+  const [sendMode, setSendMode] = useState(false);
+  const [friend, setFriend] = useState(null);
+  const [sendQuery, setSendQuery] = useState("");
   const bubblesRef = useRef(null);
+  // Only auto-open the send-hype flow once from a deep link — a late
+  // people-load must not re-open it after the user closed it.
+  const sendAutoOpened = useRef(false);
 
   const messages = recipient ? threads[recipient] || [] : [];
-  // Mobile panel: list → compose → thread, based on route + selection.
-  const panel = recipient ? "thread" : compose ? "compose" : "list";
 
   const accentValue =
     CHAT_COLORS.find((c) => c.id === accent)?.value || "var(--rose-deep)";
@@ -80,6 +110,7 @@ export default function Messages({ compose, q, setTab }) {
   };
 
   // Deep link support: #messages/new?to=<id>&event=<name>&offer=1&host=<name>
+  // (contacting a host) opens that thread directly — no member search needed.
   useEffect(() => {
     if (compose && q.to) {
       setRecipient(q.to);
@@ -90,11 +121,25 @@ export default function Messages({ compose, q, setTab }) {
           ? `Hi ${host}! I run a catering/service business and I'd love to offer my services for ${event}. Can we talk?`
           : `Hi ${host}! I'm interested in ${event} — quick question before I grab my ticket.`
       );
-    } else if (compose && !q.to) {
-      setRecipient(null);
-      setDraft("");
     }
   }, [compose, q.to, q.event, q.offer, q.host]);
+
+  // Deep link #hype/send?to=<id> now lands here — open the send-hype flow.
+  useEffect(() => {
+    if (sendHype && !sendAutoOpened.current) {
+      sendAutoOpened.current = true;
+      if (!people.length) loadPeople();
+      setSendMode(true);
+      if (q.to) {
+        const target =
+          people.find((p) => p.id === q.to) || {
+            id: q.to,
+            name: q.host || "a friend",
+          };
+        setFriend(target);
+      }
+    }
+  }, [sendHype, q, people, loadPeople]);
 
   useEffect(() => {
     if (recipient) openThread(recipient);
@@ -114,30 +159,60 @@ export default function Messages({ compose, q, setTab }) {
     (q.to === recipient ? q.host : null) ||
     "Chat";
 
-  const filteredConvs = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter(
-      (c) =>
-        (c.name || "").toLowerCase().includes(q) ||
-        (c.lastBody || "").toLowerCase().includes(q)
-    );
-  }, [conversations, search]);
+  // Chats = the people who follow me — the only people I can text.
+  const chatList = useMemo(() => {
+    const convByOther = new Map(conversations.map((c) => [c.other, c]));
+    return followers
+      .map((f) => {
+        const conv = convByOther.get(f.id);
+        return {
+          id: f.id,
+          name: f.name || "Festivity member",
+          avatar: f,
+          lastBody: conv?.lastBody,
+          lastAt: conv?.lastAt,
+          lastMine: conv?.lastMine,
+          unread: unread[f.id] || 0,
+        };
+      })
+      .sort((a, b) => {
+        const ta = a.lastAt ? new Date(a.lastAt).getTime() : 0;
+        const tb = b.lastAt ? new Date(b.lastAt).getTime() : 0;
+        return tb - ta;
+      });
+  }, [followers, conversations, unread]);
+
+  const filteredChats = useMemo(() => {
+    const qs = search.trim().toLowerCase();
+    if (!qs) return chatList;
+    return chatList.filter((c) => (c.name || "").toLowerCase().includes(qs));
+  }, [chatList, search]);
 
   const filteredMessages = useMemo(() => {
-    const q = chatSearch.trim().toLowerCase();
-    if (!q) return messages;
-    return messages.filter((m) => m.body.toLowerCase().includes(q));
+    const qs = chatSearch.trim().toLowerCase();
+    if (!qs) return messages;
+    return messages.filter((m) => m.body.toLowerCase().includes(qs));
   }, [messages, chatSearch]);
 
-  const matches = useMemo(
+  // People who sent ME a hype (deduped) — the hype inbox rail.
+  const hypeSenders = useMemo(() => {
+    const map = new Map();
+    incomingHypes.forEach((h) => {
+      if (h.user_id && !map.has(h.user_id)) {
+        map.set(h.user_id, { user: h.author || null, hype: h });
+      }
+    });
+    return [...map.values()];
+  }, [incomingHypes]);
+
+  const sendMatches = useMemo(
     () =>
       people.filter(
         (p) =>
           p.id !== user?.id &&
-          p.name.toLowerCase().includes(memberSearch.toLowerCase())
+          p.name.toLowerCase().includes(sendQuery.toLowerCase())
       ),
-    [people, memberSearch, user]
+    [people, sendQuery, user]
   );
 
   const handleSend = async () => {
@@ -156,16 +231,32 @@ export default function Messages({ compose, q, setTab }) {
     setSending(false);
   };
 
-  const openComposer = () => {
-    setRecipient(null);
-    setDraft("");
-    if (!people.length) loadPeople();
-    window.location.hash = "messages/new";
-  };
-
   const backToList = () => {
     setRecipient(null);
     window.location.hash = "messages";
+  };
+
+  const openSendHype = () => {
+    if (!user) {
+      openAuth();
+      return;
+    }
+    if (!people.length) loadPeople();
+    setFriend(null);
+    setSendQuery("");
+    setSendMode(true);
+  };
+
+  const closeSend = () => {
+    setSendMode(false);
+    setFriend(null);
+    setSendQuery("");
+  };
+
+  const handleHypeSend = async ({ blob, name: fname, caption, kind }) => {
+    if (!friend) return;
+    await postHype({ blob, name: fname, caption, recipientId: friend.id, kind });
+    closeSend();
   };
 
   const toggleMode = () =>
@@ -241,77 +332,50 @@ export default function Messages({ compose, q, setTab }) {
       </header>
 
       <div className="ms-wrap">
-        {/* Conversation list */}
-        <aside
-          className={`ms-convs ${panel !== "list" ? "mobile-hidden" : ""}`}
-        >
+        {/* Hype inbox — replaces the chats column with the profile pics of
+            everyone who sent you a hype. Tap one to play their hype. */}
+        <aside className="ms-convs">
           <div className="ms-convs-head">
-            <h3>Chats</h3>
+            <h3>Hype</h3>
             <button
               className="ms-new"
-              aria-label="New message"
-              title="New message"
-              onClick={openComposer}
+              aria-label="Send hype"
+              title="Send hype"
+              onClick={openSendHype}
             >
-              <i className="fa-solid fa-pen" />
+              <i className="fa-solid fa-fire" />
             </button>
           </div>
-
-          <div className="ms-convs-list">
-            {filteredConvs.length === 0 ? (
+          <div className="ms-hype-senders">
+            {hypeSenders.length === 0 ? (
               <div className="ms-empty">
-                <i className="fa-solid fa-comment-slash" />
-                <p>No chats yet. Tap the + to start one.</p>
+                <i className="fa-solid fa-fire" />
+                <p>Hypes sent to you land here.</p>
               </div>
             ) : (
-              filteredConvs.map((c) => (
+              hypeSenders.map((s) => (
                 <button
-                  key={c.other}
-                  className={`ms-item ${recipient === c.other ? "active" : ""}`}
-                  onClick={() => setRecipient(c.other)}
+                  key={s.user?.id || s.hype.id}
+                  className="ms-hype-avatar"
+                  title={s.user?.name || "Hype"}
+                  aria-label={`Play hype from ${s.user?.name || "a friend"}`}
+                  onClick={() => setHypeView(s)}
                 >
                   <Avatar
-                    name={c.name}
-                    seed={c.avatar?.avatar ?? 0}
-                    src={c.avatar?.avatar_url || null}
-                    size={44}
+                    name={s.user?.name || "?"}
+                    seed={s.user?.avatar ?? 0}
+                    src={s.user?.avatar_url || null}
+                    size={48}
                   />
-                  <span className="ms-body">
-                    <b>{c.name}</b>
-                    <p>
-                      {c.lastMine ? "You: " : ""}
-                      {c.lastBody}
-                    </p>
-                  </span>
-                  <span className="ms-side">
-                    <span className="ms-time">{formatDay(c.lastAt)}</span>
-                    {unread[c.other] > 0 && (
-                      <span
-                        className="ms-unread"
-                        aria-label={`${unread[c.other]} unread`}
-                      >
-                        {unread[c.other]}
-                      </span>
-                    )}
-                  </span>
                 </button>
               ))
             )}
-            <button
-              className="ms-add"
-              aria-label="New message"
-              title="New message"
-              onClick={openComposer}
-            >
-              <i className="fa-solid fa-plus" />
-            </button>
           </div>
         </aside>
 
-        {/* Chat area */}
-        <section
-          className={`ms-chat ${panel === "list" ? "mobile-hidden" : ""}`}
-        >
+        {/* Chat area — follower list (styled like the old compose panel),
+            or the open thread when one is selected. */}
+        <section className="ms-chat">
           {recipient ? (
             <>
               <div className="ms-chat-head">
@@ -408,45 +472,85 @@ export default function Messages({ compose, q, setTab }) {
             </>
           ) : (
             <div className="ms-compose">
+              {/* Hype inbox strip — shown on phones, where the side rail hides */}
+              <div className="ms-hype-strip">
+                <button
+                  className="ms-hype-send-btn"
+                  aria-label="Send hype"
+                  onClick={openSendHype}
+                >
+                  <i className="fa-solid fa-fire" />
+                  <span>Send</span>
+                </button>
+                {hypeSenders.map((s) => (
+                  <button
+                    key={s.user?.id || s.hype.id}
+                    className="ms-hype-avatar"
+                    title={s.user?.name || "Hype"}
+                    onClick={() => setHypeView(s)}
+                  >
+                    <Avatar
+                      name={s.user?.name || "?"}
+                      seed={s.user?.avatar ?? 0}
+                      src={s.user?.avatar_url || null}
+                      size={48}
+                    />
+                  </button>
+                ))}
+              </div>
+
               <h3 className="ms-compose-title">
-                <i className="fa-solid fa-pen" /> New message
+                <i className="fa-solid fa-comment-dots" /> Chats
               </h3>
               <div className="user-search">
                 <div className="search">
                   <i className="fa-solid fa-magnifying-glass" />
                   <input
-                    placeholder="Search members…"
-                    value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
-                    aria-label="Search members"
+                    placeholder="Search followers…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    aria-label="Search followers"
                   />
                 </div>
               </div>
-              {matches.length === 0 ? (
+              {filteredChats.length === 0 ? (
                 <p className="pick-empty">
-                  No members found
-                  {memberSearch ? ` for "${memberSearch}"` : ""}. They need to
-                  sign up first.
+                  {followers.length === 0
+                    ? "No one follows you yet — people who follow you show up here so you can chat."
+                    : "No chats with followers found."}
                 </p>
               ) : (
-                matches.map((p) => (
+                filteredChats.map((c) => (
                   <button
-                    key={p.id}
-                    className="user-row"
+                    key={c.id}
+                    className="user-row ms-follower-row"
                     onClick={() => {
-                      setRecipient(p.id);
+                      setRecipient(c.id);
                       setDraft("");
                       setChatSearch("");
                     }}
                   >
                     <Avatar
-                      name={p.name}
-                      seed={p.avatar ?? 0}
-                      src={p.avatar_url || null}
-                      size={36}
+                      name={c.name}
+                      seed={c.avatar?.avatar ?? 0}
+                      src={c.avatar?.avatar_url || null}
+                      size={40}
                     />
-                    <b>{p.name}</b>
-                    <i className="fa-solid fa-chevron-right" />
+                    <span className="ms-follower-mid">
+                      <b>{c.name}</b>
+                      <span className="ms-follower-last">
+                        {c.lastMine ? "You: " : ""}
+                        {c.lastBody || "No messages yet"}
+                      </span>
+                    </span>
+                    <span className="ms-follower-side">
+                      {c.lastAt && (
+                        <span className="ms-time">{formatDay(c.lastAt)}</span>
+                      )}
+                      {c.unread > 0 && (
+                        <span className="ms-unread">{c.unread}</span>
+                      )}
+                    </span>
                   </button>
                 ))
               )}
@@ -476,9 +580,15 @@ export default function Messages({ compose, q, setTab }) {
                   </button>
                   <button
                     className="ms-detail-btn"
-                    onClick={() =>
-                      (window.location.hash = `hype/send?to=${recipient}`)
-                    }
+                    onClick={() => {
+                      setFriend(
+                        recipientProfile || {
+                          id: recipient,
+                          name: recipientName,
+                        }
+                      );
+                      setSendMode(true);
+                    }}
                   >
                     <i className="fa-solid fa-fire" /> Hype
                   </button>
@@ -517,6 +627,110 @@ export default function Messages({ compose, q, setTab }) {
           )}
         </aside>
       </div>
+
+      {/* Hype player — plays the hype someone sent me */}
+      {hypeView && (
+        <div className="ms-hype-player" onClick={() => setHypeView(null)}>
+          <div
+            className="ms-hype-player-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="ms-hype-close"
+              aria-label="Close"
+              onClick={() => setHypeView(null)}
+            >
+              <i className="fa-solid fa-xmark" />
+            </button>
+            {isImageHype(hypeView.hype.video_url) ? (
+              <img
+                src={hypeView.hype.video_url}
+                alt={hypeView.hype.caption || "Hype"}
+              />
+            ) : (
+              <HypeVideo src={hypeView.hype.video_url} />
+            )}
+            <div className="ms-hype-meta">
+              <Avatar
+                name={hypeView.user?.name || "Friend"}
+                seed={hypeView.user?.avatar ?? 0}
+                src={hypeView.user?.avatar_url || null}
+                size={40}
+              />
+              <div>
+                <b>@{hypeView.user?.name || "Friend"}</b>
+                <span>{formatDay(hypeView.hype.created_at)}</span>
+              </div>
+            </div>
+            {hypeView.hype.caption && (
+              <p className="ms-hype-caption">{hypeView.hype.caption}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Send hype — pick a friend, then record the clip */}
+      {sendMode && (
+        <div className="ms-send-overlay">
+          {!friend ? (
+            <div className="ms-send-panel">
+              <div className="ms-send-head">
+                <h3>
+                  <i className="fa-solid fa-fire" /> Send hype
+                </h3>
+                <button
+                  className="ms-hype-close"
+                  aria-label="Close"
+                  onClick={closeSend}
+                >
+                  <i className="fa-solid fa-xmark" />
+                </button>
+              </div>
+              <div className="user-search">
+                <div className="search">
+                  <i className="fa-solid fa-magnifying-glass" />
+                  <input
+                    placeholder="Search friends…"
+                    value={sendQuery}
+                    onChange={(e) => setSendQuery(e.target.value)}
+                    aria-label="Search friends"
+                  />
+                </div>
+              </div>
+              <div className="ms-send-list">
+                {sendMatches.length === 0 ? (
+                  <p className="pick-empty">
+                    No one found — ask a friend to join Festivity first.
+                  </p>
+                ) : (
+                  sendMatches.map((p) => (
+                    <button
+                      key={p.id}
+                      className="user-row"
+                      onClick={() => setFriend(p)}
+                    >
+                      <Avatar
+                        name={p.name}
+                        seed={p.avatar ?? 0}
+                        src={p.avatar_url || null}
+                        size={36}
+                      />
+                      <b>{p.name}</b>
+                      <i className="fa-solid fa-chevron-right" />
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <VideoRecorder
+              sendToName={friend.name}
+              onDone={handleHypeSend}
+              onCancel={closeSend}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -264,20 +264,16 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
   );
 }
 
-export default function Hype({ send, q, setTab }) {
-  const { user, ensureAuth } = useAuth();
+export default function Hype({ setTab }) {
+  const { ensureAuth } = useAuth();
   const {
     hypeFeed,
     incomingHypes,
     hypeLoading,
     postHype,
-    people,
-    loadPeople,
     following,
   } = useSocial();
-  const [mode, setMode] = useState(null); // "post" | "send"
-  const [friend, setFriend] = useState(null);
-  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState(null); // "post" | null
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedTab, setFeedTab] = useState("foryou"); // "foryou" | "following"
   // Sound is ON by default (browsers only pause the first autoplay until
@@ -311,17 +307,6 @@ export default function Hype({ send, q, setTab }) {
     if (!visibleFeed.length) return;
     setCurrentIndex((i) => Math.max(i - 1, 0));
   };
-
-  // Deep link #hype/send?to=<id> opens the send flow with a friend picked.
-  useEffect(() => {
-    if (send) {
-      const target = q.to
-        ? people.find((p) => p.id === q.to) || { id: q.to, name: q.host || "a friend" }
-        : null;
-      setMode("send");
-      setFriend(target);
-    }
-  }, [send, q, people]);
 
   // Keyboard navigation (ignored while the recorder overlay is open).
   useEffect(() => {
@@ -374,34 +359,16 @@ export default function Hype({ send, q, setTab }) {
     setMode("post");
   };
 
-  const startSend = () => {
-    if (!ensureAuth()) return;
-    if (!people.length) loadPeople();
-    setMode("send");
-    setFriend(null);
-  };
-
   const handleDone = async ({ blob, name, caption, kind }) => {
-    await postHype({
-      blob,
-      name,
-      caption,
-      recipientId: mode === "send" && friend ? friend.id : null,
-      kind,
-    });
+    await postHype({ blob, name, caption, recipientId: null, kind });
     setMode(null);
-    setFriend(null);
   };
-
-  const matches = people.filter(
-    (p) => p.id !== user?.id && p.name.toLowerCase().includes(query.toLowerCase())
-  );
 
   const isEmpty = visibleFeed.length === 0;
 
   return (
     <div className="hype-layout">
-      <HypeSidebar tab="hype" setTab={setTab} onPost={startPost} onSend={startSend} />
+      <HypeSidebar tab="hype" setTab={setTab} onPost={startPost} />
 
       <div
         className="hype-feed-area"
@@ -424,69 +391,13 @@ export default function Hype({ send, q, setTab }) {
           </button>
         </div>
 
-        {/* recorder / send overlay */}
+        {/* recorder overlay */}
         {mode && (
           <div className="hype-feed-overlay">
-            {mode === "send" && !friend && (
-              <button
-                className="hype-overlay-back"
-                onClick={() => { setMode(null); setFriend(null); }}
-              >
-                <i className="fa-solid fa-arrow-left" /> Back
-              </button>
-            )}
-
-            {mode === "send" && !friend && (
-              <div className="field">
-                <label>Who&apos;s getting this hype?</label>
-                <div className="user-search">
-                  <div className="search">
-                    <i className="fa-solid fa-magnifying-glass" />
-                    <input
-                      placeholder="Search friends…"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      aria-label="Search friends"
-                    />
-                  </div>
-                </div>
-                <div className="pick-list">
-                  {matches.length === 0 ? (
-                    <p className="pick-empty">
-                      No one found — ask a friend to join Festivity first.
-                    </p>
-                  ) : (
-                    matches.map((p) => (
-                      <button
-                        key={p.id}
-                        className="user-row"
-                        onClick={() => setFriend(p)}
-                      >
-                        <Avatar
-                          name={p.name}
-                          seed={p.avatar ?? 0}
-                          src={p.avatar_url || null}
-                          size={34}
-                        />
-                        <b>{p.name}</b>
-                        <i className="fa-solid fa-chevron-right" />
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {(mode === "post" || (mode === "send" && friend)) && (
-              <VideoRecorder
-                sendToName={mode === "send" && friend ? friend.name : null}
-                onDone={handleDone}
-                onCancel={() => {
-                  setMode(null);
-                  setFriend(null);
-                }}
-              />
-            )}
+            <VideoRecorder
+              onDone={handleDone}
+              onCancel={() => setMode(null)}
+            />
           </div>
         )}
 
@@ -530,25 +441,6 @@ export default function Hype({ send, q, setTab }) {
                   onToggleSound={() => setSoundOn((s) => !s)}
                 />
               ))}
-            </div>
-
-            <div className="hype-feed-arrows">
-              <button
-                className="hype-arrow-btn"
-                aria-label="Previous"
-                disabled={currentIndex === 0}
-                onClick={prev}
-              >
-                <i className="fa-solid fa-chevron-left" />
-              </button>
-              <button
-                className="hype-arrow-btn"
-                aria-label="Next"
-                disabled={currentIndex === visibleFeed.length - 1}
-                onClick={next}
-              >
-                <i className="fa-solid fa-chevron-right" />
-              </button>
             </div>
           </div>
         )}

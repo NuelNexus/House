@@ -4466,7 +4466,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
 }
 
 .ms-convs {
-  width: 340px;
+  width: 200px;
   flex-shrink: 0;
   border-right: 1px solid var(--line);
   display: flex;
@@ -4616,27 +4616,6 @@ html[data-mode="dark"][data-bg="image"] body::before {
 .ms-empty i {
   font-size: 30px;
   opacity: 0.5;
-}
-
-.ms-add {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--chat-accent);
-  color: #fff;
-  font-size: 18px;
-  cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-  transition: transform 0.2s ease;
-}
-
-.ms-add:hover {
-  transform: translateX(-50%) scale(1.06);
 }
 
 .ms-chat {
@@ -5083,6 +5062,225 @@ html[data-mode="dark"][data-bg="image"] body::before {
   line-height: 1.6;
 }
 
+/* ============================================================
+   Messages: hype inbox + send-hype + follower chat list
+   ============================================================ */
+.ms-hype-senders {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 10px;
+}
+
+.ms-hype-avatar {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  line-height: 0;
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+.ms-hype-avatar:hover {
+  transform: scale(1.08);
+}
+
+.ms-hype-avatar .avatar-svg {
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+.ms-hype-avatar::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid #4da3ff;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Hype player overlay — plays a hype someone sent me */
+.ms-hype-player {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ms-hype-player-card {
+  position: relative;
+  max-width: 560px;
+  width: 100%;
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ms-hype-player-card video,
+.ms-hype-player-card img {
+  width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+.ms-hype-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ms-hype-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  color: #fff;
+}
+
+.ms-hype-meta b {
+  display: block;
+  font-size: 15px;
+}
+
+.ms-hype-meta span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ms-hype-caption {
+  margin: 0;
+  padding: 0 18px 16px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+}
+
+/* Send-hype overlay — pick a friend, then record */
+.ms-send-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ms-send-panel {
+  width: min(480px, 100%);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--paper);
+  border-radius: 16px;
+  padding: 22px;
+  border: 2px solid var(--ink);
+}
+
+.ms-send-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ms-send-head h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ms-send-panel .ms-hype-close {
+  position: static;
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.ms-send-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Follower chat rows (styled like the old new-message panel) */
+.ms-follower-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ms-follower-last {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.ms-follower-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* Hype strip — mobile only, shown above the Chats list */
+.ms-hype-strip {
+  display: none;
+}
+
+.ms-hype-send-btn {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px dashed #4da3ff;
+  background: transparent;
+  color: #4da3ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 @media (max-width: 1120px) {
   .ms-detail {
     display: none;
@@ -5108,14 +5306,17 @@ html[data-mode="dark"][data-bg="image"] body::before {
   }
 
   .ms-convs {
-    width: 100%;
-    border-right: 0;
-  }
-
-  .ms-convs.mobile-hidden,
-  .ms-chat.mobile-hidden {
     display: none;
   }
+
+  .ms-hype-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 2px 18px;
+    overflow-x: auto;
+  }
+
 
   .ms-back {
     display: inline-flex;
@@ -5697,44 +5898,6 @@ html[data-mode="dark"][data-bg="image"] body::before {
   to { transform: rotate(360deg); }
 }
 
-/* Arrow navigation (left / right) */
-.hype-feed-arrows {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 5;
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-}
-
-.hype-arrow-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-}
-
-.hype-arrow-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: #fff;
-}
-
-.hype-arrow-btn:disabled {
-  opacity: 0.2;
-  cursor: not-allowed;
-}
-
 /* Empty state (dark) */
 .hype-feed-empty {
   text-align: center;
@@ -5874,9 +6037,6 @@ html[data-mode="dark"][data-bg="image"] body::before {
     width: 30px;
     height: 30px;
     font-size: 15px;
-  }
-  .hype-feed-arrows {
-    left: 10px;
   }
   .hype-slide-info {
     max-width: 58%;

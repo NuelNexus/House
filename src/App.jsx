@@ -131,7 +131,7 @@ function parseHash(hash) {
     authMode: "signin",
     contactId: null,
     messagesCompose: false,
-    hypeSend: false,
+    messagesSend: false,
     q,
   };
 
@@ -167,8 +167,10 @@ function parseHash(hash) {
     return { ...base, tab: "contact", contactId: decodeURIComponent(parts[1]) };
   if (head === "messages")
     return { ...base, tab: "messages", messagesCompose: parts[1] === "new" };
-  if (head === "hype")
-    return { ...base, tab: "hype", hypeSend: parts[1] === "send" };
+  // Sending a hype now lives in Messages, not the Hype feed.
+  if (head === "hype" && parts[1] === "send")
+    return { ...base, tab: "messages", messagesSend: true };
+  if (head === "hype") return { ...base, tab: "hype" };
   if (head === "appearance") return { ...base, tab: "appearance" };
   // Merged tabs: old URLs keep working.
   if (head === "reviews") return { ...base, tab: "parties" };
@@ -181,7 +183,7 @@ function Shell() {
   const { toast, setCartOpen } = useStore();
   const [route, setRoute] = useState(() => parseHash(window.location.hash));
   const [introDone, setIntroDone] = useState(false);
-  const { tab, userId, partyId, authMode, contactId, messagesCompose, hypeSend, q } =
+  const { tab, userId, partyId, authMode, contactId, messagesCompose, messagesSend, q } =
     route;
 
   // Keep routes deep-linkable so back/forward and shared links work.
@@ -241,9 +243,14 @@ function Shell() {
         {tab === "new-post" && <NewPost setTab={setTab} />}
         {tab === "checkout" && <Checkout setTab={setTab} />}
         {tab === "edit-profile" && <EditProfile setTab={setTab} />}
-        {tab === "hype" && <Hype send={hypeSend} q={q} setTab={setTab} />}
+        {tab === "hype" && <Hype setTab={setTab} />}
         {tab === "messages" && (
-          <Messages compose={messagesCompose} q={q} setTab={setTab} />
+          <Messages
+            compose={messagesCompose}
+            sendHype={messagesSend}
+            q={q}
+            setTab={setTab}
+          />
         )}
         {tab === "contact" && <Contact contactId={contactId} q={q} />}
         {tab === "appearance" && <Appearance />}
