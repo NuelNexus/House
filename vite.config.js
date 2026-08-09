@@ -18,7 +18,7 @@ export default defineConfig({
         // app shell loads fast and repeat visits hit the cache.
         manualChunks: {
           react: ["react", "react-dom"],
-          appwrite: ["appwrite"],
+          supabase: ["@supabase/supabase-js"],
           three: ["three"],
           gsap: ["gsap"],
         },

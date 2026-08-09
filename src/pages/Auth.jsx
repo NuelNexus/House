@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { authBackTarget, authDestination, routeQuery } from "../lib/nav";
+import { authBackTarget, authDestination } from "../lib/nav";
 import Reveal from "../components/Reveal";
 
-// Appwrite's recovery / verification emails land on the app with a
-// userId + secret (e.g. /#auth/recovery?userId=..&secret=..). Detect
-// those and show the right completion form instead of the sign-in page.
+// The password-reset email lands on the app with a recovery session in
+// the hash (#access_token=...&type=recovery). Detect that and show the
+// "set a new password" form instead of the regular auth page.
 export default function Auth({ authMode = "signin" }) {
   const {
     user,
     name,
     authLoading,
-    emailVerified,
     signIn,
     signUp,
     resetPassword,
-    completeRecovery,
-    sendVerification,
-    completeVerification,
+    updatePassword,
     signOut,
   } = useAuth();
   const [mode, setMode] = useState(authMode); // signin | signup | forgot
@@ -29,61 +26,17 @@ export default function Auth({ authMode = "signin" }) {
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [recoveryMode, setRecoveryMode] = useState(() =>
-    window.location.hash.includes("auth/recovery")
+    window.location.hash.includes("type=recovery")
   );
-  const [verifyMode, setVerifyMode] = useState(() =>
-    window.location.hash.includes("auth/verify")
-  );
-  const [verifyBusy, setVerifyBusy] = useState(false);
   const justAuthed = useRef(false);
 
-  // Appwrite appends ?userId=..&secret=.. to the redirect URL — usually
-  // after the hash fragment, but check the real query string too.
-  const params = routeQuery();
-  const searchParams = new URLSearchParams(window.location.search);
-  const linkUserId = searchParams.get("userId") || params.userId;
-  const linkSecret = searchParams.get("secret") || params.secret;
-
-  // Re-evaluate when the URL changes (and once shortly after mount, in
-  // case the email client rewrites the link before navigation finishes).
+  // Stay in recovery mode if the hash changes while on this page.
   useEffect(() => {
-    const onHash = () => {
-      setRecoveryMode(window.location.hash.includes("auth/recovery"));
-      setVerifyMode(window.location.hash.includes("auth/verify"));
-    };
+    const onHash = () =>
+      setRecoveryMode(window.location.hash.includes("type=recovery"));
     window.addEventListener("hashchange", onHash);
-    const t = window.setTimeout(onHash, 1200);
-    return () => {
-      window.removeEventListener("hashchange", onHash);
-      window.clearTimeout(t);
-    };
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
-
-  // Finish an email-verification link the moment it lands.
-  useEffect(() => {
-    if (!verifyMode || !linkUserId || !linkSecret) return;
-    let active = true;
-    (async () => {
-      setVerifyBusy(true);
-      try {
-        await completeVerification(linkUserId, linkSecret);
-        if (!active) return;
-        window.history.replaceState(null, "", window.location.pathname + "#auth");
-        setVerifyMode(false);
-        setNotice("Email verified — your address is confirmed!");
-      } catch (err) {
-        if (!active) return;
-        setError(err.message || "Couldn't verify that link. It may have expired.");
-        window.history.replaceState(null, "", window.location.pathname + "#auth");
-        setVerifyMode(false);
-      } finally {
-        if (active) setVerifyBusy(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [verifyMode, linkUserId, linkSecret, completeVerification]);
 
   // Keep the tab in sync when the URL hash changes (#auth/signup, ...).
   useEffect(() => {
@@ -112,10 +65,6 @@ export default function Auth({ authMode = "signin" }) {
     e.preventDefault();
     setError("");
     setNotice("");
-    if (!linkUserId || !linkSecret) {
-      setError("This reset link is invalid or expired — request a new one.");
-      return;
-    }
     if (newPw.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -126,29 +75,15 @@ export default function Auth({ authMode = "signin" }) {
     }
     setBusy(true);
     try {
-      await completeRecovery(linkUserId, linkSecret, newPw);
-      // Drop the secret from the URL, then land on the profile.
-      window.history.replaceState(null, "", window.location.pathname + "#auth");
-      setRecoveryMode(false);
+      await updatePassword(newPw);
       justAuthed.current = true;
-      // updateRecovery signs the user in — profile is a safe landing spot.
+      // Drop the recovery tokens from the URL, then land on the profile.
       window.location.hash = "#profile";
     } catch (err) {
-      setError(friendlyError(err.message));
+      setError(err.message || "Couldn't update the password. Try again.");
     } finally {
       setBusy(false);
     }
-  };
-
-  const friendlyError = (message) => {
-    const msg = message || "Something went wrong. Try again.";
-    if (/rate\s*limit/i.test(msg)) {
-      return (
-        "You've hit the email sending limit for this address — only a few " +
-        "emails are allowed per hour. Wait a bit, then try again."
-      );
-    }
-    return msg;
   };
 
   const submit = async (e) => {
@@ -165,23 +100,27 @@ export default function Auth({ authMode = "signin" }) {
         if (!form.name.trim()) {
           throw new Error("Please add your name.");
         }
-        await signUp({
+        const data = await signUp({
           name: form.name.trim(),
           email: form.email,
           password: form.password,
         });
-        // Appwrite signs the new account straight in; fire off a
-        // verification email (best effort) and continue.
-        sendVerification().catch(() => {});
-        justAuthed.current = true;
-        done();
+        if (!data.session) {
+          switchMode("signin");
+          setNotice(
+            "Account created! Check your inbox for a confirmation link, then sign in. (You can turn off email confirmation in Supabase → Authentication → Providers.)"
+          );
+        } else {
+          justAuthed.current = true;
+          done();
+        }
       } else {
         if (!form.email.trim()) throw new Error("Enter your email address.");
         await resetPassword(form.email);
         setNotice("Password reset link sent — check your inbox.");
       }
     } catch (err) {
-      setError(friendlyError(err.message));
+      setError(err.message || "Something went wrong. Try again.");
     } finally {
       setBusy(false);
     }
@@ -302,12 +241,6 @@ export default function Auth({ authMode = "signin" }) {
           <p>
             Head to your profile to manage your parties, reviews and tickets.
           </p>
-          {!emailVerified && (
-            <p style={{ marginBottom: 12, fontSize: 13, color: "var(--ink-soft)" }}>
-              Your email isn't verified yet — confirm it to keep your account
-              secure.
-            </p>
-          )}
           <div className="gate-actions">
             <button
               className="btn"
@@ -317,29 +250,6 @@ export default function Auth({ authMode = "signin" }) {
             >
               Go to profile <i className="fa-solid fa-arrow-right icon" />
             </button>
-            {!emailVerified && (
-              <button
-                className="btn btn-outline"
-                disabled={verifyBusy}
-                onClick={async () => {
-                  setVerifyBusy(true);
-                  setError("");
-                  setNotice("");
-                  try {
-                    await sendVerification();
-                    setNotice("Verification email sent — check your inbox.");
-                  } catch (err) {
-                    setError(
-                      err.message || "Couldn't send the verification email."
-                    );
-                  } finally {
-                    setVerifyBusy(false);
-                  }
-                }}
-              >
-                {verifyBusy ? "Sending…" : "Send verification email"}
-              </button>
-            )}
             <button className="btn btn-outline" onClick={signOut}>
               Sign out
             </button>
@@ -491,7 +401,7 @@ export default function Auth({ authMode = "signin" }) {
           </form>
 
           <p className="auth-foot">
-            Powered by Appwrite — secure email authentication, no passwords
+            Powered by Supabase — secure email authentication, no passwords
             stored here.
           </p>
         </div>

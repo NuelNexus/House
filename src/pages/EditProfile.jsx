@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import Avatar, { AVATAR_PALETTES } from "../components/Avatar";
 import Reveal from "../components/Reveal";
 import { useAuth } from "../context/AuthContext";
-import { ID, storage } from "../lib/appwrite";
+import { supabase } from "../lib/supabase";
 
 export default function EditProfile({ setTab }) {
   const { user, authLoading, profile, saveProfile, openAuth } = useAuth();
@@ -32,11 +32,16 @@ export default function EditProfile({ setTab }) {
     setUploading(true);
     setError("");
     try {
-      const created = await storage.createFile("avatars", ID.unique(), file);
-      const view = storage.getFileView("avatars", created.$id);
-      setForm((f) => ({ ...f, avatarUrl: view.href }));
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (upErr) throw new Error(upErr.message);
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      setForm((f) => ({ ...f, avatarUrl: pub?.publicUrl ?? null }));
     } catch (err) {
-      setError("Upload failed — is the avatars bucket set up in Appwrite?");
+      setError(err.message || "Upload failed — is the avatars bucket set up?");
     } finally {
       setUploading(false);
     }
@@ -158,7 +163,7 @@ export default function EditProfile({ setTab }) {
                   />
                 </div>
                 <p style={{ marginTop: 8, fontSize: 12, color: "var(--ink-soft)", letterSpacing: 1 }}>
-                  Max 2 MB · stored in Appwrite Storage
+                  Max 2 MB · stored in the avatars bucket
                 </p>
               </div>
             </div>

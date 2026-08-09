@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { apiSaveContent, apiDeleteContent, apiListContent } from "../lib/contentApi";
 import { SEED_PARTIES, SEED_REVIEWS, SEED_TICKETS, SEED_BLOG } from "../data/seed";
+import { supabase } from "../lib/supabase";
 
 const StoreContext = createContext(null);
 
@@ -32,6 +32,27 @@ function save(key, value) {
 const genCode = () =>
   `FST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+function fmtShortDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function parseHolder(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export function StoreProvider({ children }) {
   const [cart, setCart] = useState(() => load("festivity.cart", []));
   const [myTickets, setMyTickets] = useState(() => load("festivity.tickets", []));
@@ -48,9 +69,6 @@ export function StoreProvider({ children }) {
   const toastTimer = useRef(null);
   const goingRef = useRef(going);
   const cloudUserRef = useRef(null);
-  // Guards against React StrictMode double-invoking the sign-in effect
-  // (which would fetch + push up twice in dev).
-  const cloudImportingRef = useRef(false);
   useEffect(() => {
     goingRef.current = going;
   }, [going]);
@@ -69,175 +87,115 @@ export function StoreProvider({ children }) {
   }, []);
 
   // ----------------------------------------------------------
-  // Cloud backup (Netlify Blobs via /api/data). User content
-  // (posts, parties, reviews, tickets) is backed up to Netlify's
-  // built-in storage — no external service, no setup — so it
-  // survives sign-out, browser wipes and other devices.
-  // localStorage is the fast offline cache; every write is
-  // best-effort, so if the API is unreachable the row stays local
-  // and importCloud pushes it up on the next sign-in.
+  // Cloud sync (Supabase). The app degrades gracefully when the
+  // tables haven't been created yet — local storage keeps working.
   // ----------------------------------------------------------
   const attachCloud = useCallback((user) => {
     cloudUserRef.current = user;
   }, []);
 
-  const saveContent = useCallback(
-    (type, id, data) => {
-      const me = cloudUserRef.current?.id;
-      if (!me || !id) return Promise.resolve(false);
-      return apiSaveContent(me, type, id, data);
-    },
-    []
-  );
+  const importCloud = useCallback(async (userId) => {
+    if (!userId) return;
+    try {
+      const [partiesRes, reviewsRes, ticketsRes, goingRes, postsRes] =
+        await Promise.all([
+          supabase
+            .from("parties")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("reviews")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("tickets")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+          supabase.from("going").select("party_id").eq("user_id", userId),
+          supabase
+            .from("posts")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
+        ]);
+      // If the tables don't exist yet, keep everything local.
+      if (
+        partiesRes.error &&
+        reviewsRes.error &&
+        ticketsRes.error &&
+        goingRes.error &&
+        postsRes.error
+      )
+        return;
 
-  const deleteContent = useCallback((type, id) => {
-    const me = cloudUserRef.current?.id;
-    if (!me || !id) return;
-    apiDeleteContent(me, type, id);
-  }, []);
+      // PostgREST returns snake_case columns — map back to the app's shape.
+      const cloudParties = (partiesRes.data ?? []).map((p) => ({
+        ...p,
+        isUser: p.is_user ?? true,
+        userId: p.user_id ?? null,
+      }));
+      const cloudReviews = (reviewsRes.data ?? []).map((r) => ({
+        ...r,
+        partyName: r.party_name ?? r.partyName,
+        userId: r.user_id ?? null,
+      }));
+      const cloudTickets = ticketsRes.data ?? [];
 
-  // Pull the signed-in user's content back from the Netlify backup and
-  // merge it with anything local (e.g. rows written while the API was
-  // unreachable). Local-only rows are pushed up so they're safe too.
-  // Note: without tombstones, a stale local copy on another device can
-  // re-push a row deleted elsewhere — acceptable for this app.
-  const importCloud = useCallback(
-    async (userId) => {
-      if (!userId) return;
-      if (cloudImportingRef.current) return; // StrictMode double-invoke guard
-      cloudImportingRef.current = true;
-      try {
-        const me = userId;
-
-        // Shared-device privacy: the local cache is per-account. When a
-        // different account signs in, drop the previous account's backed-up
-        // rows before merging (the same account keeps everything on
-        // sign-out). The RSVP list (going) is intentionally left alone —
-        // it isn't backed up, so clearing it would permanently lose it;
-        // party names are public anyway. Session-only RSVP patches reset.
-        let owner = "";
-        try {
-          owner = localStorage.getItem("festivity.contentOwner") || "";
-        } catch {
-          /* storage unavailable */
-        }
-        if (owner && owner !== me) {
-          [
-            "festivity.posts",
-            "festivity.parties",
-            "festivity.reviews",
-            "festivity.tickets",
-          ].forEach((k) => {
-            try {
-              localStorage.removeItem(k);
-            } catch {
-              /* ignore */
-            }
-          });
-          setUserPosts([]);
-          setUserParties([]);
-          setUserReviews([]);
-          setMyTickets([]);
-          setRsvpPatches({});
-        }
-        try {
-          localStorage.setItem("festivity.contentOwner", me);
-        } catch {
-          /* ignore */
-        }
-
-        const remote = await apiListContent(me); // { posts?, parties?, ... }
-
-        const readLocal = (key) => {
-          try {
-            const raw = localStorage.getItem(key);
-            return raw ? JSON.parse(raw) : [];
-          } catch {
-            return [];
-          }
-        };
-        const merge = (rows, localRows, key) => {
-          if (!rows) return null; // backup unavailable — keep local as-is
-          const ids = new Set(rows.map((r) => r[key]));
-          return [...rows, ...localRows.filter((r) => !ids.has(r[key]))];
-        };
-        // Backup list order is unspecified — keep the merged feed
-        // newest-first so the Blog "featured" slot is always the latest.
-        const sortNewest = (rows) =>
-          rows.sort((a, b) =>
-            String(b.created_at || b.date || "").localeCompare(
-              String(a.created_at || a.date || "")
-            )
-          );
-        const pushUp = (type, rows, key, toData) => {
-          rows.forEach((row) => saveContent(type, row[key], toData(row)));
-        };
-
-        // --- posts ---
-        if (remote.posts) {
-          const local = readLocal("festivity.posts");
-          const merged = merge(remote.posts, local, "id");
-          if (merged) {
-            pushUp(
-              "posts",
-              local.filter((p) => !remote.posts.some((c) => c.id === p.id)),
-              "id",
-              (p) => p
-            );
-            setUserPosts(sortNewest(merged));
-          }
-        }
-
-        // --- parties ---
-        if (remote.parties) {
-          const local = readLocal("festivity.parties");
-          const merged = merge(remote.parties, local, "id");
-          if (merged) {
-            pushUp(
-              "parties",
-              local.filter((p) => !remote.parties.some((c) => c.id === p.id)),
-              "id",
-              (p) => p
-            );
-            setUserParties(sortNewest(merged));
-          }
-        }
-
-        // --- reviews ---
-        if (remote.reviews) {
-          const local = readLocal("festivity.reviews");
-          const merged = merge(remote.reviews, local, "id");
-          if (merged) {
-            pushUp(
-              "reviews",
-              local.filter((r) => !remote.reviews.some((c) => c.id === r.id)),
-              "id",
-              (r) => r
-            );
-            setUserReviews(sortNewest(merged));
-          }
-        }
-
-        // --- tickets ---
-        if (remote.tickets) {
-          const local = readLocal("festivity.tickets");
-          const merged = merge(remote.tickets, local, "code");
-          if (merged) {
-            pushUp(
-              "tickets",
-              local.filter((t) => !remote.tickets.some((c) => c.code === t.code)),
-              "code",
-              (t) => t
-            );
-            setMyTickets(sortNewest(merged));
-          }
-        }
-      } finally {
-        cloudImportingRef.current = false;
+      if (cloudParties.length) {
+        setUserParties((prev) => {
+          const have = new Set(prev.map((p) => p.id));
+          return [...cloudParties, ...prev.filter((p) => !have.has(p.id))];
+        });
       }
-    },
-    [saveContent]
-  );
+      if (cloudReviews.length) {
+        setUserReviews((prev) => {
+          const have = new Set(prev.map((r) => r.id));
+          return [...cloudReviews, ...prev.filter((r) => !have.has(r.id))];
+        });
+      }
+      const cloudGoing = (goingRes.data ?? []).map((g) => g.party_id);
+      if (cloudGoing.length) {
+        setGoing((prev) => [...new Set([...prev, ...cloudGoing])]);
+      }
+      if (cloudTickets.length) {
+        setMyTickets((prev) => {
+          const have = new Set(prev.map((t) => t.code));
+          const mapped = cloudTickets.map((t) => ({
+            code: t.code,
+            ticketId: t.ticket_id,
+            name: t.name,
+            date: t.date,
+            location: t.location,
+            price: Number(t.price),
+            holder: parseHolder(t.holder),
+          }));
+          return [...mapped, ...prev.filter((t) => !have.has(t.code))];
+        });
+      }
+      const cloudPosts = (postsRes.data ?? []).map((p) => ({
+        ...p,
+        isUser: true,
+        userId: p.user_id ?? null,
+        date: fmtShortDate(p.created_at),
+        readTime: `${Math.max(
+          1,
+          Math.ceil((p.body || "").split(/\s+/).length / 200)
+        )} min read`,
+        excerpt: (p.body || "").replace(/\s+/g, " ").trim().slice(0, 180),
+      }));
+      if (cloudPosts.length) {
+        setUserPosts((prev) => {
+          const have = new Set(prev.map((p) => p.id));
+          return [...cloudPosts, ...prev.filter((p) => !have.has(p.id))];
+        });
+      }
+    } catch {
+      /* offline — keep local */
+    }
+  }, []);
 
   const addToCart = useCallback(
     (ticket, qty = 1) => {
@@ -287,39 +245,69 @@ export function StoreProvider({ children }) {
       setMyTickets((prev) => [...purchased, ...prev]);
       setCart([]);
 
-      // Back each pass up to Netlify so it comes back after sign-out /
-      // on another device. Fire-and-forget: the passes are already shown
-      // instantly, the backup settles in the background.
-      purchased.forEach((t) => saveContent("tickets", t.code, t));
+      const uid = cloudUserRef.current?.id;
+      if (uid && purchased.length) {
+        supabase
+          .from("tickets")
+          .insert(
+            purchased.map((t) => ({
+              code: t.code,
+              user_id: uid,
+              ticket_id: t.ticketId,
+              name: t.name,
+              date: t.date,
+              location: t.location,
+              price: t.price,
+              holder: JSON.stringify(t.holder),
+            }))
+          )
+          .then(({ error }) => {
+            if (error) console.warn("tickets sync:", error.message);
+          });
+      }
 
       notify("Payment received — your tickets are ready");
       return purchased;
     },
-    [cart, saveContent, notify]
+    [cart, notify]
   );
 
   const postParty = useCallback(
-    async (party) => {
+    (party) => {
       const record = {
         ...party,
         id: `u${Date.now()}`,
         isUser: true,
         rsvps: 0,
         userId: cloudUserRef.current?.id ?? null,
-        created_at: new Date().toISOString(),
       };
       setUserParties((prev) => [record, ...prev]);
 
-      const me = cloudUserRef.current?.id;
-      if (me) {
-        // Await the backup so the success toast only fires once the
-        // party is safe — a quick sign-out can no longer lose it.
-        await saveContent("parties", record.id, record);
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        // Send snake_case column names — `is_user` and `rsvps` default.
+        supabase
+          .from("parties")
+          .upsert({
+            id: record.id,
+            user_id: uid,
+            title: record.title,
+            host: record.host,
+            date: record.date,
+            location: record.location,
+            price: record.price,
+            capacity: record.capacity,
+            description: record.description,
+            category: record.category,
+          })
+          .then(({ error }) => {
+            if (error) console.warn("parties sync:", error.message);
+          });
       }
 
       notify("Your party is live on the scene!");
     },
-    [saveContent, notify]
+    [notify]
   );
 
   // Display count = the database counter + this session's own toggles.
@@ -338,102 +326,189 @@ export function StoreProvider({ children }) {
         ...prev,
         [id]: Math.max(0, (prev[id] ?? 0) + (has ? -1 : 1)),
       }));
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        if (has) {
+          supabase
+            .from("going")
+            .delete()
+            .eq("user_id", uid)
+            .eq("party_id", id)
+            .then(({ error }) => {
+              if (error) console.warn("going sync:", error.message);
+            });
+        } else {
+          supabase
+            .from("going")
+            .upsert({ user_id: uid, party_id: id })
+            .then(({ error }) => {
+              if (error) console.warn("going sync:", error.message);
+            });
+        }
+      }
       notify(has ? "RSVP removed" : "You're going! See you there");
     },
     [notify]
   );
 
   const addReview = useCallback(
-    async (review) => {
+    (review) => {
       const record = {
         ...review,
         id: `r${Date.now()}`,
         verified: false,
         userId: cloudUserRef.current?.id ?? null,
-        created_at: new Date().toISOString(),
       };
       setUserReviews((prev) => [record, ...prev]);
 
-      const me = cloudUserRef.current?.id;
-      if (me) {
-        // Await the backup so the success toast only appears once the
-        // review is safe (survives sign-out).
-        await saveContent("reviews", record.id, record);
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        // `party_name` is the column — map from the app's partyName.
+        supabase
+          .from("reviews")
+          .upsert({
+            id: record.id,
+            user_id: uid,
+            party_name: record.partyName,
+            rating: record.rating,
+            title: record.title,
+            comment: record.comment,
+            author: record.author,
+            date: record.date,
+            verified: false,
+          })
+          .then(({ error }) => {
+            if (error) console.warn("reviews sync:", error.message);
+          });
       }
 
       notify("Thanks for the review!");
     },
-    [saveContent, notify]
+    [notify]
   );
 
-  // ---- Delete own content (local + backup) --------------------
+  // ---- Delete own content (local + cloud) ----------------------
+  const removeFromCloud = useCallback((table, id) => {
+    const uid = cloudUserRef.current?.id;
+    if (!uid) return;
+    supabase
+      .from(table)
+      .delete()
+      .eq("user_id", uid)
+      .eq(table === "tickets" ? "code" : "id", id)
+      .then(({ error }) => {
+        if (error) console.warn(`${table} delete sync:`, error.message);
+      });
+  }, []);
+
   const deleteParty = useCallback(
     (id) => {
       setUserParties((prev) => prev.filter((p) => p.id !== id));
       setGoing((prev) => prev.filter((g) => g !== id));
-      deleteContent("parties", id);
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        supabase
+          .from("parties")
+          .delete()
+          .eq("user_id", uid)
+          .eq("id", id)
+          .then(({ error }) => {
+            if (error) console.warn("parties delete sync:", error.message);
+          });
+        // Clean up the caller's RSVP rows for this party too.
+        supabase
+          .from("going")
+          .delete()
+          .eq("party_id", id)
+          .then(({ error }) => {
+            if (error) console.warn("going cleanup:", error.message);
+          });
+      }
       notify("Party removed");
     },
-    [deleteContent, notify]
+    [notify]
   );
 
   const deleteReview = useCallback(
     (id) => {
       setUserReviews((prev) => prev.filter((r) => r.id !== id));
-      deleteContent("reviews", id);
+      removeFromCloud("reviews", id);
       notify("Review removed");
     },
-    [deleteContent, notify]
+    [notify, removeFromCloud]
   );
 
   const addPost = useCallback(
-    async (post) => {
+    (post) => {
       const record = {
         ...post,
         id: `b${Date.now()}`,
         isUser: true,
         userId: cloudUserRef.current?.id ?? null,
-        created_at: new Date().toISOString(),
       };
       setUserPosts((prev) => [record, ...prev]);
 
-      const me = cloudUserRef.current?.id;
-      if (me) {
-        // Await the backup so the "live" toast only fires once the post
-        // is safe — a quick sign-out can no longer lose it.
-        await saveContent("posts", record.id, record);
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        supabase
+          .from("posts")
+          .upsert({
+            id: record.id,
+            user_id: uid,
+            title: record.title,
+            category: record.category,
+            body: record.body,
+            author: record.author || null,
+            accent: record.accent || null,
+          })
+          .then(({ error }) => {
+            if (error) console.warn("posts sync:", error.message);
+          });
       }
 
       notify("Your post is live on the blog!");
     },
-    [saveContent, notify]
+    [notify]
   );
 
   const deletePost = useCallback(
     (id) => {
       setUserPosts((prev) => prev.filter((p) => p.id !== id));
-      deleteContent("posts", id);
+      removeFromCloud("posts", id);
       notify("Post removed");
     },
-    [deleteContent, notify]
+    [notify, removeFromCloud]
   );
 
   const deleteTicket = useCallback(
     (code) => {
       setMyTickets((prev) => prev.filter((t) => t.code !== code));
-      deleteContent("tickets", code);
+      removeFromCloud("tickets", code);
       notify("Pass removed");
     },
-    [deleteContent, notify]
+    [notify, removeFromCloud]
   );
 
-  // Sign-out deliberately does NOT wipe user content anymore — posts,
-  // parties, reviews and tickets survive in localStorage AND the Netlify
-  // backup, RSVPs survive locally, so nothing "goes anywhere". Privacy
-  // on shared devices is handled by the content-owner check in
-  // importCloud, which drops the previous account's cache when a
-  // different account signs in.
-  const resetUserContent = useCallback(() => {}, []);
+  // Wipe user content when someone signs out so the next person on
+  // this device never sees the previous account's parties, reviews
+  // or passes. Their cloud data comes back when they sign in again.
+  const resetUserContent = useCallback(() => {
+    setUserParties([]);
+    setUserReviews([]);
+    setUserPosts([]);
+    setMyTickets([]);
+    setGoing([]);
+    setRsvpPatches({});
+    try {
+      localStorage.removeItem("festivity.parties");
+      localStorage.removeItem("festivity.reviews");
+      localStorage.removeItem("festivity.posts");
+      localStorage.removeItem("festivity.tickets");
+      localStorage.removeItem("festivity.going");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const allParties = useMemo(
     () => [...userParties, ...SEED_PARTIES],
