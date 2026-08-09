@@ -2,29 +2,30 @@ import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import TicketCard from "../components/TicketCard";
 import TicketStub from "../components/TicketStub";
+import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
 
 export default function Tickets() {
-  const { tickets, myTickets } = useStore();
+  const { allTickets, myTickets } = useStore();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
 
   const categories = useMemo(
-    () => ["All", ...new Set(tickets.map((t) => t.category))],
-    [tickets]
+    () => ["All", ...new Set(allTickets.map((t) => t.category))],
+    [allTickets]
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return tickets.filter(
+    return allTickets.filter(
       (t) =>
         (category === "All" || t.category === category) &&
         (!q ||
-          `${t.name} ${t.location} ${t.lineup.join(" ")} ${t.category}`
+          `${t.name} ${t.location} ${(t.lineup || []).join(" ")} ${t.category}`
             .toLowerCase()
             .includes(q))
     );
-  }, [tickets, query, category]);
+  }, [allTickets, query, category]);
 
   return (
     <div className="page">
@@ -69,9 +70,22 @@ export default function Tickets() {
           <Reveal>
             <div className="section-label">Your Tickets ({myTickets.length})</div>
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-              {myTickets.map((t) => (
-                <TicketStub key={t.code} ticket={t} />
-              ))}
+              {myTickets.map((t) =>
+                t.design ? (
+                  <DesignedTicket
+                    key={t.code}
+                    design={t.design}
+                    passenger={
+                      typeof t.holder === "object" ? t.holder.name : t.holder
+                    }
+                    code={t.code}
+                    hash={t.hash}
+                    price={t.price}
+                  />
+                ) : (
+                  <TicketStub key={t.code} ticket={t} />
+                )
+              )}
             </div>
           </Reveal>
         </>

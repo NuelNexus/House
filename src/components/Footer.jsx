@@ -1,9 +1,14 @@
+import { useStore } from "../context/StoreContext";
+
 export default function Footer({ setTab }) {
+  const { userParties } = useStore();
   const links = [
     { id: "tickets", label: "Tickets" },
     { id: "parties", label: "Parties" },
     { id: "blog", label: "Blog" },
     { id: "hype", label: "Hype" },
+    // The Host link only appears once the user has hosted a party.
+    ...(userParties.length > 0 ? [{ id: "host", label: "Host" }] : []),
     { id: "profile", label: "Profile" },
   ];
 

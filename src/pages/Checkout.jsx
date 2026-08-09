@@ -3,6 +3,7 @@ import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import TicketStub from "../components/TicketStub";
+import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
 
 const STEP_LABELS = ["Order", "Details", "Done"];
@@ -237,9 +238,22 @@ export default function Checkout({ setTab }) {
                 {form.name}, your party passes are confirmed. Show the codes at
                 the door.
               </p>
-              {tickets.map((t) => (
-                <TicketStub key={t.code} ticket={t} />
-              ))}
+              {tickets.map((t) =>
+                t.design ? (
+                  <DesignedTicket
+                    key={t.code}
+                    design={t.design}
+                    passenger={
+                      typeof t.holder === "object" ? t.holder.name : t.holder
+                    }
+                    code={t.code}
+                    hash={t.hash}
+                    price={t.price}
+                  />
+                ) : (
+                  <TicketStub key={t.code} ticket={t} />
+                )
+              )}
               <button
                 className="btn"
                 style={{ width: "100%", justifyContent: "center", marginTop: 8 }}

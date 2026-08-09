@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useState } from "react";
 import { StoreProvider, useStore } from "./context/StoreContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -17,6 +17,7 @@ import Profile from "./pages/Profile";
 import PublicProfile from "./pages/PublicProfile";
 import Auth from "./pages/Auth";
 import PostParty from "./pages/PostParty";
+import Host from "./pages/Host";
 import WriteReview from "./pages/WriteReview";
 import NewPost from "./pages/NewPost";
 import Checkout from "./pages/Checkout";
@@ -26,17 +27,67 @@ import Messages from "./pages/Messages";
 import Contact from "./pages/Contact";
 import Appearance from "./pages/Appearance";
 
+// Safety net: a crash in any single component used to unmount the entire
+// React tree (blank page). Now the site shows a reload screen instead and
+// one broken section can never take the whole app down.
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("App error boundary caught:", error, info);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="page" style={{ textAlign: "center", paddingTop: 140 }}>
+          <div className="kicker" style={{ justifyContent: "center" }}>
+            Something went sideways
+          </div>
+          <h1 style={{ fontSize: "clamp(48px, 9vw, 110px)", fontWeight: 900, letterSpacing: -3 }}>
+            Oops<span style={{ color: "var(--rose-deep)" }}>.</span>
+          </h1>
+          <p
+            style={{
+              color: "var(--ink-soft)",
+              maxWidth: 420,
+              margin: "0 auto 28px",
+              lineHeight: 1.6,
+            }}
+          >
+            A part of the page hit a snag. Reload and you'll be right back in.
+          </p>
+          <button className="btn" onClick={() => window.location.reload()}>
+            Reload the site <i className="fa-solid fa-rotate-right icon" />
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Bridges the auth session into the store so parties / reviews /
 // tickets sync to Supabase (and back) when the user is signed in.
 function CloudSync() {
   const { user } = useAuth();
-  const { attachCloud, importCloud } = useStore();
+  const { attachCloud, importCloud, fetchHostLogs } = useStore();
 
   useEffect(() => {
     attachCloud(user);
-    if (user) importCloud(user.id);
+    if (user) {
+      importCloud(user.id);
+      fetchHostLogs(user.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, attachCloud, importCloud]);
+  }, [user?.id, attachCloud, importCloud, fetchHostLogs]);
 
   return null;
 }
@@ -50,6 +101,7 @@ const VALID_TABS = [
   "hype",
   "messages",
   "appearance",
+  "host",
 ];
 const AUTH_MODES = ["signin", "signup", "forgot"];
 
@@ -148,7 +200,7 @@ function Shell() {
   const navHidden = onHome && !introDone;
 
   return (
-    <>
+    <ErrorBoundary>
       <CloudSync />
       <MouseEffect active={!onHome || introDone} />
       {/* The messenger is a full-screen app — it brings its own
@@ -169,6 +221,7 @@ function Shell() {
         {tab === "user" && <PublicProfile userId={userId} />}
         {tab === "auth" && <Auth authMode={authMode} />}
         {tab === "post-party" && <PostParty setTab={setTab} />}
+        {tab === "host" && <Host setTab={setTab} />}
         {tab === "write-review" && <WriteReview setTab={setTab} q={q} />}
         {tab === "new-post" && <NewPost setTab={setTab} />}
         {tab === "checkout" && <Checkout setTab={setTab} />}
@@ -184,7 +237,7 @@ function Shell() {
       {tab !== "messages" && tab !== "hype" && <Footer setTab={setTab} />}
       <CartDrawer setTab={setTab} />
       <Toast message={toast} />
-    </>
+    </ErrorBoundary>
   );
 }
 

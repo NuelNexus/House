@@ -51,11 +51,23 @@ create table if not exists public.reviews (
   created_at timestamptz not null default now()
 );
 
--- Purchased tickets (one row per pass)
+-- Host ticket designs live on the party row (hosts build their own
+-- tickets in the designer — preset, background image, editable lines).
+-- tickets_sold is kept accurate by a trigger on ticket_purchases.
+alter table public.parties add column if not exists ticket_design jsonb;
+alter table public.parties add column if not exists tickets_sold int not null default 0;
+
+-- Purchased tickets (one row per pass). party_id links a pass to a
+-- hosted party's ticket design; hash is the unique per-ticket value
+-- shown to the buyer and logged for the host. design is the snapshot
+-- of the ticket design the host made, so old passes keep their look.
 create table if not exists public.tickets (
   code text primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
   ticket_id text,
+  party_id text,
+  hash text,
+  design jsonb,
   name text not null,
   date text,
   location text,
@@ -63,6 +75,49 @@ create table if not exists public.tickets (
   holder text,
   created_at timestamptz not null default now()
 );
+
+alter table public.tickets add column if not exists party_id text;
+alter table public.tickets add column if not exists hash text;
+alter table public.tickets add column if not exists design jsonb;
+
+-- Hosts' sales log: one row per pass sold on a host's party ticket.
+-- Hosts read this to see every buyer (name / email / phone) and the
+-- unique ticket hash generated for their pass. Buyers can also see
+-- their own rows.
+create table if not exists public.ticket_purchases (
+  id uuid primary key default gen_random_uuid(),
+  party_id text not null,
+  host_id uuid not null references auth.users (id) on delete cascade,
+  buyer_id uuid references auth.users (id) on delete set null,
+  buyer_name text,
+  buyer_email text,
+  buyer_phone text,
+  code text,
+  hash text not null,
+  price numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists ticket_purchases_host on public.ticket_purchases (host_id, created_at desc);
+
+-- Keep each party's tickets_sold counter accurate whenever a pass is
+-- sold. Runs as the table owner so RLS (the buyer owns the insert)
+-- never blocks it.
+create or replace function public.sync_ticket_sales()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.parties set tickets_sold = tickets_sold + 1 where id = new.party_id;
+  return null;
+end;
+$$;
+
+drop trigger if exists ticket_purchases_sales on public.ticket_purchases;
+create trigger ticket_purchases_sales
+  after insert on public.ticket_purchases
+  for each row execute function public.sync_ticket_sales();
 
 -- RSVPs (which parties the user is going to)
 create table if not exists public.going (
@@ -132,6 +187,7 @@ alter table public.parties enable row level security;
 alter table public.reviews enable row level security;
 alter table public.tickets enable row level security;
 alter table public.going enable row level security;
+alter table public.ticket_purchases enable row level security;
 
 drop policy if exists "profiles_select" on public.profiles;
 create policy "profiles_select" on public.profiles
@@ -201,6 +257,14 @@ drop policy if exists "going_delete" on public.going;
 create policy "going_delete" on public.going
   for delete using (auth.uid() = user_id);
 
+drop policy if exists "ticket_purchases_select" on public.ticket_purchases;
+create policy "ticket_purchases_select" on public.ticket_purchases
+  for select using (auth.uid() = host_id or auth.uid() = buyer_id);
+
+drop policy if exists "ticket_purchases_insert" on public.ticket_purchases;
+create policy "ticket_purchases_insert" on public.ticket_purchases
+  for insert with check (auth.uid() = buyer_id);
+
 -- Storage policies for the avatars bucket
 -- (public read for everyone, writes only for the owner)
 drop policy if exists "avatars_public_read" on storage.objects;
@@ -227,6 +291,7 @@ grant all on storage.objects to authenticated;
 -- ------------------------------------------------------------
 grant select on table public.profiles, public.parties, public.reviews, public.tickets, public.going to anon;
 grant all on table public.profiles, public.parties, public.reviews, public.tickets, public.going to authenticated;
+grant select, insert on table public.ticket_purchases to authenticated;
 
 -- ============================================================
 -- Social layer — themes, follows, messenger, hype, streaks,
@@ -414,7 +479,7 @@ grant all on table public.follows, public.messages, public.hypes, public.hype_st
 do $$
 declare t text;
 begin
-  foreach t in array array['messages', 'hypes', 'follows'] loop
+  foreach t in array array['messages', 'hypes', 'follows', 'parties', 'ticket_purchases'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

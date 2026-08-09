@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import Reveal from "../components/Reveal";
+import TicketDesigner from "../components/TicketDesigner";
+import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 
 const CATEGORIES = ["Kickback", "Rave", "Rooftop", "Pool", "Villa", "Birthday", "Games night"];
 
@@ -18,9 +20,26 @@ export default function PostParty({ setTab }) {
     description: "",
     category: CATEGORIES[0],
   });
+  const [sellTickets, setSellTickets] = useState(false);
+  const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const toggleTickets = () => {
+    if (!sellTickets && (!design || !Object.keys(design).length)) {
+      // First time on: seed the ticket from what they've typed so far.
+      setDesign({
+        ...DEFAULT_DESIGN,
+        name: form.title || "",
+        depart: form.location || "",
+        date: form.date || "",
+        price: String(form.price || ""),
+        stock: Number(form.capacity) || 100,
+      });
+    }
+    setSellTickets((on) => !on);
+  };
 
   const submit = (e) => {
     e.preventDefault();
@@ -38,6 +57,10 @@ export default function PostParty({ setTab }) {
       capacity: form.capacity.trim(),
       description: form.description.trim(),
       category: form.category,
+      ticketDesign:
+        sellTickets && design && Object.keys(design).length
+          ? { ...design, enabled: true }
+          : null,
     });
     setTab("parties");
   };
@@ -97,7 +120,7 @@ export default function PostParty({ setTab }) {
       {head}
 
       <Reveal>
-        <div className="form-panel">
+        <div className={`form-panel ${sellTickets ? "wide" : ""}`}>
           <form onSubmit={submit}>
             <div className="field">
               <label htmlFor="pp-title">Party name</label>
@@ -179,6 +202,20 @@ export default function PostParty({ setTab }) {
                 onChange={set("description")}
               />
             </div>
+            <div className="field">
+              <label className="toggle-row" htmlFor="pp-tickets">
+                <input
+                  id="pp-tickets"
+                  type="checkbox"
+                  checked={sellTickets}
+                  onChange={toggleTickets}
+                />
+                <span>
+                  <b>Sell tickets for this party</b>
+                  <small>Build a custom ticket — presets, photo, your own lines.</small>
+                </span>
+              </label>
+            </div>
             {error && (
               <p style={{ color: "var(--rose-deep)", marginBottom: 14, fontSize: 14 }}>
                 {error}
@@ -192,6 +229,15 @@ export default function PostParty({ setTab }) {
               Put it on the scene <i className="fa-solid fa-arrow-right icon" />
             </button>
           </form>
+
+          {sellTickets && (
+            <div className="post-ticket-designer">
+              <TicketDesigner
+                value={design || DEFAULT_DESIGN}
+                onChange={setDesign}
+              />
+            </div>
+          )}
         </div>
       </Reveal>
     </div>

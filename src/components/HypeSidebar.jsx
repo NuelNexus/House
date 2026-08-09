@@ -1,4 +1,5 @@
 import { useAuth } from "../context/AuthContext";
+import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
 import Avatar from "./Avatar";
 
@@ -12,7 +13,13 @@ const LINKS = [
 
 export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
   const { user, name, profile, openAuth, signOut } = useAuth();
+  const { userParties } = useStore();
   const { streaks, unreadTotal } = useSocial();
+  // The Host tab only shows once the user has hosted a party.
+  const links =
+    userParties.length > 0
+      ? [...LINKS, { id: "host", label: "Host", icon: "fa-wand-magic-sparkles" }]
+      : LINKS;
 
   const handlePost = () => {
     if (!user) { openAuth(); return; }
@@ -36,7 +43,7 @@ export default function HypeSidebar({ tab, setTab, onPost, onSend }) {
 
       <nav className="hype-sidebar-nav" aria-label="Hype navigation">
         <ul>
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <li key={l.id}>
               <a
                 href={`#${l.id}`}

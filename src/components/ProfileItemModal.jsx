@@ -2,6 +2,7 @@ import Modal from "./Modal";
 import PartyCard from "./PartyCard";
 import ReviewCard from "./ReviewCard";
 import TicketStub from "./TicketStub";
+import DesignedTicket from "./DesignedTicket";
 import CoverArt from "./CoverArt";
 import { useStore } from "../context/StoreContext";
 import { GH_CD } from "../data/seed";
@@ -65,7 +66,17 @@ export default function ProfileItemModal({ item, onClose, deletable = false }) {
         <CoverArt category={item.coverCat} />
       </div>
       <div style={{ marginTop: 20 }}>
-        <TicketStub ticket={item.ref} />
+        {item.ref.design ? (
+          <DesignedTicket
+            design={item.ref.design}
+            passenger={holderName || "You"}
+            code={item.ref.code}
+            hash={item.ref.hash}
+            price={item.ref.price}
+          />
+        ) : (
+          <TicketStub ticket={item.ref} />
+        )}
       </div>
       <p
         style={{

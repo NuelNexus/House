@@ -10,16 +10,25 @@ import Reveal from "../components/Reveal";
 const STAR_LABELS = ["", "Terrible", "Meh", "Decent", "Great", "Unforgettable"];
 
 export default function PartyDetail({ partyId, setTab }) {
-  const { allParties, tickets, allReviews, going, toggleGoing, displayRsvps } =
-    useStore();
+  const {
+    allParties,
+    allTickets,
+    allReviews,
+    going,
+    toggleGoing,
+    displayRsvps,
+    addToCart,
+  } = useStore();
   const { ensureAuth } = useAuth();
 
-  const party = useMemo(
-    () =>
-      allParties.find((p) => p.id === partyId) ||
-      tickets.find((t) => t.id === partyId),
-    [allParties, tickets, partyId]
-  );
+  const party = useMemo(() => {
+    const base = allParties.find((p) => p.id === partyId);
+    const ticket = allTickets.find((t) => t.id === partyId);
+    // Parties that are selling tickets show the ticket view so the
+    // "Get tickets" action (and stock) are available here.
+    if (ticket && ticket.isParty) return ticket;
+    return base || ticket || null;
+  }, [allParties, allTickets, partyId]);
 
   // Reviews are matched by the event's name — user reviews flow through
   // the same list, so this is always the real, current data.
@@ -122,8 +131,8 @@ export default function PartyDetail({ partyId, setTab }) {
 
             <div className="pd-actions">
               {isTicket ? (
-                <button className="btn" onClick={() => setTab("tickets")}>
-                  <i className="fa-solid fa-ticket icon" /> Get tickets
+                <button className="btn" onClick={() => addToCart(party)}>
+                  <i className="fa-solid fa-ticket icon" /> Add to cart
                 </button>
               ) : (
                 <button

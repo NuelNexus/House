@@ -17,15 +17,28 @@ export default function SphereBackground({ onReady }) {
       "(prefers-reduced-motion: reduce)"
     ).matches;
 
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: true,
-    });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // WebGL can be unavailable (headless browsers, some laptops with the
+    // GPU disabled, remote desktops). THREE throws deep inside WebGLRenderer
+    // when the context comes back null, which used to crash the whole app.
+    // Fall back to a static gradient and let the intro finish normally.
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: true,
+      });
+      if (!renderer.getContext()) throw new Error("webgl context is null");
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    } catch (err) {
+      // No WebGL — keep the canvas empty (it sits behind the page content)
+      // and signal the intro is done so the site shows normally.
+      onReadyRef.current?.();
+      return undefined;
+    }
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(

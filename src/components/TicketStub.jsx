@@ -1,4 +1,5 @@
 import { GH_CD } from "../data/seed";
+import TicketQR from "./TicketQR";
 
 export default function TicketStub({ ticket }) {
   return (
@@ -16,6 +17,7 @@ export default function TicketStub({ ticket }) {
           <b>{GH_CD(ticket.price)}</b>
         </span>
         <span className="barcode" aria-hidden="true" />
+        <TicketQR value={ticket.hash || ticket.code} label="" size={56} />
       </div>
     </div>
   );

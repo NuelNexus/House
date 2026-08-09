@@ -12,7 +12,18 @@ const LINKS = [
 ];
 
 export default function Navbar({ tab, setTab, hidden }) {
-  const { cartCount, setCartOpen } = useStore();
+  const { cartCount, setCartOpen, userParties } = useStore();
+  // The Host tab only appears once the user has hosted a party.
+  const isHost = userParties.length > 0;
+  const links = isHost
+    ? [...LINKS, { id: "host", label: "Host", idx: "05" }]
+    : LINKS;
+  const mobileExtras = [
+    ...(isHost ? [{ id: "host", label: "Host", idx: "05" }] : []),
+    { id: "messages", label: "Messages", idx: isHost ? "06" : "05" },
+    { id: "appearance", label: "Appearance", idx: isHost ? "07" : "06" },
+    { id: "profile", label: "Profile", idx: isHost ? "08" : "07" },
+  ];
   const { user, name, initial, profile, openAuth, signOut, authLoading } = useAuth();
   const { unreadTotal } = useSocial();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -73,7 +84,7 @@ export default function Navbar({ tab, setTab, hidden }) {
           </a>
           <nav aria-label="Primary">
             <ul>
-              {LINKS.map((l) => (
+              {links.map((l) => (
                 <li key={l.id}>
                   <a
                     href={`#${l.id}`}
@@ -138,6 +149,11 @@ export default function Navbar({ tab, setTab, hidden }) {
                     <button className="user-menu-item" onClick={() => go("hype")}>
                       <i className="fa-solid fa-fire" /> Hype
                     </button>
+                    {isHost && (
+                      <button className="user-menu-item" onClick={() => go("host")}>
+                        <i className="fa-solid fa-wand-magic-sparkles" /> Host dashboard
+                      </button>
+                    )}
                     <button className="user-menu-item" onClick={() => go("appearance")}>
                       <i className="fa-solid fa-palette" /> Appearance
                     </button>
@@ -216,7 +232,7 @@ export default function Navbar({ tab, setTab, hidden }) {
           </button>
         )}
         <ul>
-          {LINKS.map((l, i) => (
+          {links.map((l, i) => (
             <li key={l.id}>
               <a
                 href={`#${l.id}`}
@@ -231,47 +247,29 @@ export default function Navbar({ tab, setTab, hidden }) {
               </a>
             </li>
           ))}
-          {user && (
-            <>
-              <li>
+          {user &&
+            mobileExtras.map((l, i) => (
+              <li key={l.id}>
                 <a
-                  href="#messages"
-                  style={{ transitionDelay: menuOpen ? `${0.08 + LINKS.length * 0.05}s` : "0s" }}
+                  href={`#${l.id}`}
+                  style={{
+                    transitionDelay: menuOpen
+                      ? `${0.08 + (links.length + i) * 0.05}s`
+                      : "0s",
+                  }}
                   onClick={(e) => {
                     e.preventDefault();
-                    go("messages");
+                    go(l.id);
                   }}
                 >
-                  <span className="idx">05</span>Messages
-                  {unreadTotal > 0 && <span className="um-badge">{unreadTotal}</span>}
+                  <span className="idx">{l.idx}</span>
+                  {l.label}
+                  {l.id === "messages" && unreadTotal > 0 && (
+                    <span className="um-badge">{unreadTotal}</span>
+                  )}
                 </a>
               </li>
-              <li>
-                <a
-                  href="#appearance"
-                  style={{ transitionDelay: menuOpen ? `${0.08 + (LINKS.length + 1) * 0.05}s` : "0s" }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    go("appearance");
-                  }}
-                >
-                  <span className="idx">06</span>Appearance
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#profile"
-                  style={{ transitionDelay: menuOpen ? `${0.08 + (LINKS.length + 2) * 0.05}s` : "0s" }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    go("profile");
-                  }}
-                >
-                  <span className="idx">07</span>Profile
-                </a>
-              </li>
-            </>
-          )}
+            ))}
         </ul>
         <div className="mm-footer">
           <span>Accra · GH</span>

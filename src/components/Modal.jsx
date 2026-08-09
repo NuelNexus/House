@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-export default function Modal({ title, onClose, children }) {
+export default function Modal({ title, onClose, children, className = "" }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -14,7 +14,7 @@ export default function Modal({ title, onClose, children }) {
   return (
     <div className="overlay show" onClick={onClose}>
       <div
-        className="modal"
+        className={`modal ${className}`}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}

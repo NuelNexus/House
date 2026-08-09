@@ -1,10 +1,16 @@
 import { useStore } from "../context/StoreContext";
+import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { goUser, contactHostHref } from "../lib/nav";
 import CoverArt from "./CoverArt";
 
 export default function PartyCard({ party }) {
   const { going, toggleGoing, displayRsvps } = useStore();
+  const { user } = useAuth();
+  // "Hosted by you" is based on the signed-in user's id, not a flag —
+  // so it's correct now that everyone's parties share one list.
+  const isMine =
+    !!party.userId && !!user ? party.userId === user.id : !!party.isUser;
   const isGoing = going.includes(party.id);
   const rsvpCount = displayRsvps(party);
 
@@ -28,7 +34,7 @@ export default function PartyCard({ party }) {
       }}
     >
       <div className="cover">
-        {party.isUser && <span className="hosted-badge">Hosted by you</span>}
+        {isMine && <span className="hosted-badge">Hosted by you</span>}
         <CoverArt category={party.category} />
       </div>
       <div className="party-meta">

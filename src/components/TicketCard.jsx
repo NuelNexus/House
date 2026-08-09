@@ -51,28 +51,32 @@ export default function TicketCard({ ticket }) {
         </span>
       </div>
 
-      <p className="lineup">
-        <b>Lineup:</b> {ticket.lineup.join(" · ")}
-      </p>
+      {ticket.lineup && ticket.lineup.length > 0 && (
+        <p className="lineup">
+          <b>Lineup:</b> {ticket.lineup.join(" · ")}
+        </p>
+      )}
 
-      <div>
-        <div className="capacity">
-          <div
-            className="fill"
-            style={{
-              width: `${Math.min(100, ((ticket.capacity - ticket.ticketsLeft) / ticket.capacity) * 100)}%`,
-            }}
-          />
+      {ticket.capacity > 0 && (
+        <div>
+          <div className="capacity">
+            <div
+              className="fill"
+              style={{
+                width: `${Math.min(100, ((ticket.capacity - ticket.ticketsLeft) / ticket.capacity) * 100)}%`,
+              }}
+            />
+          </div>
+          <div className="capacity-row">
+            <span>{ticket.ticketsLeft} tickets left</span>
+            <span>{ticket.capacity} capacity</span>
+          </div>
         </div>
-        <div className="capacity-row">
-          <span>{ticket.ticketsLeft} tickets left</span>
-          <span>{ticket.capacity} capacity</span>
-        </div>
-      </div>
+      )}
 
       <div className="card-foot">
         <span className="price">
-          {GH_CD(ticket.price)}
+          {ticket.price === 0 ? "Free" : GH_CD(ticket.price)}
         </span>
         <button
           className="btn btn-sm"
