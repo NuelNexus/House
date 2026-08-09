@@ -24,9 +24,17 @@ function timeAgo(iso) {
 
 // One TikTok-style slide: letterboxed video, bottom-left info,
 // right action rail (avatar + follow, like, share, spinning disc).
+// Photos and videos both live in the hype feed — a snap posted from the
+// camera is an image, everything else is a clip. Storage URLs end in the
+// file extension, so that's all we need to tell them apart.
+function isImageHype(hype) {
+  return /\.(jpe?g|png|gif|webp)(\?|$)/i.test(hype.video_url || "");
+}
+
 function HypeSlide({ hype, isActive, openProfile }) {
   const videoRef = useRef(null);
   const [paused, setPaused] = useState(true);
+  const image = isImageHype(hype);
   const [liked, setLiked] = useState(() => {
     try {
       return localStorage.getItem(`hl:${hype.id}`) === "1";
@@ -43,8 +51,9 @@ function HypeSlide({ hype, isActive, openProfile }) {
     if (authorId) loadFollowCounts(authorId);
   }, [authorId, loadFollowCounts]);
 
-  // Only the active slide plays.
+  // Only the active slide plays (photos just sit there).
   useEffect(() => {
+    if (image) return;
     const v = videoRef.current;
     if (!v) return;
     if (isActive) {
@@ -53,9 +62,10 @@ function HypeSlide({ hype, isActive, openProfile }) {
       v.pause();
       setPaused(true);
     }
-  }, [isActive]);
+  }, [isActive, image]);
 
   const togglePlay = () => {
+    if (image) return;
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
@@ -102,18 +112,24 @@ function HypeSlide({ hype, isActive, openProfile }) {
   const authorName = hype.author?.name || "Festivity member";
 
   return (
-    <div className={`hype-feed-slide${paused ? " paused" : ""}`} onClick={togglePlay}>
-      <video
-        ref={videoRef}
-        src={hype.video_url}
-        muted
-        loop
-        playsInline
-        preload="metadata"
-      />
-      <div className="hype-slide-play">
-        <i className="fa-solid fa-play" />
-      </div>
+    <div className={`hype-feed-slide${paused && !image ? " paused" : ""}`} onClick={togglePlay}>
+      {image ? (
+        <img className="hype-slide-img" src={hype.video_url} alt={hype.caption || "Hype"} />
+      ) : (
+        <video
+          ref={videoRef}
+          src={hype.video_url}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+        />
+      )}
+      {!image && (
+        <div className="hype-slide-play">
+          <i className="fa-solid fa-play" />
+        </div>
+      )}
 
       {hype.recipient_id && <span className="hype-slide-private">Private</span>}
 
@@ -304,12 +320,13 @@ export default function Hype({ send, q, setTab }) {
     setFriend(null);
   };
 
-  const handleDone = async ({ blob, name, caption }) => {
+  const handleDone = async ({ blob, name, caption, kind }) => {
     await postHype({
       blob,
       name,
       caption,
       recipientId: mode === "send" && friend ? friend.id : null,
+      kind,
     });
     setMode(null);
     setFriend(null);
@@ -349,12 +366,14 @@ export default function Hype({ send, q, setTab }) {
         {/* recorder / send overlay */}
         {mode && (
           <div className="hype-feed-overlay">
-            <button
-              className="hype-overlay-back"
-              onClick={() => { setMode(null); setFriend(null); }}
-            >
-              <i className="fa-solid fa-arrow-left" /> Back
-            </button>
+            {mode === "send" && !friend && (
+              <button
+                className="hype-overlay-back"
+                onClick={() => { setMode(null); setFriend(null); }}
+              >
+                <i className="fa-solid fa-arrow-left" /> Back
+              </button>
+            )}
 
             {mode === "send" && !friend && (
               <div className="field">
