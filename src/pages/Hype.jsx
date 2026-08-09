@@ -457,7 +457,7 @@ export default function Hype({ send, q, setTab }) {
           <div className="hype-feed-viewport">
             <div
               className="hype-feed-track"
-              style={{ transform: `translateY(-${currentIndex * 50}vh)` }}
+              style={{ transform: `translateY(-${currentIndex * 100}%)` }}
             >
               {visibleFeed.map((h, i) => (
                 <HypeSlide
