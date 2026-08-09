@@ -76,7 +76,7 @@ export function AuthProvider({ children }) {
     let active = true;
     supabase
       .from("profiles")
-      .select("name, bio, avatar, theme")
+      .select("name, bio, avatar, avatar_url, theme")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -210,6 +210,15 @@ export function AuthProvider({ children }) {
         .from("profiles")
         .upsert({ id: user.id, name, bio, avatar, avatar_url: avatarUrl });
       if (pe) console.warn("profile sync:", pe.message);
+      // Refresh the in-memory profile right away so the new photo shows
+      // everywhere (navbar, sidebar, profile) without a page reload.
+      setCloudProfile((prev) => ({
+        ...(prev || {}),
+        name,
+        bio,
+        avatar,
+        avatar_url: avatarUrl,
+      }));
       if (error) throw new Error(error.message);
       notify("Profile updated");
     },

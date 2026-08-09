@@ -31,7 +31,7 @@ function isImageHype(hype) {
   return /\.(jpe?g|png|gif|webp)(\?|$)/i.test(hype.video_url || "");
 }
 
-function HypeSlide({ hype, isActive, openProfile }) {
+function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
   const videoRef = useRef(null);
   const [paused, setPaused] = useState(true);
   const image = isImageHype(hype);
@@ -51,30 +51,44 @@ function HypeSlide({ hype, isActive, openProfile }) {
     if (authorId) loadFollowCounts(authorId);
   }, [authorId, loadFollowCounts]);
 
-  // Only the active slide plays (photos just sit there).
+  // Play/pause + the sound preference. React's `muted` prop doesn't
+  // reliably push changes to the video element, so we set it directly.
+  // Videos start muted (autoplay-safe); tapping the speaker unmutes.
+  // Only (re)plays when the clip is actually paused, so toggling sound
+  // mid-watch never restarts it from the top.
   useEffect(() => {
     if (image) return;
     const v = videoRef.current;
     if (!v) return;
+    v.muted = !soundOn;
     if (isActive) {
-      v.play().then(() => setPaused(false)).catch(() => {});
+      if (v.paused) {
+        v.play().then(() => setPaused(false)).catch(() => {});
+      }
     } else {
       v.pause();
       setPaused(true);
     }
-  }, [isActive, image]);
+  }, [isActive, image, soundOn]);
 
   const togglePlay = () => {
     if (image) return;
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
+      v.muted = !soundOn;
       v.play().catch(() => {});
       setPaused(false);
     } else {
       v.pause();
       setPaused(true);
     }
+  };
+
+  // Unmuting happens inside a tap, so the browser allows audio here.
+  const toggleSound = (e) => {
+    e.stopPropagation();
+    onToggleSound();
   };
 
   const doFollow = async (e) => {
@@ -119,7 +133,6 @@ function HypeSlide({ hype, isActive, openProfile }) {
         <video
           ref={videoRef}
           src={hype.video_url}
-          muted
           loop
           playsInline
           preload="metadata"
@@ -203,6 +216,16 @@ function HypeSlide({ hype, isActive, openProfile }) {
             <i className="fa-solid fa-share" />
             <span className="hype-rail-label">Share</span>
           </button>
+          {!image && (
+            <button
+              className={`hype-rail-btn${soundOn ? " sound-on" : ""}`}
+              aria-label={soundOn ? "Mute video" : "Unmute video"}
+              onClick={toggleSound}
+            >
+              <i className={`fa-solid ${soundOn ? "fa-volume-high" : "fa-volume-xmark"}`} />
+              <span className="hype-rail-label">{soundOn ? "Sound" : "Muted"}</span>
+            </button>
+          )}
         </div>
 
         <div className="hype-rail-disc" aria-hidden="true">
@@ -228,6 +251,7 @@ export default function Hype({ send, q, setTab }) {
   const [query, setQuery] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedTab, setFeedTab] = useState("foryou"); // "foryou" | "following"
+  const [soundOn, setSoundOn] = useState(false); // shared across slides
   const wheelLock = useRef(0);
   const touchStartY = useRef(null);
 
@@ -465,6 +489,8 @@ export default function Hype({ send, q, setTab }) {
                   hype={h}
                   isActive={i === currentIndex}
                   openProfile={(id) => setTab(`user/${id}`)}
+                  soundOn={soundOn}
+                  onToggleSound={() => setSoundOn((s) => !s)}
                 />
               ))}
             </div>

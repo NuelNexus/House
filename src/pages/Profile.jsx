@@ -161,7 +161,12 @@ export default function Profile({ setTab }) {
         {/* Profile header */}
         <header className="profile-head">
           <div className="profile-avatar">
-            <Avatar name={profile?.name || name} seed={profile?.avatar} size={168} />
+            <Avatar
+              name={profile?.name || name}
+              seed={profile?.avatar}
+              src={profile?.avatarUrl || null}
+              size={168}
+            />
           </div>
 
           <div className="profile-user-settings">

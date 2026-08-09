@@ -233,7 +233,7 @@ export default function Messages({ compose, q, setTab }) {
             <Avatar
               name={name}
               seed={profile?.avatar ?? 0}
-              src={profile?.avatar_url || null}
+              src={profile?.avatarUrl || null}
               size={40}
             />
           </button>
@@ -364,7 +364,7 @@ export default function Messages({ compose, q, setTab }) {
                           }
                           src={
                             mine
-                              ? profile?.avatar_url || null
+                              ? profile?.avatarUrl || null
                               : recipientProfile?.avatar_url || null
                           }
                           size={38}

@@ -8333,3 +8333,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
     transform: scale(0.92);
   }
 }
+/* Hype sound toggle — highlights the speaker when audio is on */
+.hype-rail-btn.sound-on i {
+  color: #ff7a45;
+}
