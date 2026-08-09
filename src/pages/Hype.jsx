@@ -128,7 +128,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
     } catch {
       /* storage unavailable — like still works for this session */
     }
-    notify(next ? "Hype liked!" : "Like removed");
+    // Silent by design — no toast on like.
   };
 
   const doShare = async () => {
@@ -235,11 +235,11 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
         <div className="hype-rail-actions">
           <button
             className={`hype-rail-btn${liked ? " liked" : ""}`}
-            aria-label="Like"
+            aria-label="Hype"
             onClick={doLike}
           >
             <i className="fa-solid fa-fire" />
-            <span className="hype-rail-label">Like</span>
+            <span className="hype-rail-label">Hype</span>
           </button>
           <button className="hype-rail-btn" aria-label="Share" onClick={doShare}>
             <i className="fa-solid fa-share" />
