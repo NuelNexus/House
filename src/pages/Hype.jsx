@@ -185,21 +185,22 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
         <div className="hype-slide-song">
           <i className="fa-solid fa-music" /> {authorName} · original hype
         </div>
-      </div>
 
-      {/* Right action rail — creator row + horizontal action row */}
-      <div className="hype-rail" onClick={(e) => e.stopPropagation()}>
-        <div className="hype-rail-creator">
+        {/* Creator profile — sits under the music line: avatar + follow pill */}
+        <div className="hype-slide-profile">
           <button
-            className="hype-rail-avatar"
+            className="hype-slide-profile-avatar"
             aria-label={`View ${authorName}'s profile`}
-            onClick={() => openProfile(authorId)}
+            onClick={(e) => {
+              e.stopPropagation();
+              openProfile(authorId);
+            }}
           >
             <Avatar
               name={authorName}
               seed={hype.author?.avatar ?? 0}
               src={hype.author?.avatar_url || null}
-              size={46}
+              size={40}
             />
             {!isMe && (
               <span
@@ -213,7 +214,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
             )}
           </button>
           {!isMe && (
-            <div className="hype-rail-follow-box">
+            <>
               <button
                 className={`hype-rail-follow-pill${follows ? " following" : ""}`}
                 aria-label={follows ? "Unfollow" : "Follow"}
@@ -224,10 +225,13 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
               {followCount > 0 && (
                 <span className="hype-rail-count">{followCount}</span>
               )}
-            </div>
+            </>
           )}
         </div>
+      </div>
 
+      {/* Right action rail — like / share / sound / disc only */}
+      <div className="hype-rail" onClick={(e) => e.stopPropagation()}>
         <div className="hype-rail-actions">
           <button
             className={`hype-rail-btn${liked ? " liked" : ""}`}
