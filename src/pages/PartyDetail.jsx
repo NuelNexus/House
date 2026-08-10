@@ -25,9 +25,6 @@ export default function PartyDetail({ partyId, setTab }) {
     allParties,
     allTickets,
     allReviews,
-    going,
-    toggleGoing,
-    displayRsvps,
     isSaved,
     toggleSave,
     notify,
@@ -89,9 +86,11 @@ export default function PartyDetail({ partyId, setTab }) {
   }
 
   const title = party.title || party.name;
-  const isTicket = !!party.price && typeof party.ticketsLeft === "number";
-  const isGoing = going.includes(party.id);
-  const rsvpCount = displayRsvps(party);
+  // The AFFILIATE's sale price is the source of truth — the ticket
+  // design's "door price" defaults to "0" and must never make a priced
+  // listing look free.
+  const price =
+    Number(party.price) || Number(party.ticketDesign?.price) || 0;
 
   const hostName = party.hostName || party.host;
   // For a repost the party organizer is the ORIGINAL host (hostId);
@@ -133,7 +132,7 @@ export default function PartyDetail({ partyId, setTab }) {
                 <i className="fa-solid fa-user" /> Hosted by {hostName}
               </span>
               <span className="pd-price">
-                {party.price === 0 ? "Free" : GH_CD(party.price)}
+                {price === 0 ? "Free" : GH_CD(price)}
               </span>
             </div>
 
@@ -155,40 +154,25 @@ export default function PartyDetail({ partyId, setTab }) {
                 <i className="fa-solid fa-heart icon" />{" "}
                 {isSaved(party.id) ? "Saved" : "Save"}
               </button>
-              {isTicket ? (
-                <button
-                  className="btn"
-                  disabled={buyingId === party.id}
-                  onClick={() => buy(party)}
-                >
-                  {buyingId === party.id ? (
-                    <>
-                      <i className="fa-solid fa-spinner fa-spin icon" /> Paying…
-                    </>
-                  ) : party.price === 0 ? (
-                    <>
-                      <i className="fa-solid fa-ticket icon" /> Get free ticket
-                    </>
-                  ) : (
-                    <>
-                      <i className="fa-solid fa-lock icon" /> Get ticket · {GH_CD(party.price)}
-                    </>
-                  )}
-                </button>
-              ) : (
-                <button
-                  className={`btn ${isGoing ? "" : "btn-outline"}`}
-                  onClick={() => toggleGoing(party.id)}
-                >
-                  {isGoing ? (
-                    <>
-                      <i className="fa-solid fa-check" /> Going ({rsvpCount})
-                    </>
-                  ) : (
-                    `RSVP · ${rsvpCount} going`
-                  )}
-                </button>
-              )}
+              <button
+                className="btn"
+                disabled={buyingId === party.id}
+                onClick={() => buy(party)}
+              >
+                {buyingId === party.id ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin icon" /> Paying…
+                  </>
+                ) : price === 0 ? (
+                  <>
+                    <i className="fa-solid fa-ticket icon" /> Get free ticket
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-lock icon" /> Get ticket · {GH_CD(price)}
+                  </>
+                )}
+              </button>
               <a
                 className="btn btn-outline"
                 href={contactHostHref({

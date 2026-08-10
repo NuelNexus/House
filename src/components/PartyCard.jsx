@@ -6,27 +6,25 @@ import { useBuyNow } from "../hooks/useBuyNow";
 import CoverArt from "./CoverArt";
 
 export default function PartyCard({ party }) {
-  const { going, toggleGoing, displayRsvps, isSaved, toggleSave } =
-    useStore();
+  const { isSaved, toggleSave } = useStore();
   const { user } = useAuth();
   const { buy, buyingId } = useBuyNow();
   // "Hosted by you" is based on the signed-in user's id, not a flag —
   // so it's correct now that everyone's parties share one list.
   const isMine =
     !!party.userId && !!user ? party.userId === user.id : !!party.isUser;
-  const isGoing = going.includes(party.id);
-  const rsvpCount = displayRsvps(party);
 
   // ---- Party = ticket. Every listing carries its own pass: the price,
-  // stock and design live on the party itself. When there's no ticket
-  // (e.g. an idea still waiting in the pool), RSVP is the fallback.
+  // stock and design live on the party itself.
   const design = party.ticketDesign && party.ticketDesign.enabled ? party.ticketDesign : null;
-  const price = Number(design?.price ?? party.price ?? 0);
+  // The AFFILIATE's sale price (party.price) is the source of truth —
+  // the design's "door price" defaults to "0" and must never make a
+  // priced listing look free.
+  const price = Number(party.price) || Number(design?.price) || 0;
   const capacity = Number(design?.stock ?? 0);
   const ticketsLeft = Math.max(0, capacity - (party.ticketsSold ?? 0));
-  // A party is a purchasable ticket only when it has an enabled ticket
-  // design (the same rule communityTickets uses). Pool ideas without one
-  // keep the RSVP action instead.
+  // Stock/capacity only apply once a ticket design is enabled (the same
+  // rule communityTickets uses). Every listing is pay-to-go — no RSVP.
   const onSale = !!design;
   const soldOut = onSale && capacity > 0 && ticketsLeft === 0;
   const low = onSale && capacity > 0 && ticketsLeft > 0 && ticketsLeft <= 20;
@@ -138,60 +136,30 @@ export default function PartyCard({ party }) {
         <span className="price" style={{ fontSize: 24 }}>
           {price === 0 ? "Free" : GH_CD(price)}
         </span>
-        {onSale ? (
-          <button
-            className="btn btn-sm"
-            disabled={soldOut || buying}
-            onClick={(e) => {
-              e.stopPropagation();
-              buy(ticket);
-            }}
-          >
-            {buying ? (
-              <>
-                <i className="fa-solid fa-spinner fa-spin" /> Paying…
-              </>
-            ) : soldOut ? (
-              "Sold out"
-            ) : price === 0 ? (
-              <>
-                Get free ticket <i className="fa-solid fa-ticket icon" />
-              </>
-            ) : (
-              <>
-                Get ticket <i className="fa-solid fa-lock icon" />
-              </>
-            )}
-          </button>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span
-              style={{
-                fontSize: 13,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                color: "var(--ink-soft)",
-              }}
-            >
-              {rsvpCount} going
-            </span>
-            <button
-              className={`btn btn-sm ${isGoing ? "" : "btn-outline"}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleGoing(party.id);
-              }}
-            >
-              {isGoing ? (
-                <>
-                  <i className="fa-solid fa-check" /> Going
-                </>
-              ) : (
-                "RSVP"
-              )}
-            </button>
-          </div>
-        )}
+        <button
+          className="btn btn-sm"
+          disabled={soldOut || buying}
+          onClick={(e) => {
+            e.stopPropagation();
+            buy(ticket);
+          }}
+        >
+          {buying ? (
+            <>
+              <i className="fa-solid fa-spinner fa-spin" /> Paying…
+            </>
+          ) : soldOut ? (
+            "Sold out"
+          ) : price === 0 ? (
+            <>
+              Get free ticket <i className="fa-solid fa-ticket icon" />
+            </>
+          ) : (
+            <>
+              Get ticket <i className="fa-solid fa-lock icon" />
+            </>
+          )}
+        </button>
         {low && !soldOut && (
           <span className="card-status low">Only {ticketsLeft} left</span>
         )}

@@ -211,7 +211,10 @@ export function StoreProvider({ children }) {
           originalPrice: Number(p.originalPrice || 0),
           date: p.date,
           location: p.location,
-          price: Number(p.ticketDesign.price || p.price || 0),
+          // The AFFILIATE's sale price (party.price) is the source of
+          // truth — the design's "door price" defaults to "0" and must
+          // never override the price the affiliate actually set.
+          price: Number(p.price) || Number(p.ticketDesign.price) || 0,
           capacity: Number(p.ticketDesign.stock || 0),
           ticketsLeft: Math.max(
             0,
@@ -1189,7 +1192,10 @@ export function StoreProvider({ children }) {
         code: genCode(),
         hash: genHash(),
         ticketId: ticket.id,
-        name: ticket.name,
+        // Cards shape the ticket, but PartyDetail can pass a raw party
+        // (title, host on userId) — fall back so the pass never prints
+        // "undefined" and the host always gets their sales log row.
+        name: ticket.name || ticket.title,
         date: ticket.date,
         location: ticket.location,
         price: unit,
@@ -1199,7 +1205,7 @@ export function StoreProvider({ children }) {
         paymentRef,
         holder,
         partyId: ticket.partyId || (ticket.isParty ? ticket.id : null) || null,
-        hostId: ticket.hostId || null,
+        hostId: ticket.hostId || ticket.userId || null,
         affiliateId: ticket.affiliateId || null,
         design: ticket.design || ticket.ticketDesign || null,
         promoUsed: null,
@@ -1445,9 +1451,10 @@ export function StoreProvider({ children }) {
       if (!uid) return null;
       const original = communityParties.find((p) => p.id === partyId);
       if (!original) return null;
+      const salePrice = Math.max(0, Number(price) || 0);
       const design =
         ticketDesign && Object.keys(ticketDesign).length
-          ? { ...ticketDesign, enabled: true }
+          ? { ...ticketDesign, enabled: true, price: String(salePrice) }
           : null;
       const base = Math.max(0, Number(original.price) || Number(original.originalPrice) || 0);
       const record = {
