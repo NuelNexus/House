@@ -30,6 +30,19 @@ function hashPw(str) {
   return h;
 }
 
+function timeAgo(ts) {
+  if (!ts) return "";
+  const t = new Date(ts).getTime();
+  if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 function usePlatformStats() {
   const [stats, setStats] = useState(null);
 
@@ -238,7 +251,7 @@ export default function Admin({ setTab }) {
 
   const partyName = (id) => {
     const p = allParties.find((x) => x.id === id);
-    return p ? p.title : "Party";
+    return p ? p.title : "Event";
   };
 
   const topParties = useMemo(
@@ -312,14 +325,14 @@ export default function Admin({ setTab }) {
 
   const head = (
     <header className="page-head reveal in">
-      <div className="kicker">Creator · Command center</div>
+      <div className="kicker">Fest GH · Creator command center</div>
       <h1>
         Admin<span className="outline">.</span>
       </h1>
       <p className="lede">
-        Your private dashboard. Every ticket sold earns you a{" "}
-        {Math.round(COMMISSION_RATE * 100)}% commission — here's the whole
-        picture: orders, income, commission per party, hype and growth.
+        Your private monitoring dashboard. Every ticket sold on the site
+        earns you {Math.round(COMMISSION_RATE * 100)}% — here's your
+        commission, live ticket sales, and the newest hype videos.
       </p>
     </header>
   );
@@ -400,13 +413,13 @@ export default function Admin({ setTab }) {
   }
 
   const kpis = [
-    { icon: "fa-coins", label: "Your commission", value: GH_CD(estCommission), sub: `${Math.round(COMMISSION_RATE * 100)}% of every ticket`, accent: "#1f7a4d" },
-    { icon: "fa-champagne-glasses", label: "Parties", value: stats.parties, sub: `${stats.rsvps} RSVPs total` },
+    { icon: "fa-coins", label: "Your commission", value: GH_CD(estCommission), sub: `${Math.round(COMMISSION_RATE * 100)}% of every ticket · estimate`, accent: "#1f7a4d" },
+    { icon: "fa-champagne-glasses", label: "Events", value: stats.parties, sub: `${stats.rsvps} RSVPs total` },
     { icon: "fa-ticket", label: "Tickets sold", value: stats.ticketsSold, sub: "across all parties" },
     { icon: "fa-sack-dollar", label: "Gross income", value: GH_CD(stats.estIncome), sub: "before your 20% cut" },
     { icon: "fa-star", label: "Reviews", value: stats.reviews, sub: `${stats.avgRating.toFixed(1)}/5 avg · ${stats.verifiedReviews} verified` },
     { icon: "fa-users", label: "Users", value: stats.users, sub: "signed-up members" },
-    { icon: "fa-fire", label: "Hypes", value: stats.hypes, sub: "public clips posted" },
+    { icon: "fa-fire", label: "Hype videos", value: stats.hypes, sub: "public clips posted" },
     { icon: "fa-user-plus", label: "Follows", value: stats.follows, sub: "social connections" },
   ];
 
@@ -471,7 +484,7 @@ export default function Admin({ setTab }) {
           {promoError && <p className="promo-err">{promoError}</p>}
           <p className="admin-promo-note">
             Global codes work at any checkout, on any device — perfect for
-            launch discounts or influencer codes. Host promos on party
+            launch discounts or influencer codes.            Host promos on event
             tickets are listed here too. You still earn your{" "}
             {Math.round(COMMISSION_RATE * 100)}% commission on the
             discounted price. Usage counts purchases made on this device.
@@ -538,12 +551,12 @@ export default function Admin({ setTab }) {
       <Reveal>
         <div className="admin-cols">
           <div>
-            <div className="section-label">Your orders ({hostLogs.length})</div>
+            <div className="section-label">Ticket sales · your events ({hostLogs.length})</div>
             {hostLogs.length === 0 ? (
               <div className="empty-state" style={{ padding: 40 }}>
                 <i className="fa-solid fa-receipt" />
                 <h3>No sales yet</h3>
-                <p>When buyers grab tickets to your parties, every order lands here.</p>
+                <p>When buyers grab tickets to your events, every order lands here — with your {Math.round(COMMISSION_RATE * 100)}% cut.</p>
               </div>
             ) : (
               <div className="table-scroll">
@@ -579,7 +592,7 @@ export default function Admin({ setTab }) {
               </div>
             )}
 
-            <div className="section-label">Your passes bought ({myTickets.length})</div>
+            <div className="section-label">Tickets bought on this device ({myTickets.length})</div>
             <div className="admin-ticket-list">
               {myTickets.slice(0, 8).map((t) => (
                 <div className="admin-ticket-row" key={t.code}>
@@ -590,19 +603,21 @@ export default function Admin({ setTab }) {
                   <span>
                     {GH_CD(Number(t.price) || 0)}
                     <small style={{ display: "block", color: "#1f7a4d" }}>
-                      commission {GH_CD(Number(t.commission) || commissionOf(t.price))}
+                      your cut {GH_CD(Number(t.commission) || commissionOf(t.price))}
                     </small>
                   </span>
                 </div>
               ))}
               {myTickets.length === 0 && (
-                <p style={{ color: "var(--ink-soft)" }}>No purchases on this device yet.</p>
+                <p style={{ color: "var(--ink-soft)" }}>
+                  No purchases on this device yet — tickets bought here show their commission too.
+                </p>
               )}
             </div>
           </div>
 
           <div>
-            <div className="section-label">Commission by party · you</div>
+            <div className="section-label">Commission by event · your cut</div>
             {topParties.length === 0 ? (
               <div className="empty-state" style={{ padding: 40 }}>
                 <i className="fa-solid fa-chart-simple" />
@@ -633,39 +648,57 @@ export default function Admin({ setTab }) {
                   </div>
                 ))}
                 <div className="income-total">
-                  Your confirmed commission: <b>{GH_CD(ownCommission)}</b>
+                  Confirmed commission · your events: <b>{GH_CD(ownCommission)}</b>
                   <span className="income-total-sub">
                     ({Math.round(COMMISSION_RATE * 100)}% of {GH_CD(ownIncome)} in sales)
                   </span>
                 </div>
                 <div className="income-total">
-                  Commission from this device's purchases:{" "}
-                  <b>{GH_CD(boughtCommission)}</b>
+                  From purchases on this device: <b>{GH_CD(boughtCommission)}</b>
                 </div>
               </div>
             )}
 
-            <div className="section-label">Hype feed</div>
+            <div className="section-label">Newest hype videos · monitoring</div>
             <div className="admin-hypes">
-              {hypeFeed.slice(0, 4).map((h) => (
-                <div className="admin-hype" key={h.id}>
-                  <div
-                    className="admin-hype-thumb"
-                    style={{
-                      backgroundImage: h.video_url ? `url(${h.video_url})` : "none",
-                    }}
-                  >
-                    <i className="fa-solid fa-play" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <b>{h.author?.name || "Someone"}</b>
-                    <small>{h.caption || "No caption"}</small>
-                  </div>
-                </div>
-              ))}
+              {[...hypeFeed]
+                .sort(
+                  (a, b) =>
+                    new Date(b.created_at || 0) - new Date(a.created_at || 0)
+                )
+                .slice(0, 8)
+                .map((h) => {
+                  const age = timeAgo(h.created_at);
+                  const isNew =
+                    h.created_at &&
+                    Date.now() - new Date(h.created_at).getTime() <
+                      60 * 60 * 1000;
+                  return (
+                    <div className="admin-hype" key={h.id}>
+                      <div
+                        className="admin-hype-thumb"
+                        style={{
+                          backgroundImage: h.video_url
+                            ? `url(${h.video_url})`
+                            : "none",
+                        }}
+                      >
+                        <i className="fa-solid fa-play" aria-hidden="true" />
+                        {isNew && (
+                          <span className="admin-hype-new">NEW</span>
+                        )}
+                      </div>
+                      <div>
+                        <b>{h.author?.name || "Someone"}</b>
+                        <small>{h.caption || "No caption"}</small>
+                        {age && <em>{age}</em>}
+                      </div>
+                    </div>
+                  );
+                })}
               {hypeFeed.length === 0 && (
                 <p style={{ color: "var(--ink-soft)" }}>
-                  No public hypes yet — the scene is quiet.
+                  No public hype videos yet — the scene is quiet.
                 </p>
               )}
             </div>
@@ -673,8 +706,7 @@ export default function Admin({ setTab }) {
         </div>
       </Reveal>
 
-      <Reveal>
-        <div className="section-label">Latest on the scene</div>
+      <Reveal>            <div className="section-label">Latest events</div>
         <div className="admin-latest">
           {allParties.slice(0, 6).map((p) => (
             <button

@@ -7516,6 +7516,31 @@ html[data-mode="dark"][data-bg="image"] body::before {
   overflow: hidden;
 }
 
+.admin-hype em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.admin-hype-thumb {
+  position: relative;
+}
+
+.admin-hype-new {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--rose-deep);
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+}
+
 .admin-latest {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
