@@ -237,12 +237,6 @@ export function StoreProvider({ children }) {
     [allParties]
   );
 
-  // Tickets on sale in the marketplace — only those whose source party
-  // was claimed by an affiliate.
-  const marketplaceTickets = useMemo(
-    () => communityTickets.filter((t) => t.party && !!t.party.affiliateId),
-    [communityTickets]
-  );
   // Real user reviews + posts only.
   const allReviews = useMemo(() => userReviews, [userReviews]);
   const allPosts = useMemo(() => userPosts, [userPosts]);
@@ -620,16 +614,22 @@ export function StoreProvider({ children }) {
   // ----------------------------------------------------------
   // Apply to become an affiliate. The 40 GHS application fee is paid
   // via Paystack BEFORE the application is submitted — feeRef is the
-  // Paystack transaction reference proving the fee was paid.
+  // Paystack transaction reference proving the fee was paid, and it's
+  // REQUIRED: without a successful payment no application row is ever
+  // created (the RLS insert policy enforces fee_paid server-side too).
   const applyAffiliate = useCallback(
-    async (feeRef = null) => {
+    async (feeRef) => {
       const uid = cloudUserRef.current?.id;
       if (!uid) return false;
+      if (!feeRef) {
+        notify("Pay the 40 GHS application fee first — then we'll send your application.");
+        return false;
+      }
       const { error } = await supabase.from("affiliates").upsert({
         user_id: uid,
         status: "pending",
-        fee_paid: !!feeRef,
-        fee_reference: feeRef || null,
+        fee_paid: true,
+        fee_reference: feeRef,
         fee_amount: 40,
       });
       if (error) {
@@ -1711,7 +1711,6 @@ export function StoreProvider({ children }) {
     tickets: allTickets,
     allTickets,
     marketplaceParties,
-    marketplaceTickets,
     cart,
     cartItems,
     cartCount,

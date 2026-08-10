@@ -1024,20 +1024,23 @@ textarea.input {
   color: var(--ink);
 }
 
-.ticket-card .capacity {
+.ticket-card .capacity,
+.party-card .capacity {
   height: 5px;
   background: rgba(var(--ink-rgb), 0.1);
   position: relative;
 }
 
-.ticket-card .capacity .fill {
+.ticket-card .capacity .fill,
+.party-card .capacity .fill {
   position: absolute;
   inset: 0 auto 0 0;
   background: var(--ink);
   transition: width 0.6s ease;
 }
 
-.ticket-card .capacity-row {
+.ticket-card .capacity-row,
+.party-card .capacity-row {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
@@ -1133,6 +1136,14 @@ textarea.input {
   align-items: center;
   gap: 10px;
   margin-top: auto;
+  flex-wrap: wrap;
+}
+
+.party-card .card-foot .card-status {
+  font-size: 10px;
+  padding: 4px 9px;
+  background: var(--rose-deep);
+  color: var(--paper);
 }
 
 /* Review card */

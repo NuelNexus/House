@@ -3,7 +3,7 @@ import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { promoOf } from "../lib/ticketPresets";
-import { payWithPaystack, verifyPaystack } from "../lib/paystack";
+import { payWithPaystack, verifyPaystack, isFailedVerification } from "../lib/paystack";
 import TicketStub from "../components/TicketStub";
 import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
@@ -106,7 +106,7 @@ export default function Checkout({ setTab }) {
       // Without PAYSTACK_SECRET_KEY the endpoint reports not-set — that's
       // expected and the popup callback is trusted instead.
       const verified = await verifyPaystack(ref).catch(() => null);
-      if (verified && verified.verified === false && verified.reason && !/not set|MISSING|unavailable|missing reference/.test(verified.reason)) {
+      if (isFailedVerification(verified)) {
         throw new Error("Payment could not be verified — please try again.");
       }
       const purchased = checkout(

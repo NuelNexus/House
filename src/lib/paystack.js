@@ -76,3 +76,14 @@ export async function verifyPaystack(reference) {
     return { verified: false, reason: "verify-unavailable" };
   }
 }
+
+// True when verification genuinely failed — as opposed to the harmless
+// "secret key not set yet" state where the popup callback is trusted.
+export function isFailedVerification(verified) {
+  return (
+    verified &&
+    verified.verified === false &&
+    verified.reason &&
+    !/not set|MISSING|unavailable|missing reference/.test(verified.reason)
+  );
+}

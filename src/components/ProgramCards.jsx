@@ -1,9 +1,9 @@
 const CARDS = [
   {
     tab: "tickets",
-    tag: "Tickets",
+    tag: "Parties & tickets",
     title: "Shop all parties",
-    sub: "Passes to the hottest events in Ghana",
+    sub: "Every party comes with its ticket",
     cls: "main",
     shapes: ["orb", "ring", "orb2", "tri"],
   },

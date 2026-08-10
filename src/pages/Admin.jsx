@@ -503,14 +503,19 @@ export default function Admin({ setTab }) {
                         </>
                       ) : (
                         <>
-                          <i className="fa-solid fa-circle-exclamation" style={{ color: "var(--gold)" }} /> No fee yet
+                          <i className="fa-solid fa-circle-exclamation" style={{ color: "var(--gold)" }} /> No fee yet — can't approve until paid
                         </>
                       )}
                       {" "}· your {Math.round(COMMISSION_RATE * 100)}% stays
                     </span>
                     {a.status === "pending" ? (
                       <>
-                        <button className="btn btn-sm" onClick={() => approveAffiliate(a.user_id, "approved")}>
+                        <button
+                          className="btn btn-sm"
+                          disabled={!a.fee_paid}
+                          title={!a.fee_paid ? "Waiting for the 40 GHS fee" : "Approve"}
+                          onClick={() => approveAffiliate(a.user_id, "approved")}
+                        >
                           <i className="fa-solid fa-check icon" /> Approve
                         </button>
                         <button className="btn btn-sm btn-outline danger" onClick={() => approveAffiliate(a.user_id, "rejected")}>

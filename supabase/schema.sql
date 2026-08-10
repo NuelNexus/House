@@ -232,6 +232,12 @@ alter table public.affiliates add column if not exists fee_paid boolean not null
 alter table public.affiliates add column if not exists fee_reference text;
 alter table public.affiliates add column if not exists fee_amount numeric not null default 40;
 
+-- A paid application must carry its Paystack reference — no "paid"
+-- row without proof of which charge settled it.
+alter table public.affiliates drop constraint if exists affiliates_fee_consistency;
+alter table public.affiliates add constraint affiliates_fee_consistency
+  check (not fee_paid or fee_reference is not null);
+
 -- ------------------------------------------------------------
 -- Row level security
 -- ------------------------------------------------------------
@@ -901,12 +907,19 @@ drop policy if exists "affiliates_select" on public.affiliates;
 create policy "affiliates_select" on public.affiliates
   for select using (true);
 
--- Anyone can start an application, but it ALWAYS lands as 'pending' —
--- no one can insert themselves straight into 'approved'. Approval only
--- happens through the update path below (Admin panel).
+-- Pay FIRST, then apply: an application can only be created with a
+-- verified fee (fee_paid = true + its Paystack reference) and it always
+-- lands as 'pending' — no one can insert themselves straight into
+-- 'approved'. Approval only happens through the update path below
+-- (Admin panel).
 drop policy if exists "affiliates_insert" on public.affiliates;
 create policy "affiliates_insert" on public.affiliates
-  for insert with check (auth.uid() = user_id and status = 'pending');
+  for insert with check (
+    auth.uid() = user_id
+    and status = 'pending'
+    and fee_paid = true
+    and fee_reference is not null
+  );
 
 -- The creator approves / rejects applications from the Admin panel
 -- (client-gated like the rest of the admin tooling). A user may also

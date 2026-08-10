@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore, COMMISSION_RATE, AFFILIATE_MARGIN_RATE } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
-import { payWithPaystack } from "../lib/paystack";
+import { payWithPaystack, verifyPaystack, isFailedVerification } from "../lib/paystack";
 import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 import Modal from "../components/Modal";
 import TicketDesigner from "../components/TicketDesigner";
@@ -150,8 +150,9 @@ export default function Host({ setTab }) {
     if (busy) return;
     setBusy(true);
     try {
-      // The 40 GHS application fee is paid up front via Paystack — the
-      // application is only submitted once the charge goes through.
+      // Pay first: the 40 GHS fee is charged up front via Paystack, the
+      // charge is verified server-side, and ONLY then is the application
+      // submitted. No payment = no application, ever.
       if (!user?.email) {
         throw new Error("Add an email to your account before paying the application fee.");
       }
@@ -160,6 +161,13 @@ export default function Host({ setTab }) {
         amount: AFFILIATE_FEE,
         label: "Affiliate application fee",
       });
+      // Best-effort server verification when PAYSTACK_SECRET_KEY is set.
+      // Without it the endpoint reports not-set and the popup callback is
+      // trusted instead — but an explicitly failed charge still blocks.
+      const verified = await verifyPaystack(feeRef).catch(() => null);
+      if (isFailedVerification(verified)) {
+        throw new Error("Payment could not be verified — application not sent.");
+      }
       const ok = await applyAffiliate(feeRef);
       if (ok) refreshAffiliate();
     } catch (err) {
@@ -389,6 +397,10 @@ export default function Host({ setTab }) {
 
   // ---- Pending review ------------------------------------------
   if (affiliate.status === "pending") {
+    // Applications created before the pay-first rework may sit here with
+    // no fee recorded — they can't be approved until the 40 GHS fee is
+    // paid, so offer the pay-first flow right here instead of a dead end.
+    const needsFee = !affiliate.fee_paid;
     return (
       <div className="page">
         {head}
@@ -396,16 +408,41 @@ export default function Host({ setTab }) {
           <div className="gate-icon">
             <i className="fa-solid fa-hourglass-half" />
           </div>
-          <h2>Affiliate application under review</h2>
-          <p>
-            Your affiliate application is with the admin. Once approved you
-            can repost parties from the pool with your own price and start
-            keeping 70% of your margin. You can still post your own parties
-            as a host while you wait.
-          </p>
-          <button className="btn btn-outline" onClick={() => refreshAffiliate()}>
-            <i className="fa-solid fa-rotate icon" /> Check status
-          </button>
+          {needsFee ? (
+            <>
+              <h2>Pay the fee to finish your application</h2>
+              <p>
+                Your application is on file, but the one-time {GH_CD(AFFILIATE_FEE)}{" "}
+                affiliate fee hasn't been paid yet — applications are only
+                approved once it clears.
+              </p>
+              <button className="btn" onClick={apply} disabled={busy}>
+                {busy ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin icon" /> Paying {GH_CD(AFFILIATE_FEE)}…
+                  </>
+                ) : (
+                  <>
+                    Pay {GH_CD(AFFILIATE_FEE)} and finish applying{" "}
+                    <i className="fa-solid fa-arrow-right icon" />
+                  </>
+                )}
+              </button>
+            </>
+          ) : (
+            <>
+              <h2>Affiliate application under review</h2>
+              <p>
+                Your fee is paid and your application is with the admin. Once
+                approved you can repost parties from the pool with your own
+                price and start keeping 70% of your margin. You can still
+                post your own parties as a host while you wait.
+              </p>
+              <button className="btn btn-outline" onClick={() => refreshAffiliate()}>
+                <i className="fa-solid fa-rotate icon" /> Check status
+              </button>
+            </>
+          )}
         </div>
         {poolSection}
       </div>

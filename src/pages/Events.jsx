@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
-import TicketCard from "../components/TicketCard";
 import PartyCard from "../components/PartyCard";
 import TicketStub from "../components/TicketStub";
 import DesignedTicket from "../components/DesignedTicket";
@@ -9,31 +8,18 @@ import Reveal from "../components/Reveal";
 
 // ------------------------------------------------------------------
 // Events — the affiliate marketplace: every listing is an affiliate's
-// repost of a host's party, priced and ticketed by them. Browse by
-// Everything / Tickets / Parties with search + category filters.
+// repost of a host's party, priced and ticketed by them. There is no
+// separate "ticket" — every party IS a ticket, one unified listing.
 // Old #tickets / #parties links still land here via the router.
 // ------------------------------------------------------------------
 
-const VIEWS = [
-  { id: "all", label: "Everything" },
-  { id: "tickets", label: "Tickets" },
-  { id: "parties", label: "Parties" },
-];
-
-export default function Events({ initialView = "all", setTab }) {
+export default function Events({ setTab }) {
   // Only affiliate reposts show here — host originals wait in the pool
   // on the Affiliate tab until someone reposts them with a price.
-  const {
-    marketplaceTickets: allTickets,
-    marketplaceParties: allParties,
-    myTickets,
-  } = useStore();
+  const { marketplaceParties, myTickets } = useStore();
   const { ensureAuth } = useAuth();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const [view, setView] = useState(
-    VIEWS.some((v) => v.id === initialView) ? initialView : "all"
-  );
 
   // Posting a party = becoming a host: the party lands in the pool on
   // the Affiliate tab, where approved affiliates repost it with their
@@ -44,46 +30,25 @@ export default function Events({ initialView = "all", setTab }) {
   };
 
   const categories = useMemo(
-    () => [
-      "All",
-      ...new Set([
-        ...allTickets.map((t) => t.category),
-        ...allParties.map((p) => p.category),
-      ]),
-    ],
-    [allTickets, allParties]
+    () => ["All", ...new Set(marketplaceParties.map((p) => p.category))],
+    [marketplaceParties]
   );
 
   const q = query.trim().toLowerCase();
   const matches = (text = "") => !q || text.toLowerCase().includes(q);
 
-  const filteredTickets = useMemo(
-    () =>
-      allTickets.filter(
-        (t) =>
-          (category === "All" || t.category === category) &&
-          matches(`${t.name} ${t.location} ${(t.lineup || []).join(" ")} ${t.category}`)
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allTickets, category, q]
-  );
-
   const filteredParties = useMemo(
     () =>
-      allParties.filter(
+      marketplaceParties.filter(
         (p) =>
           (category === "All" || p.category === category) &&
           matches(`${p.title} ${p.host} ${p.location} ${p.description} ${p.category}`)
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allParties, category, q]
+    [marketplaceParties, category, q]
   );
 
-  const showTickets = view === "all" || view === "tickets";
-  const showParties = view === "all" || view === "parties";
-  const nothing =
-    (showTickets && filteredTickets.length === 0) &&
-    (showParties && filteredParties.length === 0);
+  const nothing = filteredParties.length === 0;
 
   return (
     <div className="page">
@@ -93,9 +58,9 @@ export default function Events({ initialView = "all", setTab }) {
           Events<span className="outline">.</span>
         </h1>
         <p className="lede">
-          Every event here is an affiliate's repost of a host's party —
-          picked from the pool, priced and ticketed by them. Want to
-          host? Post your party on the Affiliate tab.
+          Every party here is its own ticket — an affiliate's repost of a
+          host's party, priced and ticketed by them. Grab a pass right from
+          the listing. Want to host? Post your party on the Affiliate tab.
         </p>
       </header>
 
@@ -109,19 +74,6 @@ export default function Events({ initialView = "all", setTab }) {
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Search events"
             />
-          </div>
-          <div className="view-switch" role="tablist" aria-label="Filter events">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                role="tab"
-                aria-selected={view === v.id}
-                className={`view-tab ${view === v.id ? "active" : ""}`}
-                onClick={() => setView(v.id)}
-              >
-                {v.label}
-              </button>
-            ))}
           </div>
           <div className="chips">
             {categories.map((c) => (
@@ -140,7 +92,7 @@ export default function Events({ initialView = "all", setTab }) {
         </div>
       </Reveal>
 
-      {myTickets.length > 0 && view !== "parties" && (
+      {myTickets.length > 0 && (
         <Reveal>
           <div className="section-label">Your Tickets ({myTickets.length})</div>
           <div
@@ -173,7 +125,7 @@ export default function Events({ initialView = "all", setTab }) {
       {nothing ? (
         <div className="empty-state">
           <i className="fa-solid fa-magnifying-glass" />
-          <h3>No events match</h3>
+          <h3>No parties match</h3>
           <p>Try a different search or category — or post a party for an affiliate to repost.</p>
           <button className="btn" onClick={openForm}>
             Post a party
@@ -181,39 +133,18 @@ export default function Events({ initialView = "all", setTab }) {
         </div>
       ) : (
         <>
-          {showTickets && filteredTickets.length > 0 && (
-            <>
-              <Reveal>
-                <div className="section-label">
-                  On sale now ({filteredTickets.length})
-                </div>
+          <Reveal>
+            <div className="section-label">
+              On the scene ({filteredParties.length})
+            </div>
+          </Reveal>
+          <div className="grid">
+            {filteredParties.map((p, i) => (
+              <Reveal key={p.id} delay={Math.min(i, 8) * 60}>
+                <PartyCard party={p} />
               </Reveal>
-              <div className="grid">
-                {filteredTickets.map((t, i) => (
-                  <Reveal key={t.id} delay={Math.min(i, 8) * 60}>
-                    <TicketCard ticket={t} />
-                  </Reveal>
-                ))}
-              </div>
-            </>
-          )}
-
-          {showParties && filteredParties.length > 0 && (
-            <>
-              <Reveal>
-                <div className="section-label">
-                  On the scene ({filteredParties.length})
-                </div>
-              </Reveal>
-              <div className="grid">
-                {filteredParties.map((p, i) => (
-                  <Reveal key={p.id} delay={Math.min(i, 8) * 60}>
-                    <PartyCard party={p} />
-                  </Reveal>
-                ))}
-              </div>
-            </>
-          )}
+            ))}
+          </div>
         </>
       )}
     </div>

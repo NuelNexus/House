@@ -155,7 +155,7 @@ function parseHash(hash) {
   if (head === "parties" && parts[1] === "new") return { ...base, tab: "post-party" };
   if (head === "reviews" && parts[1] === "new") return { ...base, tab: "write-review" };
   // Merged Events tab: #events is the new home, old #tickets / #parties
-  // links land on the same page with their view preselected.
+  // links land on the same unified page.
   if (head === "events") return { ...base, tab: "events" };
   if (head === "tickets") return { ...base, tab: "tickets" };
   if (head === "parties") return { ...base, tab: "parties" };
@@ -233,9 +233,9 @@ function Shell() {
         {tab === "home" && (
           <Home setTab={setTab} onIntroDone={() => setIntroDone(true)} />
         )}
-        {tab === "events" && <Events initialView="all" setTab={setTab} />}
-        {tab === "tickets" && <Events initialView="tickets" setTab={setTab} />}
-        {tab === "parties" && <Events initialView="parties" setTab={setTab} />}
+        {tab === "events" && <Events setTab={setTab} />}
+        {tab === "tickets" && <Events setTab={setTab} />}
+        {tab === "parties" && <Events setTab={setTab} />}
         {tab === "blog" && <Blog setTab={setTab} />}
         {tab === "party" && <PartyDetail partyId={partyId} setTab={setTab} />}
         {tab === "profile" && <Profile setTab={setTab} />}
