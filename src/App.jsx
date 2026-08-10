@@ -237,7 +237,7 @@ function Shell() {
         {tab === "profile" && <Profile setTab={setTab} />}
         {tab === "user" && <PublicProfile userId={userId} />}
         {tab === "auth" && <Auth authMode={authMode} />}
-        {tab === "post-party" && <PostParty setTab={setTab} />}
+        {tab === "post-party" && <PostParty setTab={setTab} q={q} />}
         {tab === "host" && <Host setTab={setTab} />}
         {tab === "admin" && <Admin setTab={setTab} />}
         {tab === "verify" && <Verify setTab={setTab} />}

@@ -192,7 +192,7 @@ export default function Navbar({ tab, setTab, hidden }) {
               </button>
             )}
 
-            <button className="btn btn-sm host-btn" onClick={() => go(isAffiliate ? "parties/new" : "host")}>
+            <button className="btn btn-sm host-btn" onClick={() => go("parties/new")}>
               Host an event
             </button>
             <button

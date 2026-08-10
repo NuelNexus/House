@@ -9,17 +9,22 @@ import TicketQR from "../components/TicketQR";
 import Reveal from "../components/Reveal";
 
 // ------------------------------------------------------------------
-// Host Events — the affiliate program tab. Posting events and selling
-// tickets is exclusive to approved affiliates:
+// Host Events — the affiliate program tab. Selling tickets is
+// exclusive to approved affiliates, but anyone can post a party idea:
 //   · Anyone can apply (this page) — the creator approves them in Admin.
-//   · Affiliates post events at their own prices and keep 65% of sales.
-//   · The affiliate earns a 5% commission per sale on top.
-//   · The platform (creator) takes 30% per sale.
+//   · Anyone posts party IDEAS (proposed) — they land in the
+//     "Party ideas waiting for a host" pool below.
+//   · Approved affiliates pick up an idea, set the price and publish it
+//     live on the Events page; they keep 65% + a 5% commission per sale,
+//     the platform (creator) takes 30%.
+//   · Affiliates can also post their own priced events directly.
 // ------------------------------------------------------------------
 
 export default function Host({ setTab }) {
   const {
     userParties,
+    proposedParties,
+    affiliateEvents,
     hostLogs,
     saveTicketDesign,
     updateTicketStock,
@@ -32,11 +37,21 @@ export default function Host({ setTab }) {
   const [copied, setCopied] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Everything this affiliate sells tickets for: their own posted
+  // events plus ideas they've picked up from the pool.
+  const hostedEvents = useMemo(() => {
+    const m = new Map();
+    [...userParties, ...affiliateEvents].forEach((p) => {
+      if (p && p.id) m.set(p.id, p);
+    });
+    return [...m.values()];
+  }, [userParties, affiliateEvents]);
+
   const partyById = useMemo(() => {
     const m = new Map();
-    userParties.forEach((p) => m.set(p.id, p));
+    hostedEvents.forEach((p) => m.set(p.id, p));
     return m;
-  }, [userParties]);
+  }, [hostedEvents]);
 
   const { soldByParty, revenueByParty } = useMemo(() => {
     const sold = {};
@@ -302,22 +317,77 @@ export default function Host({ setTab }) {
         </div>
       </Reveal>
 
+      {/* Party ideas waiting for a host — posted by anyone, visible only
+          to approved affiliates. Pick one up, set a price and it goes
+          live on the Events page. */}
       <Reveal>
         <div className="host-toolbar">
           <div className="section-label" style={{ margin: 0 }}>
-            Your events ({userParties.length})
+            Party ideas waiting for a host ({proposedParties.length})
+          </div>
+          <button className="btn btn-sm" onClick={() => setTab("parties/new")}>
+            <i className="fa-solid fa-lightbulb icon" /> Post an idea
+          </button>
+        </div>
+        {proposedParties.length === 0 ? (
+          <div className="empty-state">
+            <i className="fa-solid fa-lightbulb" />
+            <h3>No ideas on the table</h3>
+            <p>
+              Anyone on FesGH can post a party idea — they land here for
+              you to pick up, price and publish. When someone posts one,
+              it shows up in this pool.
+            </p>
+          </div>
+        ) : (
+          <div className="grid host-grid">
+            {proposedParties.map((p) => (
+              <article className="card host-party" key={p.id}>
+                <div className="card-top">
+                  <span className="card-tag">{p.category}</span>
+                  <span className="card-status">Idea</span>
+                </div>
+                <h3>{p.title}</h3>
+                <p className="host">
+                  {p.date} · {p.location}
+                </p>
+                <p className="desc">{p.description}</p>
+                <div className="host-party-stats">
+                  <span>
+                    <b>{p.host}</b> posted this
+                  </span>
+                </div>
+                <div className="card-foot host-party-actions">
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setTab(`parties/new?claim=${p.id}`)}
+                  >
+                    <i className="fa-solid fa-ticket icon" /> Pick up & set price
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Reveal>
+
+      <Reveal>
+        <div className="host-toolbar">
+          <div className="section-label" style={{ margin: 0 }}>
+            Your events ({hostedEvents.length})
           </div>
           <button className="btn btn-sm" onClick={() => setTab("parties/new")}>
             <i className="fa-solid fa-plus icon" /> Post an event
           </button>
         </div>
-        {userParties.length === 0 ? (
+        {hostedEvents.length === 0 ? (
           <div className="empty-state">
             <i className="fa-solid fa-wand-magic-sparkles" />
             <h3>Nothing hosted yet</h3>
             <p>
-              Post your first event — then design tickets and track every
-              sale here. Your 65% + 5% are calculated per ticket.
+              Post your own priced event, or pick up a party idea above and
+              set the price. Design tickets and track every sale here —
+              your 65% + 5% are calculated per ticket.
             </p>
             <button className="btn" onClick={() => setTab("parties/new")}>
               Post your first event <i className="fa-solid fa-arrow-right icon" />
@@ -325,7 +395,7 @@ export default function Host({ setTab }) {
           </div>
         ) : (
           <div className="grid host-grid">
-            {userParties.map((p) => {
+            {hostedEvents.map((p) => {
               const onSale = !!(p.ticketDesign && p.ticketDesign.enabled);
               const sold = soldByParty[p.id] || 0;
               const revenue = revenueByParty[p.id] || 0;

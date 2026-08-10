@@ -72,7 +72,12 @@ export default function Profile({ setTab }) {
       id: p.id,
       ref: p,
       label: p.title,
-      sub: `${p.rsvps} going`,
+      // Proposed ideas haven't gone public yet — they're waiting for an
+      // approved host to pick them up and set a price.
+      sub:
+        (p.status ?? "live") === "proposed"
+          ? "Proposed · waiting for a host"
+          : `${p.rsvps} going`,
       coverCat: p.category,
     }));
     const reviewItems = userReviews.map((r) => ({

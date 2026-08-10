@@ -81,6 +81,10 @@ function mapPartyRow(p) {
     ...p,
     isUser: true, // column default — ownership is checked via userId now
     userId: p.user_id ?? null,
+    affiliateId: p.affiliate_id ?? null,
+    // 'proposed' = an idea only approved hosts can see; 'live' = on the
+    // public scene with a host's price. Missing status = live (legacy).
+    status: p.status ?? "live",
     ticketDesign: p.ticket_design ?? null,
     ticketsSold: p.tickets_sold ?? 0,
   };
@@ -136,27 +140,58 @@ export function StoreProvider({ children }) {
   // Derived lists. Declared before the callbacks below because
   // checkout depends on cartItems (via its dependency array).
   // ----------------------------------------------------------
+  // Public scene = live parties only. Proposed ideas are invisible here —
+  // they surface in the Host Events tab (proposedParties) for approved
+  // hosts to pick up and price.
   const allParties = useMemo(() => {
     // user first (their freshest copy wins on id collisions), then the
     // whole community scene, then the editorial seed parties.
     const map = new Map();
     [...userParties, ...communityParties, ...SEED_PARTIES].forEach((p) => {
-      if (p && p.id) map.set(p.id, p);
+      if (p && p.id && (p.status ?? "live") === "live") map.set(p.id, p);
     });
     return [...map.values()];
   }, [userParties, communityParties]);
 
+  // Party ideas waiting for an approved host to pick up + price. Only
+  // approved affiliates can see these (RLS + the Host Events tab gate).
+  const proposedParties = useMemo(
+    () =>
+      communityParties.filter(
+        (p) => p.status === "proposed" && !p.affiliateId
+      ),
+    [communityParties]
+  );
+
+  // Events this user's affiliate has claimed (picked up + priced) —
+  // they host the sales even though someone else posted the idea.
+  const affiliateEvents = useMemo(
+    () =>
+      cloudUid
+        ? communityParties.filter((p) => p.affiliateId === cloudUid)
+        : [],
+    [communityParties, cloudUid]
+  );
+
   // Hosted parties that are selling tickets become purchasable tickets.
+  // Only live parties sell — proposed ideas have no ticket yet. The host
+  // of record for sales is the claiming affiliate (they earn the split);
+  // if nobody claimed it, the poster is the host.
   const communityTickets = useMemo(
     () =>
       communityParties
-        .filter((p) => p.ticketDesign && p.ticketDesign.enabled)
+        .filter(
+          (p) =>
+            (p.status ?? "live") === "live" &&
+            p.ticketDesign &&
+            p.ticketDesign.enabled
+        )
         .map((p) => ({
           id: p.id,
           name: p.ticketDesign.name || p.title,
           category: p.category,
           hostName: p.host,
-          hostId: p.userId,
+          hostId: p.affiliateId || p.userId,
           date: p.date,
           location: p.location,
           price: Number(p.ticketDesign.price || p.price || 0),
@@ -1008,17 +1043,24 @@ export function StoreProvider({ children }) {
     [cartItems, notify, globalPromos]
   );
 
+  // Anyone can post a party idea. It starts as 'proposed' — visible only
+  // to the poster and to approved affiliate hosts, who pick it up, set a
+  // price and publish it (claimParty → 'live' on the public scene).
+  // Approved affiliates posting straight from the designer go live
+  // immediately (publishNow), so their own priced event shows instantly.
   const postParty = useCallback(
-    (party) => {
+    (party, publishNow = false) => {
+      const status = publishNow ? "live" : "proposed";
       const record = {
         ...party,
         id: `u${Date.now()}`,
         isUser: true,
         rsvps: 0,
+        status,
+        affiliateId: publishNow ? (cloudUserRef.current?.id ?? null) : null,
         userId: cloudUserRef.current?.id ?? null,
       };
       setUserParties((prev) => [record, ...prev]);
-      // Put it on the scene list instantly so it's live everywhere.
       setCommunityParties((prev) => [record, ...prev]);
 
       const uid = cloudUserRef.current?.id;
@@ -1038,6 +1080,8 @@ export function StoreProvider({ children }) {
             capacity: record.capacity,
             description: record.description,
             category: record.category,
+            status,
+            affiliate_id: record.affiliateId,
             ticket_design: record.ticketDesign
               ? JSON.stringify(record.ticketDesign)
               : null,
@@ -1047,7 +1091,56 @@ export function StoreProvider({ children }) {
           });
       }
 
-      notify("Your party is live on the scene!");
+      notify(
+        publishNow
+          ? "Your event is live on the scene!"
+          : "Party idea posted — approved hosts can pick it up"
+      );
+    },
+    [notify]
+  );
+
+  // An approved affiliate picks up a proposed party idea: sets the price
+  // (+ optional ticket design), claims it as the selling host and
+  // publishes it to the public scene. Returns the claimed party or null.
+  const claimParty = useCallback(
+    (partyId, { price, capacity, ticketDesign, description }) => {
+      const uid = cloudUserRef.current?.id;
+      if (!uid) return null;
+      const design =
+        ticketDesign && Object.keys(ticketDesign).length
+          ? { ...ticketDesign, enabled: true }
+          : null;
+      const patch = {
+        status: "live",
+        affiliate_id: uid,
+        price: Math.max(0, Number(price) || 0),
+        capacity: capacity ?? null,
+        ...(description ? { description } : {}),
+        ticket_design: design ? JSON.stringify(design) : null,
+      };
+      // Optimistic local update so the scene feels instant.
+      const claimLocal = (p) =>
+        p.id === partyId
+          ? {
+              ...p,
+              ...patch,
+              ticketDesign: design,
+              affiliateId: uid,
+            }
+          : p;
+      setCommunityParties((prev) => prev.map(claimLocal));
+      setUserParties((prev) => prev.map(claimLocal));
+      supabase
+        .from("parties")
+        .update(patch)
+        .eq("id", partyId)
+        .then(({ error }) => {
+          if (error) console.warn("claim party sync:", error.message);
+        });
+      const claimed = { ...patch, id: partyId, ticketDesign: design };
+      notify("You picked up the party — it's live with your price!");
+      return claimed;
     },
     [notify]
   );
@@ -1062,17 +1155,14 @@ export function StoreProvider({ children }) {
       setCommunityParties((prev) =>
         prev.map((p) => (p.id === partyId ? { ...p, ticketDesign: next } : p))
       );
-      const uid = cloudUserRef.current?.id;
-      if (uid) {
-        supabase
-          .from("parties")
-          .update({ ticket_design: JSON.stringify(next) })
-          .eq("id", partyId)
-          .eq("user_id", uid)
-          .then(({ error }) => {
-            if (error) console.warn("design sync:", error.message);
-          });
-      }
+      // The owner or the claiming affiliate can update (RLS enforces it).
+      supabase
+        .from("parties")
+        .update({ ticket_design: JSON.stringify(next) })
+        .eq("id", partyId)
+        .then(({ error }) => {
+          if (error) console.warn("design sync:", error.message);
+        });
       notify("Ticket design saved — it's on sale now");
     },
     [notify]
@@ -1094,13 +1184,11 @@ export function StoreProvider({ children }) {
       };
       setUserParties((prev) => prev.map(patch));
       setCommunityParties((prev) => prev.map(patch));
-      const uid = cloudUserRef.current?.id;
-      if (uid && nextDesign) {
+      if (nextDesign) {
         supabase
           .from("parties")
           .update({ ticket_design: JSON.stringify(nextDesign) })
           .eq("id", party.id)
-          .eq("user_id", uid)
           .then(({ error }) => {
             if (error) console.warn("stock sync:", error.message);
           });
@@ -1345,7 +1433,10 @@ export function StoreProvider({ children }) {
     userReviews,
     userPosts,
     allParties,
+    proposedParties,
+    affiliateEvents,
     postParty,
+    claimParty,
     going,
     toggleGoing,
     displayRsvps,

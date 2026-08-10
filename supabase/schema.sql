@@ -57,6 +57,14 @@ create table if not exists public.reviews (
 alter table public.parties add column if not exists ticket_design jsonb;
 alter table public.parties add column if not exists tickets_sold int not null default 0;
 
+-- Party lifecycle: anyone can post a party idea ('proposed'), but it
+-- only becomes visible on the public scene once an approved affiliate
+-- host picks it up, sets a price and publishes it ('live'). affiliate_id
+-- is the host who claimed + priced it (the one who earns commission).
+alter table public.parties add column if not exists status text not null default 'live';
+alter table public.parties add column if not exists affiliate_id uuid references auth.users (id) on delete set null;
+create index if not exists parties_status on public.parties (status, created_at desc);
+
 -- Purchased tickets (one row per pass). party_id links a pass to a
 -- hosted party's ticket design; hash is the unique per-ticket value
 -- shown to the buyer and logged for the host. design is the snapshot
@@ -184,6 +192,18 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Affiliate hosts: users approved to post events and sell tickets at
+-- their own prices. Every sale splits as:
+--   30% platform (the creator) · 5% affiliate · 65% host earnings
+-- Defined up here (before RLS) because the parties policies reference it.
+create table if not exists public.affiliates (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  commission_pct numeric not null default 5,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- ------------------------------------------------------------
 -- Row level security
 -- ------------------------------------------------------------
@@ -208,15 +228,54 @@ create policy "profiles_update" on public.profiles
 
 drop policy if exists "parties_select" on public.parties;
 create policy "parties_select" on public.parties
-  for select using (true);
+  for select using (
+    status = 'live'
+    or auth.uid() = user_id
+    or exists (
+      select 1 from public.affiliates a
+      where a.user_id = auth.uid() and a.status = 'approved'
+    )
+  );
 
 drop policy if exists "parties_insert" on public.parties;
 create policy "parties_insert" on public.parties
-  for insert with check (auth.uid() = user_id);
+  for insert with check (
+    auth.uid() = user_id
+    and (
+      new.status = 'proposed'
+      or exists (
+        select 1 from public.affiliates a
+        where a.user_id = auth.uid() and a.status = 'approved'
+      )
+    )
+  );
 
 drop policy if exists "parties_update" on public.parties;
 create policy "parties_update" on public.parties
-  for update using (auth.uid() = user_id);
+  for update using (
+    auth.uid() = user_id
+    or auth.uid() = affiliate_id
+    or (
+      status = 'proposed'
+      and exists (
+        select 1 from public.affiliates a
+        where a.user_id = auth.uid() and a.status = 'approved'
+      )
+    )
+  )
+  with check (
+    auth.uid() = affiliate_id
+    or (
+      auth.uid() = user_id
+      and (
+        new.status = 'proposed'
+        or exists (
+          select 1 from public.affiliates a
+          where a.user_id = auth.uid() and a.status = 'approved'
+        )
+      )
+    )
+  );
 
 drop policy if exists "reviews_select" on public.reviews;
 create policy "reviews_select" on public.reviews
@@ -594,17 +653,6 @@ alter table public.profiles add column if not exists hype_by_default boolean not
 
 -- hypes.published: false = profile-only clip (never in the public feed).
 alter table public.hypes add column if not exists published boolean not null default true;
-
--- Affiliate hosts: users approved to post events and sell tickets at
--- their own prices. Every sale splits as:
---   30% platform (the creator) · 5% affiliate · 65% host earnings
-create table if not exists public.affiliates (
-  user_id uuid primary key references auth.users (id) on delete cascade,
-  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
-  commission_pct numeric not null default 5,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
 
 -- Groups & communities (browse, join, post inside)
 create table if not exists public.groups (

@@ -1,5 +1,4 @@
 import { useAuth } from "../context/AuthContext";
-import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
 import Avatar from "./Avatar";
 
@@ -11,14 +10,13 @@ const LINKS = [
 ];
 
 export default function HypeSidebar({ tab, setTab, onPost }) {
-  const { user, name, profile, openAuth, signOut } = useAuth();
-  const { userParties } = useStore();
+  const { user, name, profile, openAuth, signOut, affiliate } = useAuth();
   const { streaks, unreadTotal } = useSocial();
-  // The Host tab only shows once the user has hosted a party.
-  const links =
-    userParties.length > 0
-      ? [...LINKS, { id: "host", label: "Host", icon: "fa-wand-magic-sparkles" }]
-      : LINKS;
+  // Host Events is exclusive to approved affiliate hosts.
+  const isAffiliate = affiliate?.status === "approved";
+  const links = isAffiliate
+    ? [...LINKS, { id: "host", label: "Host Events", icon: "fa-wand-magic-sparkles" }]
+    : LINKS;
 
   const handlePost = () => {
     if (!user) { openAuth(); return; }

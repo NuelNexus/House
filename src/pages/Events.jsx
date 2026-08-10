@@ -71,11 +71,12 @@ export default function Events({ initialView = "all", setTab }) {
   );
   const [openPost, setOpenPost] = useState(null);
 
-  // Posting an event is exclusive to approved affiliate hosts — the
-  // Host Events tab owns that flow (apply → get approved → post).
+  // Anyone can post a party idea — approved hosts pick it up and set
+  // the price. Non-affiliates land on the idea form; affiliates get the
+  // full pricing + ticket flow.
   const openForm = () => {
-    if (!ensureAuth("host")) return;
-    setTab("host");
+    if (!ensureAuth("parties/new")) return;
+    setTab("parties/new");
   };
 
   // Ranked For You feed — events + hype clips in one personalised mix.
@@ -215,7 +216,8 @@ export default function Events({ initialView = "all", setTab }) {
         <p className="lede">
           Events and hype clips in one place — ranked by what you RSVP to,
           buy, watch and read. Browse every party below, grab passes, and
-          never miss what's on.
+          never miss what's on. Anyone can post a party idea; approved
+          hosts pick it up, set a price and put it on the scene.
         </p>
       </header>
 
