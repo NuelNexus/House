@@ -58,7 +58,7 @@ export default function Contact({ contactId, q }) {
           <p>
             Your {kind === "offer" ? "service offer" : "message"} for{" "}
             <b>{eventName}</b> is on its way to {hostName}. They'll get back to
-            you as soon as they're on Festivity.
+            you as soon as they're on Fest GH.
           </p>
           <div className="gate-actions">
             <a className="btn" href="#tickets">
@@ -148,7 +148,7 @@ export default function Contact({ contactId, q }) {
           </div>
 
           <p className="app-note" style={{ marginTop: 18 }}>
-            {hostName} isn't on Festivity yet — this message is saved for them.
+            {hostName} isn't on Fest GH yet — this message is saved for them.
             {user
               ? " It's also logged to your account."
               : " No sign-in needed."}

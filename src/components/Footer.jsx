@@ -19,11 +19,10 @@ export default function Footer({ setTab }) {
       <div className="footer-inner">
         <div className="footer-grid">
           <div>
-            <div className="brand-foot">Festivity</div>
+            <div className="brand-foot">Fest GH</div>
             <p className="about-foot">
-              The home of house party tickets in Ghana. Discover private
-              parties, read honest reviews, and follow the scene from Accra to
-              Takoradi.
+              The event hosting site for Ghana. Host events, sell tickets,
+              and discover what's happening from Accra to Takoradi.
             </p>
           </div>
           <div>
@@ -65,7 +64,7 @@ export default function Footer({ setTab }) {
             <h4>Contact</h4>
             <ul>
               <li>
-                <a href="mailto:hello@festivity.gh">hello@festivity.gh</a>
+                <a href="mailto:hello@festgh.gh">hello@festgh.gh</a>
               </li>
               <li>
                 <a href="#" onClick={(e) => e.preventDefault()}>
@@ -81,10 +80,10 @@ export default function Footer({ setTab }) {
           </div>
         </div>
         <div className="watermark" aria-hidden="true">
-          Festivity
+          Fest GH
         </div>
         <div className="bottom-bar">
-          <span>© 2026 Festivity GH · All rights reserved</span>
+          <span>© 2026 Fest GH · All rights reserved</span>
           <span>Made in Accra, Ghana</span>
         </div>
       </div>

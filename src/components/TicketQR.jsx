@@ -9,7 +9,7 @@ export default function TicketQR({ value, label, size = 96 }) {
 
   useEffect(() => {
     let alive = true;
-    const payload = value || "FESTIVITY-GH";
+    const payload = value || "FEST-GH";
     QRCode.toDataURL(payload, {
       width: size * 2,
       margin: 1,

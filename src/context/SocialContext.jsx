@@ -237,7 +237,7 @@ export function SocialProvider({ children }) {
     const profs = await fetchProfiles([...byOther.keys()]);
     const list = [...byOther.entries()].map(([other, last]) => ({
       other,
-      name: profs[other]?.name || "Festivity member",
+      name: profs[other]?.name || "Fest GH member",
       avatar: profs[other] || null,
       lastBody: last.body,
       lastAt: last.created_at,
@@ -469,7 +469,7 @@ export function SocialProvider({ children }) {
   );
 
   // ============================================================
-  // CONTACT REQUESTS (hosts without Festivity accounts)
+  // CONTACT REQUESTS (hosts without Fest GH accounts)
   // ============================================================
   const sendContactRequest = useCallback(
     async ({ senderName, eventName, hostName, kind, body }) => {

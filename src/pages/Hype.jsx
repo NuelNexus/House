@@ -144,7 +144,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
   const isMe = authorId === user?.id;
   const follows = isFollowing(authorId);
   const followCount = followCounts[authorId]?.followers ?? 0;
-  const authorName = hype.author?.name || "Festivity member";
+  const authorName = hype.author?.name || "Fest GH member";
 
   return (
     <div className={`hype-feed-slide${paused && !image ? " paused" : ""}`} onClick={togglePlay}>

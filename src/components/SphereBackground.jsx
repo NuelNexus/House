@@ -93,10 +93,6 @@ export default function SphereBackground({ onReady }) {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-
     // WebGL can be unavailable (headless browsers, some laptops with the GPU
     // disabled, remote desktops). THREE throws deep inside WebGLRenderer when
     // the context comes back null — fall back to a static gradient and let the
@@ -263,7 +259,7 @@ export default function SphereBackground({ onReady }) {
 
     const initY = -25;
     const revolutionRadius = 4;
-    const revolutionDuration = 1.6;
+    const revolutionDuration = 3.2;
     const breathingAmplitude = 0.1;
     const breathingSpeed = 0.002;
 
@@ -271,94 +267,69 @@ export default function SphereBackground({ onReady }) {
     const timers = [];
     let loadingComplete = false;
 
-    const settleAll = () => {
-      balloons.forEach((b) =>
-        b.group.position.set(
-          b.originalPosition.x,
-          b.originalPosition.y,
-          b.originalPosition.z
-        )
-      );
-      flameSprites.forEach((fl) => {
-        fl.position.y = fl.userData.baseY;
-      });
-    };
-
-    if (reduceMotion) {
-      // Reduced motion — everything just appears in place (no rise).
-      settleAll();
-      loadingComplete = true;
-      timers.push(
-        window.setTimeout(() => {
-          onReadyRef.current?.();
-        }, 150)
-      );
-    } else {
-      // Balloons rise from below the screen in a sweeping revolution, and the
-      // floating hypes drift up alongside them.
-      balloons.forEach((b, i) => {
-        const delay = i * 0.01;
-        const tl = gsap
-          .timeline()
-          .to(b.group.position, {
-            duration: revolutionDuration / 2,
-            y: revolutionRadius,
-            ease: "power1.out",
-            delay,
-            onUpdate() {
-              const progress = this.progress();
-              b.group.position.z =
-                b.originalPosition.z +
-                Math.sin(progress * Math.PI) * revolutionRadius;
-            },
-          })
-          .to(b.group.position, {
-            duration: revolutionDuration / 2,
-            y: initY / 5,
-            ease: "power1.out",
-            onUpdate() {
-              const progress = this.progress();
-              b.group.position.z =
-                b.originalPosition.z -
-                Math.sin(progress * Math.PI) * revolutionRadius;
-            },
-          })
-          .to(b.group.position, {
-            duration: 0.55,
-            x: b.originalPosition.x,
-            y: b.originalPosition.y,
-            z: b.originalPosition.z,
-            ease: "power1.out",
-          });
-        timelines.push(tl);
-      });
-
-      flameSprites.forEach((fl, i) => {
-        fl.position.y = initY;
-        const tl = gsap.timeline();
-        tl.to(fl.position, {
-          duration: revolutionDuration + 0.5,
-          y: fl.userData.baseY,
+    // Balloons rise from below the screen in a sweeping revolution, and the
+    // floating hypes drift up alongside them. The intro plays the same on
+    // every device (slower, like the villa).
+    balloons.forEach((b, i) => {
+      const delay = i * 0.01;
+      const tl = gsap
+        .timeline()
+        .to(b.group.position, {
+          duration: revolutionDuration / 2,
+          y: revolutionRadius,
           ease: "power1.out",
-          delay: i * 0.01,
+          delay,
+          onUpdate() {
+            const progress = this.progress();
+            b.group.position.z =
+              b.originalPosition.z +
+              Math.sin(progress * Math.PI) * revolutionRadius;
+          },
+        })
+        .to(b.group.position, {
+          duration: revolutionDuration / 2,
+          y: initY / 5,
+          ease: "power1.out",
+          onUpdate() {
+            const progress = this.progress();
+            b.group.position.z =
+              b.originalPosition.z -
+              Math.sin(progress * Math.PI) * revolutionRadius;
+          },
+        })
+        .to(b.group.position, {
+          duration: 1.0,
+          x: b.originalPosition.x,
+          y: b.originalPosition.y,
+          z: b.originalPosition.z,
+          ease: "power1.out",
         });
-        timelines.push(tl);
-      });
+      timelines.push(tl);
+    });
 
-      timers.push(
-        window.setTimeout(() => {
-          loadingComplete = true;
-          onReadyRef.current?.();
-        }, (revolutionDuration + 0.9) * 1000)
-      );
-    }
-
-    // Balloons start below the screen in the animated path.
-    if (!reduceMotion) {
-      balloons.forEach((b) => {
-        b.group.position.y = initY;
+    flameSprites.forEach((fl, i) => {
+      fl.position.y = initY;
+      const tl = gsap.timeline();
+      tl.to(fl.position, {
+        duration: revolutionDuration + 0.5,
+        y: fl.userData.baseY,
+        ease: "power1.out",
+        delay: i * 0.01,
       });
-    }
+      timelines.push(tl);
+    });
+
+    // Balloons start below the screen.
+    balloons.forEach((b) => {
+      b.group.position.y = initY;
+    });
+
+    timers.push(
+      window.setTimeout(() => {
+        loadingComplete = true;
+        onReadyRef.current?.();
+      }, (revolutionDuration + 0.9) * 1000)
+    );
 
     const onMouseMove = (event) => {
       if (!loadingComplete) return;

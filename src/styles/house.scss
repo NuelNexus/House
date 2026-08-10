@@ -98,8 +98,9 @@ $light-2: #badfd9;
   pointer-events: none;
   opacity: 0;
   /* Rise up from the bottom of the screen during the intro, exactly like
-     the pink bubbles: invisible while low, solid as it settles at center. */
-  animation: css-house-in 2.3s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+     the balloons: invisible while low, solid as it settles at center.
+     Slower, and identical on every device (no reduced-motion shortcut). */
+  animation: css-house-in 4.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
 
   &,
   * {
@@ -1686,9 +1687,4 @@ $light-2: #badfd9;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .css-house-wrap {
-    animation: none;
-    opacity: 1;
-  }
-}
+

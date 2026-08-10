@@ -3,7 +3,7 @@ const CARDS = [
     tab: "tickets",
     tag: "Tickets",
     title: "Shop all parties",
-    sub: "Passes to the hottest house parties in Ghana",
+    sub: "Passes to the hottest events in Ghana",
     cls: "main",
     shapes: ["orb", "ring", "orb2", "tri"],
   },

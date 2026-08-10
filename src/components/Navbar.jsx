@@ -91,7 +91,7 @@ export default function Navbar({ tab, setTab, hidden }) {
               go("home");
             }}
           >
-            Festivity<span className="dot" />
+            Fest GH<span className="dot" />
           </a>
           <nav aria-label="Primary">
             <ul>
@@ -194,7 +194,7 @@ export default function Navbar({ tab, setTab, hidden }) {
             )}
 
             <button className="btn btn-sm host-btn" onClick={() => go("parties/new")}>
-              Host a party
+              Host an event
             </button>
             <button
               className="cart-btn msg-btn"
@@ -254,7 +254,7 @@ export default function Navbar({ tab, setTab, hidden }) {
           <i className="fa-solid fa-xmark" />
         </button>
         <div className="mm-brand">
-          Festivity<span className="dot">.</span>
+          Fest GH<span className="dot">.</span>
         </div>
         {!authLoading && user ? (
           <div className="mm-user">
@@ -324,7 +324,7 @@ export default function Navbar({ tab, setTab, hidden }) {
         </ul>
         <div className="mm-footer">
           <span>Accra · GH</span>
-          <span>House Party Tickets</span>
+          <span>Event Hosting & Tickets</span>
         </div>
       </div>
     </>

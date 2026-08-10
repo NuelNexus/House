@@ -138,7 +138,7 @@ export default function PublicProfile({ userId }) {
   );
 
   // Email intentionally stays out of the public query — just show the name.
-  const name = state.profile?.name || "Festivity Member";
+  const name = state.profile?.name || "Fest GH Member";
 
   if (state.loading) {
     return (
@@ -160,7 +160,7 @@ export default function PublicProfile({ userId }) {
           <div className="empty-state">
             <i className="fa-solid fa-user-slash" />
             <h3>Profile not found</h3>
-            <p>This person hasn't set up a Festivity profile yet.</p>
+            <p>This person hasn't set up a Fest GH profile yet.</p>
           </div>
         ) : (
           <>
@@ -178,7 +178,7 @@ export default function PublicProfile({ userId }) {
                 <h1 className="profile-user-name">{name}</h1>
                 <span className="member-badge">
                   <i className="fa-solid fa-circle-check" aria-hidden="true" />
-                  Festivity member
+                  Fest GH member
                 </span>
                 {!isSelf && (
                   <div className="profile-actions">
@@ -229,7 +229,7 @@ export default function PublicProfile({ userId }) {
                 <p>
                   <span className="profile-real-name">{name}</span>
                   {state.profile?.bio ||
-                    "On the Festivity GH scene — posting parties and keeping the vibes honest."}
+                    "On the Fest GH scene — posting parties and keeping the vibes honest."}
                 </p>
               </div>
             </header>

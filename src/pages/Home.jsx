@@ -39,12 +39,12 @@ export default function Home({ setTab, onIntroDone }) {
       {/* Pure-CSS 3D villa — the centerpiece, right where the bubbles are */}
       <CssHouse />
 
-      <h1 className={`main-txt ${ready ? "fade-out" : ""}`}>Festivity</h1>
+      <h1 className={`main-txt ${ready ? "fade-out" : ""}`}>Fest GH</h1>
 
       <section className="banner hide-text">
         <div className="banner-inner">
           <div className="top-desc">
-            <h5>House Party Collective</h5>
+            <h5>Event Collective</h5>
             <h6>Accra · Kumasi · Takoradi</h6>
             <span />
           </div>
@@ -59,13 +59,13 @@ export default function Home({ setTab, onIntroDone }) {
             </div>
 
             <div className="middle-desc">
-              <h2>House Parties</h2>
+              <h2>Events</h2>
               <div className="cta-row">
                 <button className="btn" onClick={() => setTab("tickets")}>
                   Get tickets <i className="fa-solid fa-arrow-right icon" />
                 </button>
                 <button className="btn btn-outline" onClick={() => setTab("parties/new")}>
-                  Post a party
+                  Host an event
                 </button>
               </div>
             </div>

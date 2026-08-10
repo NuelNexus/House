@@ -186,7 +186,7 @@ export function AuthProvider({ children }) {
       name: base.name || displayName(user),
       bio:
         base.bio ||
-        "House party enthusiast. Accra · Kumasi · Takoradi. Always first on the dance floor.",
+        "Event lover. Accra · Kumasi · Takoradi. Always first on the dance floor.",
       avatar: base.avatar ?? seedFor(user.id),
       avatarUrl: base.avatar_url || base.avatarUrl || null,
       theme: base.theme || null,
