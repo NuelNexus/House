@@ -76,23 +76,53 @@ export default function Home({ setTab, onIntroDone }) {
                 <span>Social Links</span>
                 <ul>
                   <li>
-                    <a href="#" aria-label="Instagram" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href="https://www.instagram.com/fesgh_official?igsh=bjY3djJ3bGthMmdi&utm_source=qr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Instagram"
+                    >
                       <i className="fa-brands fa-instagram" />
                     </a>
                   </li>
                   <li>
-                    <a href="#" aria-label="X" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href="https://x.com/fesgh_official?s=11"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="X"
+                    >
                       <i className="fa-brands fa-x-twitter" />
                     </a>
                   </li>
                   <li>
-                    <a href="#" aria-label="TikTok" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href="https://www.tiktok.com/@fesgh_official"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="TikTok"
+                    >
                       <i className="fa-brands fa-tiktok" />
                     </a>
                   </li>
                   <li>
-                    <a href="#" aria-label="YouTube" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href="https://www.youtube.com/@FesGH_official"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="YouTube"
+                    >
                       <i className="fa-brands fa-youtube" />
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://www.facebook.com/profile.php?id=61593069602744&mibextid=wwXIfr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Facebook"
+                    >
+                      <i className="fa-brands fa-facebook" />
                     </a>
                   </li>
                 </ul>
