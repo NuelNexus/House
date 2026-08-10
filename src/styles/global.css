@@ -7784,10 +7784,35 @@ html[data-mode="dark"][data-bg="image"] body::before {
 
   .dt-main {
     grid-template-columns: repeat(2, 1fr);
+    padding: 6px;
   }
 
   .dt-header {
     grid-column: 1 / -1;
+    font-size: 16px;
+    letter-spacing: 2px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+
+  .dt-header span {
+    font-size: 8.5px;
+    letter-spacing: 1.5px;
+  }
+
+  .dt-cell {
+    border-width: 0 2px 2px 0;
+    padding: 6px 8px;
+  }
+
+  .dt-cell span {
+    font-size: 9px;
+    letter-spacing: 0.5px;
+  }
+
+  .dt-cell b {
+    font-size: 12.5px;
+    margin-top: 2px;
   }
 
   .dt-passenger {
@@ -7798,9 +7823,13 @@ html[data-mode="dark"][data-bg="image"] body::before {
     grid-column: 1 / -1;
     grid-row: auto;
     flex-direction: row;
-    gap: 10px;
-    border-width: 3px 0;
-    padding: 10px;
+    gap: 8px;
+    border-width: 2px 0;
+    padding: 8px;
+  }
+
+  .dt-gate b {
+    font-size: 20px;
   }
 
   .dt-depart,
@@ -7814,11 +7843,96 @@ html[data-mode="dark"][data-bg="image"] body::before {
 
   .dt-note {
     grid-column: 1 / -1;
+    font-size: 10px;
+    padding: 6px 8px;
   }
 
-  .dt-meta,
-  .dt-barcode {
+  .dt-meta {
     grid-column: 1 / -1;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 6px 2px 0;
+  }
+
+  .dt-bottom {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+
+  .dt-bottom .dt-barcode {
+    height: 26px;
+  }
+
+  .dt-promo {
+    font-size: 10px;
+    padding: 5px 8px 0;
+  }
+
+  /* Keep the compact border weight for presets that override it. */
+  .preset-minimal .dt-cell,
+  .preset-minimal .dt-gate {
+    border-width: 0 0 2px 0;
+  }
+}
+
+/* Ticket generator on phones — every control goes full-width so
+   nothing gets squeezed into a half-width column. */
+@media (max-width: 640px) {
+  .designer-head {
+    gap: 8px;
+  }
+
+  .designer-head h3 {
+    font-size: 22px;
+  }
+
+  .designer-fields,
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .preset-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .bg-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bg-controls .input {
+    min-width: 0;
+  }
+
+  .bg-controls .btn,
+  .bg-controls .bg-clear {
+    justify-content: center;
+  }
+
+  .designer-save .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* The generator modal becomes a full-screen sheet on phones so the
+   form has room to breathe instead of a skinny 560px column. */
+@media (max-width: 640px) {
+  .modal.host-designer-modal {
+    width: 100vw;
+    max-height: 100dvh;
+  }
+
+  .modal.host-designer-modal .modal-head {
+    padding: 16px 18px;
+  }
+
+  .modal.host-designer-modal .modal-head h3 {
+    font-size: 20px;
+  }
+
+  .modal.host-designer-modal .modal-body {
+    padding: 18px 16px 28px;
   }
 }
 /* ============================================================
