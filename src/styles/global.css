@@ -2688,18 +2688,26 @@ a.featured:focus-visible {
 /* ============================================================
    Profile photo avatars
    ============================================================ */
+/* Uploaded photos render as the exact same square as the default
+   SVG avatar — size follows the Avatar size prop, and non-square
+   uploads are centre-cropped to fit (never stretched). */
 .avatar-svg.avatar-img {
   object-fit: cover;
+  object-position: center;
   border-radius: 50%;
   display: block;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
 }
 
 .avatar-sm img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   border-radius: 50%;
   display: block;
+  aspect-ratio: 1 / 1;
 }
 
 /* ============================================================
