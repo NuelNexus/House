@@ -189,7 +189,7 @@ function HypeSlide({
   const isMe = authorId === user?.id;
   const follows = isFollowing(authorId);
   const followCount = followCounts[authorId]?.followers ?? 0;
-  const authorName = hype.author?.name || "Fest GH member";
+  const authorName = hype.author?.name || "FesGH member";
 
   return (
     <div className={`hype-feed-slide${paused && !image ? " paused" : ""}`} onClick={togglePlay}>
@@ -374,6 +374,7 @@ export default function Hype({ setTab }) {
   const [soundOn, setSoundOn] = useState(true); // shared across slides
   const [activeTag, setActiveTag] = useState(null);
   const [commentsFor, setCommentsFor] = useState(null); // hype id with open drawer
+  const [showEnd, setShowEnd] = useState(false); // end-of-feed card
   const wheelLock = useRef(0);
   const touchStartX = useRef(null);
   const watchIdRef = useRef(null); // the clip currently on screen
@@ -416,19 +417,22 @@ export default function Hype({ setTab }) {
     const key = `${feedTab}|${activeTag || ""}`;
     if (key !== playlistKeyRef.current) {
       // Tab/tag switched (or first load): re-lock from the ranked feed
-      // and start from the top.
+      // (seen clips are filtered out here) and start from the top.
       playlistKeyRef.current = key;
       setVisibleFeed(ranked);
       setCurrentIndex(0);
+      setShowEnd(false);
       if (ranked[0]) watchIdRef.current = ranked[0].id;
       return;
     }
     // Background refresh: keep every existing clip in its locked position
-    // (swapping in the freshest data), drop deleted ones, append new ones.
+    // (swapping in the freshest data) — INCLUDING ones you've already
+    // watched this session, so you can swipe back to rewatch them. Only
+    // truly deleted clips drop out; brand-new clips append at the end.
     // Returns the SAME array when nothing changed, so view-bump re-renders
     // don't reshuffle or re-render every slide.
     setVisibleFeed((prev) => {
-      const byId = new Map(ranked.map((r) => [r.id, r]));
+      const byId = new Map(hypeFeed.map((r) => [r.id, r]));
       const keep = prev
         .filter((h) => byId.has(h.id))
         .map((h) => byId.get(h.id));
@@ -440,7 +444,7 @@ export default function Hype({ setTab }) {
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ranked, feedTab, activeTag]);
+  }, [ranked, hypeFeed, feedTab, activeTag]);
 
   // Safety net: whenever the playlist shifts, keep the current clip
   // pinned. If it truly vanished (watched + dropped, or deleted), clamp to
@@ -458,37 +462,36 @@ export default function Hype({ setTab }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleFeed]);
 
-  // Moving off a clip counts as having watched it — it leaves the feed
-  // (the profile's Hyped tab keeps it for rewatching). Marking it here,
-  // on navigation, means the clip you're mid-way through never vanishes
-  // from under you; only the one you've left does. The left clip is also
-  // dropped from the locked playlist so the next clip fills its slot in
-  // the same frame (no flicker, no mid-switch skips).
+  // Moving off a clip counts as having watched it — it leaves the feed on
+  // your NEXT visit (the profile's Hyped tab keeps it for rewatching). The
+  // clip stays in this session's locked playlist, so you can always swipe
+  // BACK and rewatch it. Marking it here, on navigation, means the clip
+  // you're mid-way through never vanishes from under you.
   const moveTo = (dir) => {
     if (!visibleFeed.length) return;
     const cur = visibleFeed[currentIndex];
     if (!cur) return;
-    const targetIdx =
-      dir === 1
-        ? Math.min(currentIndex + 1, visibleFeed.length - 1)
-        : Math.max(currentIndex - 1, 0);
-    const target = visibleFeed[targetIdx];
-    if (target && target.id !== cur.id) {
-      markHypeSeen(cur.id);
-      setVisibleFeed((p) => p.filter((h) => h.id !== cur.id));
-      // Once the current clip is removed, the target slides one slot left
-      // — so it lands exactly where the current clip was.
-      watchIdRef.current = target.id;
-      setCurrentIndex(Math.max(0, targetIdx - 1));
-    } else if (dir === 1) {
-      // Already at the last clip — step back instead of dropping the
-      // current clip into the void.
-      markHypeSeen(cur.id);
-      setVisibleFeed((p) => p.filter((h) => h.id !== cur.id));
-      watchIdRef.current = visibleFeed[Math.max(0, currentIndex - 1)]?.id;
-      setCurrentIndex(Math.max(0, currentIndex - 1));
+    if (dir === 1) {
+      const targetIdx = currentIndex + 1;
+      if (targetIdx < visibleFeed.length) {
+        // Forward: the clip we're leaving is now watched.
+        markHypeSeen(cur.id);
+        watchIdRef.current = visibleFeed[targetIdx].id;
+        setCurrentIndex(targetIdx);
+      } else {
+        // End of the feed — mark the last one watched and surface the
+        // caught-up card instead of yanking the viewer anywhere.
+        markHypeSeen(cur.id);
+        setShowEnd(true);
+      }
+      return;
     }
-    // dir === -1 with nothing before the current clip: stay put.
+    // Backward: rewatching is always allowed — a seen clip just doesn't
+    // come back into a fresh feed. Never un-marks anything.
+    const targetIdx = Math.max(currentIndex - 1, 0);
+    watchIdRef.current = visibleFeed[targetIdx].id;
+    setCurrentIndex(targetIdx);
+    setShowEnd(false);
   };
   const next = () => moveTo(1);
   const prev = () => moveTo(-1);
@@ -544,8 +547,8 @@ export default function Hype({ setTab }) {
     setMode("post");
   };
 
-  const handleDone = async ({ blob, name, caption, kind }) => {
-    await postHype({ blob, name, caption, recipientId: null, kind });
+  const handleDone = async ({ blob, name, caption, kind, published }) => {
+    await postHype({ blob, name, caption, recipientId: null, kind, published });
     setMode(null);
   };
 
@@ -663,6 +666,31 @@ export default function Hype({ setTab }) {
                 />
               ))}
             </div>
+            {showEnd && (
+              <div className="hype-feed-endcard">
+                <i className="fa-solid fa-fire" />
+                <h3>You're all caught up</h3>
+                <p>
+                  You've watched every clip in this feed. Swipe <b>right</b>{" "}
+                  to rewatch anything you've seen, or find them again on your
+                  profile's Hyped tab.
+                </p>
+                <div className="hype-endcard-actions">
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setShowEnd(false)}
+                  >
+                    <i className="fa-solid fa-arrow-left" /> Back to the feed
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => setTab("profile")}
+                  >
+                    <i className="fa-solid fa-clock-rotate-left" /> Hyped tab
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -149,7 +149,7 @@ export default function Auth({ authMode = "signin" }) {
             New password<span className="outline">.</span>
           </h1>
           <p className="lede">
-            Choose a new password for your Fest GH account.
+            Choose a new password for your FesGH account.
           </p>
         </header>
         <Reveal>

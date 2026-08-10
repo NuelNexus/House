@@ -238,7 +238,7 @@ export function SocialProvider({ children }) {
     const profs = await fetchProfiles([...byOther.keys()]);
     const list = [...byOther.entries()].map(([other, last]) => ({
       other,
-      name: profs[other]?.name || "Fest GH member",
+      name: profs[other]?.name || "FesGH member",
       avatar: profs[other] || null,
       lastBody: last.body,
       lastAt: last.created_at,
@@ -296,13 +296,24 @@ export function SocialProvider({ children }) {
   const loadHype = useCallback(async () => {
     const me = uidRef.current;
     setHypeLoading(true);
-    const [feedRes, inboxRes] = await Promise.all([
-      supabase
+    let feedRes = await supabase
+      .from("hypes")
+      .select("*")
+      .is("recipient_id", null)
+      .eq("published", true)
+      .order("created_at", { ascending: false })
+      .limit(60);
+    // The `published` column arrives with the updated schema — if it's
+    // not there yet, fall back to the unfiltered public feed.
+    if (feedRes.error && /published/i.test(feedRes.error.message || "")) {
+      feedRes = await supabase
         .from("hypes")
         .select("*")
         .is("recipient_id", null)
         .order("created_at", { ascending: false })
-        .limit(60),
+        .limit(60);
+    }
+    const [inboxRes] = await Promise.all([
       me
         ? supabase
             .from("hypes")
@@ -554,7 +565,7 @@ export function SocialProvider({ children }) {
   }, []);
 
   const postHype = useCallback(
-    async ({ blob, name, caption, recipientId }) => {
+    async ({ blob, name, caption, recipientId, published }) => {
       const me = uidRef.current;
       if (!me) throw new Error("Sign in to post hype");
       const videoUrl = await uploadVideo(blob, name);
@@ -564,14 +575,21 @@ export function SocialProvider({ children }) {
         video_url: videoUrl,
         caption: (caption || "").trim(),
       };
-      // The hashtags column arrives with the updated schema — if it's not
-      // there yet, post without it rather than failing the whole upload.
-      let { error } = await supabase.from("hypes").insert({
-        ...row,
+      // Newer columns (hashtags, published) arrive with the updated
+      // schema — post without any that don't exist yet rather than
+      // failing the whole upload. Clips go to the public feed by
+      // default; users can disable that in their profile.
+      const extra = {
         hashtags: extractHashtags(caption),
-      });
-      if (error && /hashtags/i.test(error.message || "")) {
-        ({ error } = await supabase.from("hypes").insert(row));
+        published: published !== undefined ? !!published : true,
+      };
+      let { error } = await supabase.from("hypes").insert({ ...row, ...extra });
+      if (error && /hashtags|published/i.test(error.message || "")) {
+        const msg = error.message || "";
+        const retryRow = { ...row };
+        if (!/hashtags/i.test(msg)) retryRow.hashtags = extra.hashtags;
+        if (!/published/i.test(msg)) retryRow.published = extra.published;
+        ({ error } = await supabase.from("hypes").insert(retryRow));
       }
       if (error) throw new Error(error.message);
       if (recipientId) await bumpStreak(recipientId);
@@ -703,7 +721,7 @@ export function SocialProvider({ children }) {
   }, [notify]);
 
   // ============================================================
-  // CONTACT REQUESTS (hosts without Fest GH accounts)
+  // CONTACT REQUESTS (hosts without FesGH accounts)
   // ============================================================
   const sendContactRequest = useCallback(
     async ({ senderName, eventName, hostName, kind, body }) => {

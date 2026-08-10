@@ -9,7 +9,7 @@ const CATEGORIES = ["Kickback", "Rave", "Rooftop", "Pool", "Villa", "Birthday", 
 
 export default function PostParty({ setTab }) {
   const { postParty } = useStore();
-  const { user, authLoading, name: authName, openAuth } = useAuth();
+  const { user, authLoading, name: authName, openAuth, affiliate } = useAuth();
   const [form, setForm] = useState({
     title: "",
     host: authName || "",
@@ -108,6 +108,30 @@ export default function PostParty({ setTab }) {
           </p>
           <button className="btn" onClick={() => openAuth("parties/new")}>
             Sign in to continue <i className="fa-solid fa-arrow-right icon" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Hosting is exclusive to approved affiliate hosts — deep links to
+  // #parties/new can't bypass the program.
+  if (!affiliate || affiliate.status !== "approved") {
+    return (
+      <div className="page">
+        {back}
+        {head}
+        <div className="form-panel gate-panel">
+          <div className="gate-icon">
+            <i className="fa-solid fa-handshake" />
+          </div>
+          <h2>Hosting is for approved affiliates</h2>
+          <p>
+            Only approved affiliate hosts can post events on FesGH. Apply
+            from the Host Events tab — it only takes a minute.
+          </p>
+          <button className="btn" onClick={() => setTab("host")}>
+            Go to Host Events <i className="fa-solid fa-arrow-right icon" />
           </button>
         </div>
       </div>

@@ -24,7 +24,7 @@ export default function HypePlayerSlide({ hype, author, onClose }) {
   const { bumpHypeViews, commentCounts } = useSocial();
   const { notify } = useStore();
   const image = isImageHype(hype.video_url);
-  const authorName = author?.name || "Fest GH member";
+  const authorName = author?.name || "FesGH member";
   const tags =
     hype.hashtags && hype.hashtags.length
       ? hype.hashtags

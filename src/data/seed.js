@@ -1,5 +1,5 @@
 // ============================================================
-// Seed data — Fest GH (Ghana house party scene)
+// Seed data — FesGH (Ghana house party scene)
 // ============================================================
 
 export const GH_CD = (n) => `GH₵ ${n.toLocaleString()}`;
@@ -284,7 +284,7 @@ export const SEED_NEWS = [
     category: "Music",
     title: "Shatta Wale & Stonebwoy Spotted Together at Accra House Party",
     date: "Aug 4, 2026",
-    author: "Fest GH Desk",
+    author: "FesGH Desk",
     readTime: "4 min read",
     accent: "#a04646",
     excerpt:
@@ -293,7 +293,7 @@ export const SEED_NEWS = [
       "A private house party in Cantonments turned into the most talked-about event of the week after Shatta Wale and Stonebwoy were both spotted in attendance — in the same room, on the same rooftop, seemingly enjoying each other's company.",
       "Sources close to both camps say the meeting was 'purely social' — a mutual friend's birthday — but that hasn't stopped fans from reading between the lines. A joint single has been the holy grail of Ghanaian dancehall for a decade, and the timing of this sighting, days before the release calendar heats up, has tongues wagging.",
       "Neither artist has officially commented, but both have been unusually active on social media since. Whether it's a collab or just two legends appreciating good music, the house party scene is taking the credit.",
-      "This is exactly why private house parties have become the new press junkets — stars come to dance, and the scene grows. Fest GH will keep you posted on any official announcement.",
+      "This is exactly why private house parties have become the new press junkets — stars come to dance, and the scene grows. FesGH will keep you posted on any official announcement.",
     ],
   },
   {
@@ -302,7 +302,7 @@ export const SEED_NEWS = [
     category: "Music",
     title: "Black Sherif Announces Surprise EP — And a Secret Rooftop Show",
     date: "Jul 29, 2026",
-    author: "Fest GH Desk",
+    author: "FesGH Desk",
     readTime: "3 min read",
     accent: "#3a3b45",
     excerpt:
@@ -310,7 +310,7 @@ export const SEED_NEWS = [
     body: [
       "Black Sherif has announced a surprise EP titled 'Second Sermon: The Rooftop Sessions', slated for release in two weeks. But the real news? A secret listening party for just 300 people, hosted at an undisclosed rooftop in Accra.",
       "Tickets for the intimate show are being sold exclusively through the house party circuit — no big venue, no big stage, just Sherif, a sound system, and the city below. Organisers describe it as 'a sermon, not a concert.'",
-      "If the past is anything to go by, these 300 tickets will vanish within minutes. Fest GH is the official ticket partner — follow the Tickets tab and set your alerts.",
+      "If the past is anything to go by, these 300 tickets will vanish within minutes. FesGH is the official ticket partner — follow the Tickets tab and set your alerts.",
       "The EP is expected to blend his signature storytelling with live highlife instrumentation, a sound he's been perfecting at private shows all year.",
     ],
   },
@@ -320,7 +320,7 @@ export const SEED_NEWS = [
     category: "Scene",
     title: "Report: Ghana's House Party Economy Grew 40% This Year",
     date: "Jul 22, 2026",
-    author: "Fest GH Desk",
+    author: "FesGH Desk",
     readTime: "5 min read",
     accent: "#1f5f4d",
     excerpt:
@@ -329,7 +329,7 @@ export const SEED_NEWS = [
       "A new industry report tracking event spending across West Africa reveals that Ghana's private house party economy grew by 40% in the past 12 months, easily outpacing growth in the mainstream concert circuit.",
       "Analysts attribute the surge to a cocktail of factors: the continued rise of Afrobeats and amapiano culture, the diaspora 'homecoming' wave, and a generation of young event organisers who prefer curated intimacy over massive, impersonal shows.",
       "The report also found that average spend per guest at premium house parties — think East Legon villas and Cantonments rooftops — has tripled since 2023, driven by hospitality, decor and security investments.",
-      "For organisers, the message is clear: the living room is the new stadium. And with platforms like Fest GH handling ticketing, the barriers to hosting have never been lower.",
+      "For organisers, the message is clear: the living room is the new stadium. And with platforms like FesGH handling ticketing, the barriers to hosting have never been lower.",
     ],
   },
   {
@@ -338,7 +338,7 @@ export const SEED_NEWS = [
     category: "Music",
     title: "Gyakie & King Promise to Headline New Rooftop Series in January",
     date: "Jul 15, 2026",
-    author: "Fest GH Desk",
+    author: "FesGH Desk",
     readTime: "3 min read",
     accent: "#7a4a8f",
     excerpt:
@@ -346,7 +346,7 @@ export const SEED_NEWS = [
     body: [
       "Gyakie and King Promise are set to headline the inaugural 'Sunset Sessions' — a five-date acoustic rooftop series running through January, with stops in Accra, Kumasi and Takoradi.",
       "Unlike arena tours, each Sunset Session is capped at 250 guests. Artists will perform stripped-back versions of their biggest records as the sun drops over each city's skyline.",
-      "The series is a joint production between a consortium of Ghanaian promoters and Fest GH, which will handle all ticketing. A percentage of every ticket will go to music education charities in each host city.",
+      "The series is a joint production between a consortium of Ghanaian promoters and FesGH, which will handle all ticketing. A percentage of every ticket will go to music education charities in each host city.",
       "Dates and ticket prices drop on the Tickets tab next week. Based on the first round of interest, organisers expect a fast sell-out — set your reminders now.",
     ],
   },
@@ -356,7 +356,7 @@ export const SEED_NEWS = [
     category: "Lifestyle",
     title: "The 'Homecoming Season': Why Diaspora Ghana is Flying Back for the Parties",
     date: "Jul 8, 2026",
-    author: "Fest GH Desk",
+    author: "FesGH Desk",
     readTime: "4 min read",
     accent: "#2a5a8f",
     excerpt:
@@ -374,7 +374,7 @@ export const SEED_NEWS = [
     category: "Culture",
     title: "How Accra's Creative Class Is Redefining the House Party",
     date: "Jun 30, 2026",
-    author: "Fest GH Desk",
+    author: "FesGH Desk",
     readTime: "5 min read",
     accent: "#8f6a2a",
     excerpt:
@@ -383,7 +383,7 @@ export const SEED_NEWS = [
       "Walk into the right house party in Accra this year and you might leave having seen a fashion drop, a photography exhibition and a live painting — all before the first beat drops.",
       "Accra's creative class has quietly transformed the house party from a social gathering into a multidisciplinary showcase. Designers preview collections, artists install site-specific work in living rooms, and DJs curate sets like museum exhibits.",
       "'A gallery opening feels stiff. A concert feels loud. A house party is the middle ground where everything actually talks to each other,' says one Accra-based visual artist who hosts monthly salon parties.",
-      "Fest GH has been tracking the trend — several of the most-anticipated tickets on our platform this season are for parties with artistic lineups as carefully curated as their music.",
+      "FesGH has been tracking the trend — several of the most-anticipated tickets on our platform this season are for parties with artistic lineups as carefully curated as their music.",
     ],
   },
 ];
@@ -395,7 +395,7 @@ export const SEED_BLOG = [
     category: "Culture",
     title: "The Rise of the Accra House Party: From Living Rooms to Rooftops",
     date: "Jul 20, 2026",
-    author: "Fest GH Editors",
+    author: "FesGH Editors",
     readTime: "6 min read",
     accent: "#4a7a8f",
     excerpt:
@@ -413,7 +413,7 @@ export const SEED_BLOG = [
     category: "Guide",
     title: "Hosting 101: The Perfect Ghanaian House Party Playbook",
     date: "Jul 12, 2026",
-    author: "Fest GH Editors",
+    author: "FesGH Editors",
     readTime: "8 min read",
     accent: "#5f8f2a",
     excerpt:
@@ -432,7 +432,7 @@ export const SEED_BLOG = [
     category: "Playlist",
     title: "10 Party Anthems That Own Ghana This Season",
     date: "Jul 5, 2026",
-    author: "Fest GH Editors",
+    author: "FesGH Editors",
     readTime: "5 min read",
     accent: "#8f4a6a",
     excerpt:
@@ -450,7 +450,7 @@ export const SEED_BLOG = [
     category: "Culture",
     title: "House Party Etiquette: The Unwritten Rules of the GH Scene",
     date: "Jun 25, 2026",
-    author: "Fest GH Editors",
+    author: "FesGH Editors",
     readTime: "6 min read",
     accent: "#6a4a8f",
     excerpt:
@@ -469,7 +469,7 @@ export const SEED_BLOG = [
     category: "Guide",
     title: "How to Throw a Budget-Friendly House Party That Still Slaps",
     date: "Jun 15, 2026",
-    author: "Fest GH Editors",
+    author: "FesGH Editors",
     readTime: "7 min read",
     accent: "#8f8f2a",
     excerpt:
@@ -488,7 +488,7 @@ export const SEED_BLOG = [
     category: "Culture",
     title: "The Diaspora Effect: Why Everyone Is Flying Home for the Holidays",
     date: "Jun 8, 2026",
-    author: "Fest GH Editors",
+    author: "FesGH Editors",
     readTime: "5 min read",
     accent: "#2a8f6a",
     excerpt:

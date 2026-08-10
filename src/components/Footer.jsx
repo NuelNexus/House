@@ -19,7 +19,7 @@ export default function Footer({ setTab }) {
       <div className="footer-inner">
         <div className="footer-grid">
           <div>
-            <div className="brand-foot">Fest GH</div>
+            <div className="brand-foot">FesGH</div>
             <p className="about-foot">
               The event hosting site for Ghana. Host events, sell tickets,
               and discover what's happening from Accra to Takoradi.
@@ -108,10 +108,10 @@ export default function Footer({ setTab }) {
           </div>
         </div>
         <div className="watermark" aria-hidden="true">
-          Fest GH
+          FesGH
         </div>
         <div className="bottom-bar">
-          <span>© 2026 Fest GH · All rights reserved</span>
+          <span>© 2026 FesGH · All rights reserved</span>
           <span>Made in Accra, Ghana</span>
         </div>
       </div>

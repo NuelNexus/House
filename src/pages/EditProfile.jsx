@@ -5,7 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 
 export default function EditProfile({ setTab }) {
-  const { user, authLoading, profile, saveProfile, openAuth } = useAuth();
+  const { user, authLoading, profile, saveProfile, openAuth, hypeByDefault, setHypeByDefault } =
+    useAuth();
   const [form, setForm] = useState({
     name: profile?.name ?? "",
     bio: profile?.bio ?? "",
@@ -209,6 +210,23 @@ export default function EditProfile({ setTab }) {
                 value={form.bio}
                 onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
               />
+            </div>
+
+            <div className="field">
+              <label className="toggle-row" htmlFor="pe-hype-default">
+                <input
+                  id="pe-hype-default"
+                  type="checkbox"
+                  checked={hypeByDefault}
+                  onChange={(e) => setHypeByDefault(e.target.checked)}
+                />
+                <span>
+                  <b>Post my videos to the Hype feed by default</b>
+                  <small>
+                    Turn this off to keep new clips on your profile only.
+                  </small>
+                </span>
+              </label>
             </div>
 
             {error && (

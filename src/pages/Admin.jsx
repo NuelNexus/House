@@ -3,10 +3,11 @@ import { supabase } from "../lib/supabase";
 import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
 import { GH_CD } from "../data/seed";
-import { COMMISSION_RATE } from "../context/StoreContext";
+import { COMMISSION_RATE, AFFILIATE_RATE } from "../context/StoreContext";
 import { promoOf } from "../lib/ticketPresets";
 import Reveal from "../components/Reveal";
 import CoverArt from "../components/CoverArt";
+import Avatar from "../components/Avatar";
 
 // ------------------------------------------------------------------
 // Admin dashboard — the creator's private command center. Password
@@ -126,9 +127,34 @@ function StatCard({ icon, label, value, sub, accent }) {
 
 export default function Admin({ setTab }) {
   const stats = usePlatformStats();
-  const { allParties, hostLogs, myTickets, globalPromos, addGlobalPromo, removeGlobalPromo } =
-    useStore();
-  const { hypeFeed } = useSocial();
+  const {
+    allParties,
+    hostLogs,
+    myTickets,
+    globalPromos,
+    addGlobalPromo,
+    removeGlobalPromo,
+    affiliates,
+    fetchAffiliates,
+    approveAffiliate,
+  } = useStore();
+  const { hypeFeed, fetchProfiles } = useSocial();
+  // Affiliate applicant names (resolved from their profile rows).
+  const [affProfs, setAffProfs] = useState({});
+
+  useEffect(() => {
+    fetchAffiliates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const ids = affiliates.map((a) => a.user_id).filter(Boolean);
+    if (!ids.length) return;
+    (async () => {
+      const map = await fetchProfiles(ids);
+      setAffProfs((p) => ({ ...p, ...map }));
+    })();
+  }, [affiliates, fetchProfiles]);
 
   // Promo-code creator form.
   const [newCode, setNewCode] = useState("");
@@ -325,7 +351,7 @@ export default function Admin({ setTab }) {
 
   const head = (
     <header className="page-head reveal in">
-      <div className="kicker">Fest GH · Creator command center</div>
+      <div className="kicker">FesGH · Creator command center</div>
       <h1>
         Admin<span className="outline">.</span>
       </h1>
@@ -416,7 +442,7 @@ export default function Admin({ setTab }) {
     { icon: "fa-coins", label: "Your commission", value: GH_CD(estCommission), sub: `${Math.round(COMMISSION_RATE * 100)}% of every ticket · estimate`, accent: "#1f7a4d" },
     { icon: "fa-champagne-glasses", label: "Events", value: stats.parties, sub: `${stats.rsvps} RSVPs total` },
     { icon: "fa-ticket", label: "Tickets sold", value: stats.ticketsSold, sub: "across all parties" },
-    { icon: "fa-sack-dollar", label: "Gross income", value: GH_CD(stats.estIncome), sub: "before your 20% cut" },
+    { icon: "fa-sack-dollar", label: "Gross income", value: GH_CD(stats.estIncome), sub: `before your ${Math.round(COMMISSION_RATE * 100)}% cut` },
     { icon: "fa-star", label: "Reviews", value: stats.reviews, sub: `${stats.avgRating.toFixed(1)}/5 avg · ${stats.verifiedReviews} verified` },
     { icon: "fa-users", label: "Users", value: stats.users, sub: "signed-up members" },
     { icon: "fa-fire", label: "Hype videos", value: stats.hypes, sub: "public clips posted" },
@@ -441,6 +467,57 @@ export default function Admin({ setTab }) {
             <StatCard key={k.label} {...k} />
           ))}
         </div>
+      </Reveal>
+
+      <Reveal>
+        <div className="section-label">
+          Affiliate applications ({affiliates.filter((a) => a.status === "pending").length} pending)
+        </div>
+        {affiliates.length === 0 ? (
+          <div className="empty-state" style={{ padding: 36 }}>
+            <i className="fa-solid fa-handshake" />
+            <h3>No applications yet</h3>
+            <p>
+              When someone applies to become an affiliate host, their request
+              shows up here for approval.
+            </p>
+          </div>
+        ) : (
+          <div className="admin-affiliates">
+            {affiliates.map((a) => {
+              const prof = affProfs[a.user_id] || null;
+              return (
+                <div className="admin-affiliate card" key={a.user_id}>
+                  <Avatar name={prof?.name || "Applicant"} seed={prof?.avatar ?? 0} src={prof?.avatar_url || null} size={42} />
+                  <div className="admin-affiliate-id">
+                    <b>{prof?.name || "Applicant"}</b>
+                    <small>{a.user_id}</small>
+                    <span className={`affiliate-status ${a.status}`}>{a.status}</span>
+                  </div>
+                  <div className="admin-affiliate-actions">
+                    <span className="admin-affiliate-note">
+                      {Math.round(AFFILIATE_RATE * 100)}% commission · your {Math.round(COMMISSION_RATE * 100)}% stays
+                    </span>
+                    {a.status === "pending" ? (
+                      <>
+                        <button className="btn btn-sm" onClick={() => approveAffiliate(a.user_id, "approved")}>
+                          <i className="fa-solid fa-check icon" /> Approve
+                        </button>
+                        <button className="btn btn-sm btn-outline danger" onClick={() => approveAffiliate(a.user_id, "rejected")}>
+                          <i className="fa-solid fa-xmark icon" /> Reject
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn btn-sm btn-outline" onClick={() => approveAffiliate(a.user_id, a.status === "approved" ? "rejected" : "approved")}>
+                        {a.status === "approved" ? "Revoke" : "Re-approve"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Reveal>
 
       <Reveal>
@@ -563,10 +640,10 @@ export default function Admin({ setTab }) {
                 <table className="sales-table admin-orders">
                   <thead>
                     <tr>
-                      <th>Party</th>
+                      <th>Event</th>
                       <th>Buyer</th>
                       <th>Price</th>
-                      <th>Your 20%</th>
+                      <th>Your {Math.round(COMMISSION_RATE * 100)}%</th>
                       <th>Date</th>
                     </tr>
                   </thead>

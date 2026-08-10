@@ -1,5 +1,5 @@
 -- ============================================================
--- Festivity GH — Supabase schema
+-- FesGH — Supabase schema
 -- Run this whole file in: Supabase Dashboard → SQL Editor → New query
 -- ============================================================
 
@@ -584,11 +584,217 @@ create policy "promo_codes_delete" on public.promo_codes
 grant select on table public.promo_codes to anon;
 grant all on table public.promo_codes to authenticated;
 
+-- ============================================================
+-- FesGH — affiliate hosts, groups & communities, live streams
+-- ============================================================
+
+-- Videos go to the public Hype feed by default; users can turn this
+-- off in their profile so clips stay private to their profile only.
+alter table public.profiles add column if not exists hype_by_default boolean not null default true;
+
+-- hypes.published: false = profile-only clip (never in the public feed).
+alter table public.hypes add column if not exists published boolean not null default true;
+
+-- Affiliate hosts: users approved to post events and sell tickets at
+-- their own prices. Every sale splits as:
+--   30% platform (the creator) · 5% affiliate · 65% host earnings
+create table if not exists public.affiliates (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  commission_pct numeric not null default 5,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Groups & communities (browse, join, post inside)
+create table if not exists public.groups (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text not null default '',
+  cover text,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  member_count int not null default 1,
+  created_at timestamptz not null default now()
+);
+create index if not exists groups_feed on public.groups (created_at desc);
+
+create table if not exists public.group_members (
+  group_id uuid not null references public.groups (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  role text not null default 'member' check (role in ('owner', 'admin', 'member')),
+  joined_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+
+create table if not exists public.group_posts (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.groups (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists group_posts_feed on public.group_posts (group_id, created_at desc);
+
+-- Keep groups.member_count accurate whenever anyone joins or leaves.
+create or replace function public.sync_group_members()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (tg_op = 'INSERT') then
+    update public.groups set member_count = member_count + 1 where id = new.group_id;
+  elsif (tg_op = 'DELETE') then
+    update public.groups set member_count = greatest(1, member_count - 1) where id = old.group_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists group_members_count on public.group_members;
+create trigger group_members_count
+  after insert or delete on public.group_members
+  for each row execute function public.sync_group_members();
+
+-- Live streams: P2P WebRTC. Sessions are the catalog; live_signals
+-- carry offer/answer/ICE between host and viewers via polling.
+create table if not exists public.live_sessions (
+  id uuid primary key default gen_random_uuid(),
+  host_id uuid not null references auth.users (id) on delete cascade,
+  title text not null default 'Live',
+  status text not null default 'live' check (status in ('live', 'ended')),
+  viewers int not null default 0,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz
+);
+create index if not exists live_sessions_live on public.live_sessions (status, started_at desc);
+
+create table if not exists public.live_signals (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.live_sessions (id) on delete cascade,
+  from_id uuid not null,
+  to_id uuid not null,
+  type text not null check (type in ('offer', 'answer', 'ice')),
+  payload text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists live_signals_to on public.live_signals (session_id, to_id, created_at);
+
+-- Per-sale commission split for the affiliate (5%). The existing
+-- commission column on both tables is the platform's 30% cut.
+alter table public.tickets add column if not exists affiliate_share numeric not null default 0;
+alter table public.ticket_purchases add column if not exists affiliate_share numeric not null default 0;
+
+-- ------------------------------------------------------------
+-- RLS
+-- ------------------------------------------------------------
+alter table public.affiliates enable row level security;
+alter table public.groups enable row level security;
+alter table public.group_members enable row level security;
+alter table public.group_posts enable row level security;
+alter table public.live_sessions enable row level security;
+alter table public.live_signals enable row level security;
+
+drop policy if exists "affiliates_select" on public.affiliates;
+create policy "affiliates_select" on public.affiliates
+  for select using (true);
+
+drop policy if exists "affiliates_insert" on public.affiliates;
+create policy "affiliates_insert" on public.affiliates
+  for insert with check (auth.uid() = user_id);
+
+-- The creator approves / rejects applications from the Admin panel.
+-- (Client-gated like the rest of the admin tooling.)
+drop policy if exists "affiliates_update" on public.affiliates;
+create policy "affiliates_update" on public.affiliates
+  for update using (true);
+
+drop policy if exists "groups_select" on public.groups;
+create policy "groups_select" on public.groups
+  for select using (true);
+
+drop policy if exists "groups_insert" on public.groups;
+create policy "groups_insert" on public.groups
+  for insert with check (auth.uid() = owner_id);
+
+drop policy if exists "groups_update" on public.groups;
+create policy "groups_update" on public.groups
+  for update using (auth.uid() = owner_id);
+
+drop policy if exists "groups_delete" on public.groups;
+create policy "groups_delete" on public.groups
+  for delete using (auth.uid() = owner_id);
+
+drop policy if exists "group_members_select" on public.group_members;
+create policy "group_members_select" on public.group_members
+  for select using (true);
+
+drop policy if exists "group_members_insert" on public.group_members;
+create policy "group_members_insert" on public.group_members
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "group_members_delete" on public.group_members;
+create policy "group_members_delete" on public.group_members
+  for delete using (
+    auth.uid() = user_id or
+    auth.uid() = (select g.owner_id from public.groups g where g.id = group_id)
+  );
+
+drop policy if exists "group_posts_select" on public.group_posts;
+create policy "group_posts_select" on public.group_posts
+  for select using (true);
+
+drop policy if exists "group_posts_insert" on public.group_posts;
+create policy "group_posts_insert" on public.group_posts
+  for insert with check (
+    auth.uid() = user_id and
+    exists (
+      select 1 from public.group_members gm
+      where gm.group_id = group_posts.group_id and gm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "group_posts_delete" on public.group_posts;
+create policy "group_posts_delete" on public.group_posts
+  for delete using (auth.uid() = user_id);
+
+drop policy if exists "live_sessions_select" on public.live_sessions;
+create policy "live_sessions_select" on public.live_sessions
+  for select using (true);
+
+drop policy if exists "live_sessions_insert" on public.live_sessions;
+create policy "live_sessions_insert" on public.live_sessions
+  for insert with check (auth.uid() = host_id);
+
+drop policy if exists "live_sessions_update" on public.live_sessions;
+create policy "live_sessions_update" on public.live_sessions
+  for update using (auth.uid() = host_id);
+
+drop policy if exists "live_sessions_delete" on public.live_sessions;
+create policy "live_sessions_delete" on public.live_sessions
+  for delete using (auth.uid() = host_id);
+
+drop policy if exists "live_signals_select" on public.live_signals;
+create policy "live_signals_select" on public.live_signals
+  for select using (true);
+
+drop policy if exists "live_signals_insert" on public.live_signals;
+create policy "live_signals_insert" on public.live_signals
+  for insert with check (true);
+
+drop policy if exists "live_signals_delete" on public.live_signals;
+create policy "live_signals_delete" on public.live_signals
+  for delete using (auth.uid() = from_id or auth.uid() = to_id);
+
+grant select on table public.affiliates, public.groups, public.group_members, public.group_posts, public.live_sessions, public.live_signals to anon;
+grant all on table public.affiliates, public.groups, public.group_members, public.group_posts, public.live_sessions, public.live_signals to authenticated;
+
 -- Realtime: live messenger + hype + follow updates. Safe to re-run.
 do $$
 declare t text;
 begin
-  foreach t in array array['messages', 'hypes', 'hype_comments', 'follows', 'parties', 'ticket_purchases'] loop
+  foreach t in array array['messages', 'hypes', 'hype_comments', 'follows', 'parties', 'ticket_purchases', 'groups', 'group_posts', 'live_sessions'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

@@ -1,5 +1,5 @@
 // ============================================================
-// Festivity GH — Netlify serverless news proxy
+// FesGH — Netlify serverless news proxy
 //
 // NewsAPI.org blocks browser requests, so the key stays server-
 // side. This function powers the Blog "Live wire" section on

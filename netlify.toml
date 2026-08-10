@@ -1,4 +1,4 @@
-# Festivity GH — Netlify configuration
+# FesGH — Netlify configuration
 # Publish: drag-drop the repo, or connect Git → build runs automatically.
 
 [build]

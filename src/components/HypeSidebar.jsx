@@ -33,7 +33,7 @@ export default function HypeSidebar({ tab, setTab, onPost }) {
         href="#hype"
         onClick={(e) => { e.preventDefault(); setTab("hype"); }}
       >
-        Fest GH<span className="dot" />
+        FesGH<span className="dot" />
       </a>
 
       <nav className="hype-sidebar-nav" aria-label="Hype navigation">

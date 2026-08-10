@@ -29,9 +29,11 @@ export default function Events({ initialView = "all", setTab }) {
     VIEWS.some((v) => v.id === initialView) ? initialView : "all"
   );
 
+  // Posting an event is exclusive to approved affiliate hosts — the
+  // Host Events tab owns that flow (apply → get approved → post).
   const openForm = () => {
-    if (!ensureAuth("parties/new")) return;
-    setTab("parties/new");
+    if (!ensureAuth("host")) return;
+    setTab("host");
   };
 
   const categories = useMemo(
@@ -84,8 +86,9 @@ export default function Events({ initialView = "all", setTab }) {
           Events<span className="outline">.</span>
         </h1>
         <p className="lede">
-          Every party in one place — grab tickets to the big ones, RSVP to the
-          intimate kickbacks, and never miss what's on.
+          Every party in one place — tickets and events posted by FesGH
+          hosts, with their own prices. Grab passes, RSVP, and never miss
+          what's on.
         </p>
       </header>
 
@@ -125,7 +128,7 @@ export default function Events({ initialView = "all", setTab }) {
             ))}
           </div>
           <button className="btn" onClick={openForm}>
-            <i className="fa-solid fa-plus icon" /> Post your party
+            <i className="fa-solid fa-plus icon" /> Host an event
           </button>
         </div>
       </Reveal>
@@ -162,9 +165,9 @@ export default function Events({ initialView = "all", setTab }) {
         <div className="empty-state">
           <i className="fa-solid fa-magnifying-glass" />
           <h3>No events match</h3>
-          <p>Try a different search or category — or post the party yourself.</p>
+          <p>Try a different search or category — or host the party yourself.</p>
           <button className="btn" onClick={openForm}>
-            Post your party
+            Host an event
           </button>
         </div>
       ) : (

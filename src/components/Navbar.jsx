@@ -7,8 +7,10 @@ const LINKS = [
   { id: "home", label: "Home", idx: "00" },
   { id: "fyp", label: "For You", idx: "01" },
   { id: "events", label: "Events", idx: "02" },
-  { id: "blog", label: "Blog", idx: "03" },
-  { id: "hype", label: "Hype", idx: "04" },
+  { id: "live", label: "Live", idx: "03" },
+  { id: "groups", label: "Groups", idx: "04" },
+  { id: "hype", label: "Hype", idx: "05" },
+  { id: "blog", label: "Blog", idx: "06" },
 ];
 
 // Bottom tab bar shown on phones — the essentials, one thumb away.
@@ -21,21 +23,21 @@ const MOBILE_TABS = [
 ];
 
 export default function Navbar({ tab, setTab, hidden }) {
-  const { cartCount, setCartOpen, userParties } = useStore();
-  // The Host tab only appears once the user has hosted a party.
-  const isHost = userParties.length > 0;
-  const links = isHost
-    ? [...LINKS, { id: "host", label: "Host", idx: "05" }]
+  const { cartCount, setCartOpen } = useStore();
+  const { user, name, initial, profile, openAuth, signOut, authLoading, affiliate } = useAuth();
+  // Host Events is exclusive to approved affiliates.
+  const isAffiliate = affiliate?.status === "approved";
+  const links = isAffiliate
+    ? [...LINKS, { id: "host", label: "Host Events", idx: "07" }]
     : LINKS;
   const mobileExtras = [
-    ...(isHost ? [{ id: "host", label: "Host", idx: "05" }] : []),
-    { id: "appearance", label: "Appearance", idx: isHost ? "06" : "05" },
-    { id: "admin", label: "Admin", idx: isHost ? "07" : "06" },
-    { id: "verify", label: "Verify", idx: isHost ? "08" : "07" },
+    ...(isAffiliate ? [{ id: "host", label: "Host Events", idx: "07" }] : []),
+    { id: "appearance", label: "Appearance", idx: isAffiliate ? "08" : "05" },
+    { id: "admin", label: "Admin", idx: isAffiliate ? "09" : "06" },
+    { id: "verify", label: "Verify", idx: isAffiliate ? "10" : "07" },
   ];
   // Events tab is active for its merged aliases too.
   const eventsActive = tab === "events" || tab === "tickets" || tab === "parties";
-  const { user, name, initial, profile, openAuth, signOut, authLoading } = useAuth();
   const { unreadTotal } = useSocial();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -91,7 +93,7 @@ export default function Navbar({ tab, setTab, hidden }) {
               go("home");
             }}
           >
-            Fest GH<span className="dot" />
+            FesGH<span className="dot" />
           </a>
           <nav aria-label="Primary">
             <ul>
@@ -164,9 +166,15 @@ export default function Navbar({ tab, setTab, hidden }) {
                     <button className="user-menu-item" onClick={() => go("hype")}>
                       <i className="fa-solid fa-fire" /> Hype
                     </button>
-                    {isHost && (
+                    <button className="user-menu-item" onClick={() => go("groups")}>
+                      <i className="fa-solid fa-people-group" /> Groups
+                    </button>
+                    <button className="user-menu-item" onClick={() => go("live")}>
+                      <i className="fa-solid fa-tower-broadcast" /> Live
+                    </button>
+                    {isAffiliate && (
                       <button className="user-menu-item" onClick={() => go("host")}>
-                        <i className="fa-solid fa-wand-magic-sparkles" /> Host dashboard
+                        <i className="fa-solid fa-wand-magic-sparkles" /> Host Events
                       </button>
                     )}
                     <button className="user-menu-item" onClick={() => go("fyp")}>
@@ -193,7 +201,7 @@ export default function Navbar({ tab, setTab, hidden }) {
               </button>
             )}
 
-            <button className="btn btn-sm host-btn" onClick={() => go("parties/new")}>
+            <button className="btn btn-sm host-btn" onClick={() => go(isAffiliate ? "parties/new" : "host")}>
               Host an event
             </button>
             <button
@@ -254,7 +262,7 @@ export default function Navbar({ tab, setTab, hidden }) {
           <i className="fa-solid fa-xmark" />
         </button>
         <div className="mm-brand">
-          Fest GH<span className="dot">.</span>
+          FesGH<span className="dot">.</span>
         </div>
         {!authLoading && user ? (
           <div className="mm-user">

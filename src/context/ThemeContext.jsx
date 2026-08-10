@@ -75,9 +75,11 @@ export const PATTERNS = [
   { id: "noise", name: "Noise", icon: "fa-solid fa-wave-square" },
 ];
 
+// FesGH ships in dark mode by default — the site opens on Midnight
+// until the visitor picks something else in Appearance.
 const DEFAULT_THEME = {
-  mode: "light",
-  preset: "daylight",
+  mode: "dark",
+  preset: "midnight",
   accent: null,
   background: { kind: "none", value: null },
 };

@@ -123,8 +123,8 @@ export function scoreFeed(items, signals) {
 
   // Keep the mix interesting: cap each kind so one category can't
   // dominate the whole feed.
-  const caps = { ticket: 4, party: 4, post: 3 };
-  const counts = { ticket: 0, party: 0, post: 0 };
+  const caps = { ticket: 4, party: 4, post: 3, hype: 5 };
+  const counts = { ticket: 0, party: 0, post: 0, hype: 0 };
   const mixed = [];
   scored.forEach((s) => {
     if (counts[s.kind] < caps[s.kind]) {
@@ -186,8 +186,8 @@ export function trendingFeed(items) {
     reason: "Trending now",
   }));
   scored.sort((a, b) => b.score - a.score);
-  const caps = { ticket: 4, party: 4, post: 3 };
-  const counts = { ticket: 0, party: 0, post: 0 };
+  const caps = { ticket: 4, party: 4, post: 3, hype: 5 };
+  const counts = { ticket: 0, party: 0, post: 0, hype: 0 };
   const mixed = [];
   scored.forEach((s) => {
     if (counts[s.kind] < caps[s.kind]) {

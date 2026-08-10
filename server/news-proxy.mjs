@@ -1,5 +1,5 @@
 // ============================================================
-// Festivity GH — static server + NewsAPI proxy
+// FesGH — static server + NewsAPI proxy
 //
 // NewsAPI.org does not allow browser (CORS) requests, so the
 // API key never ships to the client. This tiny server:
@@ -123,6 +123,6 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Festivity GH → http://localhost:${PORT}`);
+  console.log(`FesGH → http://localhost:${PORT}`);
   console.log(`News API key: ${NEWS_KEY ? "configured" : "MISSING — add VITE_NEWS_API_KEY to .env"}`);
 });

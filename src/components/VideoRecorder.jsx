@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 
 const MAX_SECONDS = 30;
 
@@ -60,6 +61,10 @@ export default function VideoRecorder({
   const [error, setError] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [isImage, setIsImage] = useState(false);
+  // Clips go to the public Hype feed by default; users can turn that
+  // off in their profile (then this box starts unchecked).
+  const { hypeByDefault } = useAuth();
+  const [publish, setPublish] = useState(!!hypeByDefault);
 
   const videoRef = useRef(null);
   const stageRef = useRef(null);
@@ -325,6 +330,8 @@ export default function VideoRecorder({
           : fileRef.current.name || `hype-${Date.now()}.webm`,
         caption,
         kind: isImage ? "image" : "video",
+        // Private sends always go through; public posts respect the box.
+        published: sendToName ? true : publish,
       });
     } catch (err) {
       setError(err.message || "Upload failed. Is the hype storage bucket set up?");
@@ -580,6 +587,19 @@ export default function VideoRecorder({
               onChange={(e) => setCaption(e.target.value)}
               aria-label="Caption"
             />
+            {!sendToName && (
+              <label className="snap-publish">
+                <input
+                  type="checkbox"
+                  checked={publish}
+                  onChange={(e) => setPublish(e.target.checked)}
+                />
+                <span>
+                  Post to the Hype feed
+                  <small>Off = profile-only clip</small>
+                </span>
+              </label>
+            )}
             {error && <p className="snap-error">{error}</p>}
             <div className="snap-preview-actions">
               <button className="snap-preview-btn ghost" onClick={reset} disabled={busy}>

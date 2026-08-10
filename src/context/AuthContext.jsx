@@ -39,6 +39,10 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [cloudProfile, setCloudProfile] = useState(null);
+  // Affiliate host status: null (never applied) or { status, commissionPct }.
+  const [affiliate, setAffiliate] = useState(null);
+  // Whether posted videos go to the public Hype feed by default.
+  const [hypeByDefault, setHypeByDefaultState] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -87,6 +91,59 @@ export function AuthProvider({ children }) {
       active = false;
     };
   }, [user?.id]);
+
+  // Affiliate status + the hype-by-default preference ride along with
+  // the account. Both are simple reads of the public tables.
+  useEffect(() => {
+    if (!user) {
+      setAffiliate(null);
+      return;
+    }
+    let active = true;
+    (async () => {
+      const [{ data: aff }, { data: prof }] = await Promise.all([
+        supabase.from("affiliates").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("hype_by_default").eq("id", user.id).maybeSingle(),
+      ]);
+      if (!active) return;
+      if (aff) setAffiliate(aff);
+      else setAffiliate(null);
+      if (prof && typeof prof.hype_by_default === "boolean")
+        setHypeByDefaultState(prof.hype_by_default);
+    })().catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  // The creator approves / rejects applications from the Admin panel —
+  // after that the affiliate's own tab can refresh to see the result.
+  const refreshAffiliate = useCallback(async () => {
+    if (!user) {
+      setAffiliate(null);
+      return;
+    }
+    const { data } = await supabase
+      .from("affiliates")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setAffiliate(data || null);
+  }, [user]);
+
+  // Flip the "post my videos to the Hype feed by default" preference.
+  const setHypeByDefault = useCallback(
+    async (value) => {
+      const next = !!value;
+      setHypeByDefaultState(next);
+      if (!user) return;
+      const { error } = await supabase
+        .from("profiles")
+        .upsert({ id: user.id, hype_by_default: next });
+      if (error) console.warn("hype default sync:", error.message);
+    },
+    [user]
+  );
 
   // Sign-in now lives on its own page (#auth). Opening it remembers
   // where the user came from so they land back in the right place.
@@ -241,8 +298,12 @@ export function AuthProvider({ children }) {
       signOut,
       resetPassword,
       updatePassword,
+      affiliate,
+      refreshAffiliate,
+      hypeByDefault,
+      setHypeByDefault,
     }),
-    [user, profile, saveProfile, authLoading, openAuth, ensureAuth, signIn, signUp, signInWithGoogle, signOut, resetPassword, updatePassword]
+    [user, profile, saveProfile, authLoading, openAuth, ensureAuth, signIn, signUp, signInWithGoogle, signOut, resetPassword, updatePassword, affiliate, refreshAffiliate, hypeByDefault, setHypeByDefault]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

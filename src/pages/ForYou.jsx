@@ -2,19 +2,42 @@ import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { useSocial } from "../context/SocialContext";
-import { buildSignals, scoreFeed, trendingFeed } from "../lib/fyp";
+import { buildSignals, scoreFeed, trendingFeed, formatCount } from "../lib/fyp";
 import TicketCard from "../components/TicketCard";
 import PartyCard from "../components/PartyCard";
 import ArticleCard from "../components/ArticleCard";
 import ArticleModal from "../components/ArticleModal";
 import Reveal from "../components/Reveal";
 
-const KIND_LABEL = { ticket: "Tickets", party: "Parties", post: "Blog" };
+const KIND_LABEL = { ticket: "Tickets", party: "Parties", post: "Blog", hype: "Hype" };
+
+// One hype clip in the combined feed — a muted looping preview that
+// jumps straight into the full Hype player when tapped.
+function HypeCard({ hype }) {
+  const author = hype.author?.name || "Creator";
+  return (
+    <a className="card fyp-hype" href="#hype">
+      <div className="fyp-hype-media">
+        <video src={hype.video_url} muted loop playsInline preload="metadata" />
+        <span className="fyp-hype-badge">
+          <i className="fa-solid fa-fire" aria-hidden="true" />
+        </span>
+      </div>
+      <div className="fyp-hype-info">
+        <b>@{author}</b>
+        <p>{hype.caption || "A hype clip"}</p>
+        <span>
+          <i className="fa-solid fa-eye" aria-hidden="true" /> {formatCount(hype.views || 0)} views
+        </span>
+      </div>
+    </a>
+  );
+}
 
 export default function ForYou() {
   const { allTickets, allParties, allPosts, going, myTickets, userReviews, saved } =
     useStore();
-  const { following } = useSocial();
+  const { following, hypeFeed } = useSocial();
   const { user } = useAuth();
   const [openPost, setOpenPost] = useState(null);
 
@@ -56,7 +79,20 @@ export default function ForYou() {
       createdAt: b.created_at || null,
       ref: b,
     }));
-    const pool = [...tickets, ...parties, ...posts];
+    // Hype clips join the same pool — events + for you, one feed.
+    const hypes = hypeFeed.map((h) => ({
+      kind: "hype",
+      id: h.id,
+      category: null,
+      authorId: h.user_id || null,
+      rsvps: 0,
+      sold: h.views || 0,
+      reviews: 0,
+      date: null,
+      createdAt: h.created_at || null,
+      ref: h,
+    }));
+    const pool = [...tickets, ...parties, ...posts, ...hypes];
 
     if (user) {
       const signals = buildSignals({
@@ -75,6 +111,7 @@ export default function ForYou() {
     allTickets,
     allParties,
     allPosts,
+    hypeFeed,
     going,
     myTickets,
     userReviews,
@@ -86,20 +123,21 @@ export default function ForYou() {
   const renderItem = (item) => {
     if (item.kind === "ticket") return <TicketCard ticket={item.ref} />;
     if (item.kind === "party") return <PartyCard party={item.ref} />;
+    if (item.kind === "hype") return <HypeCard hype={item.ref} />;
     return <ArticleCard article={item.ref} onOpen={setOpenPost} />;
   };
 
   return (
     <div className="page">
       <header className="page-head reveal in">
-        <div className="kicker">02 · Curated for you</div>
+        <div className="kicker">02 · Events + For You</div>
         <h1>
           For You<span className="outline">.</span>
         </h1>
         <p className="lede">
           {user
-            ? "Ranked by what you RSVP to, buy and read — fresh picks from the scene, no feed drama."
-            : "Trending across the scene right now. Sign in and this feed learns your taste."}
+            ? "Events and hype clips in one feed, ranked by what you RSVP to, buy, watch and read."
+            : "Trending events and videos across the scene right now. Sign in and this feed learns your taste."}
         </p>
       </header>
 

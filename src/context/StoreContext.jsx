@@ -32,8 +32,11 @@ function save(key, value) {
 const genCode = () =>
   `FST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-// The creator's share of every ticket sale (the platform fee).
-export const COMMISSION_RATE = 0.2;
+// The platform's share of every ticket sale — the creator's income.
+// Affiliate hosts earn their own commission on top (AFFILIATE_RATE,
+// 5%) and the event host keeps the rest (65%).
+export const COMMISSION_RATE = 0.3;
+export const AFFILIATE_RATE = 0.05;
 
 // Unique per-ticket security hash shown to the buyer and logged for
 // the host (e.g. "A1B2-C3D4-E5F6-A7B8").
@@ -104,6 +107,8 @@ export function StoreProvider({ children }) {
   const [communityParties, setCommunityParties] = useState([]);
   // Host's sales log: every pass sold on their party tickets.
   const [hostLogs, setHostLogs] = useState([]);
+  // Affiliate hosts — every application (pending / approved / rejected).
+  const [affiliates, setAffiliates] = useState([]);
   const [cloudUid, setCloudUid] = useState(null);
   // In-session RSVP adjustments so the "X going" number responds the
   // instant someone taps the button. The database counter (parties.rsvps,
@@ -536,6 +541,368 @@ export function StoreProvider({ children }) {
     [notify]
   );
 
+  // ----------------------------------------------------------
+  // Affiliate hosts — apply, list, approve (creator's Admin panel)
+  // ----------------------------------------------------------
+  const applyAffiliate = useCallback(async () => {
+    const uid = cloudUserRef.current?.id;
+    if (!uid) return false;
+    const { error } = await supabase.from("affiliates").upsert({
+      user_id: uid,
+      status: "pending",
+    });
+    if (error) {
+      console.warn("affiliate apply:", error.message);
+      notify("Couldn't apply right now — try again in a moment.");
+      return false;
+    }
+    notify("Application sent — the admin will review it soon.");
+    return true;
+  }, [notify]);
+
+  const fetchAffiliates = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("affiliates")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) return;
+      if (data && data.length) setAffiliates(data);
+    } catch {
+      /* offline — keep what we have */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAffiliates();
+  }, [fetchAffiliates]);
+
+  const approveAffiliate = useCallback(
+    async (userId, status) => {
+      const { error } = await supabase
+        .from("affiliates")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("user_id", userId);
+      if (error) {
+        console.warn("affiliate update:", error.message);
+        notify("Couldn't update that application.");
+        return false;
+      }
+      setAffiliates((prev) =>
+        prev.map((a) => (a.user_id === userId ? { ...a, status } : a))
+      );
+      notify(
+        status === "approved" ? "Affiliate approved 🎉" : "Application rejected"
+      );
+      return true;
+    },
+    [notify]
+  );
+
+  // ----------------------------------------------------------
+  // Groups & communities
+  // ----------------------------------------------------------
+  const [groups, setGroups] = useState([]);
+  const [groupMembers, setGroupMembers] = useState({}); // groupId -> rows
+  const [groupPosts, setGroupPosts] = useState({}); // groupId -> rows
+  const [groupsLoading, setGroupsLoading] = useState(false);
+
+  const loadGroups = useCallback(async () => {
+    setGroupsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("groups")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) return;
+      const rows = data || [];
+      // My membership edges so Join/Leave buttons know the state.
+      const me = cloudUserRef.current?.id;
+      const { data: mem } = me
+        ? await supabase
+            .from("group_members")
+            .select("group_id, role")
+            .eq("user_id", me)
+        : { data: [] };
+      const mine = new Map((mem || []).map((m) => [m.group_id, m.role]));
+      setGroups(rows.map((g) => ({ ...g, myRole: mine.get(g.id) || null })));
+    } catch {
+      /* offline */
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups, cloudUid]);
+
+  // Realtime: group list + posts refresh live (needs the tables in the
+  // realtime publication, which the schema sets up).
+  useEffect(() => {
+    const channel = supabase
+      .channel("community-groups")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "groups" },
+        () => loadGroups()
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "group_posts" },
+        (payload) => {
+          if (!payload.new || !payload.new.group_id) return;
+          setGroupPosts((prev) => {
+            const list = prev[payload.new.group_id] || [];
+            if (list.some((p) => p.id === payload.new.id)) return prev;
+            return { ...prev, [payload.new.group_id]: [payload.new, ...list] };
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadGroups]);
+
+  const createGroup = useCallback(
+    async ({ name, description, cover }) => {
+      const me = cloudUserRef.current?.id;
+      if (!me) return null;
+      const { data, error } = await supabase
+        .from("groups")
+        .insert({ name, description, owner_id: me, cover: cover || null })
+        .select("*")
+        .single();
+      if (error) {
+        console.warn("group create:", error.message);
+        notify("Couldn't create the group right now.");
+        return null;
+      }
+      const { error: memErr } = await supabase
+        .from("group_members")
+        .insert({ group_id: data.id, user_id: me, role: "owner" });
+      if (memErr) console.warn("group owner join:", memErr.message);
+      setGroups((prev) => [{ ...data, myRole: "owner" }, ...prev]);
+      notify("Group created — invite your people!");
+      return data;
+    },
+    [notify]
+  );
+
+  const joinGroup = useCallback(
+    async (groupId) => {
+      const me = cloudUserRef.current?.id;
+      if (!me) return false;
+      const { error } = await supabase
+        .from("group_members")
+        .insert({ group_id: groupId, user_id: me, role: "member" });
+      if (error) {
+        console.warn("group join:", error.message);
+        notify("Couldn't join right now.");
+        return false;
+      }
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                myRole: "member",
+                member_count: (g.member_count || 0) + 1,
+              }
+            : g
+        )
+      );
+      setGroupMembers((prev) => ({ ...prev, [groupId]: undefined }));
+      notify("You're in the group!");
+      return true;
+    },
+    [notify]
+  );
+
+  const leaveGroup = useCallback(
+    async (groupId) => {
+      const me = cloudUserRef.current?.id;
+      if (!me) return false;
+      const { error } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", groupId)
+        .eq("user_id", me);
+      if (error) {
+        console.warn("group leave:", error.message);
+        return false;
+      }
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                myRole: null,
+                member_count: Math.max(1, (g.member_count || 0) - 1),
+              }
+            : g
+        )
+      );
+      setGroupMembers((prev) => ({ ...prev, [groupId]: undefined }));
+      setGroupPosts((prev) => ({ ...prev, [groupId]: undefined }));
+      notify("You left the group.");
+      return true;
+    },
+    [notify]
+  );
+
+  const loadGroupDetail = useCallback(async (groupId) => {
+    const [memRes, postRes] = await Promise.all([
+      supabase.from("group_members").select("*").eq("group_id", groupId),
+      supabase
+        .from("group_posts")
+        .select("*")
+        .eq("group_id", groupId)
+        .order("created_at", { ascending: false })
+        .limit(80),
+    ]);
+    if (!memRes.error)
+      setGroupMembers((prev) => ({ ...prev, [groupId]: memRes.data || [] }));
+    if (!postRes.error)
+      setGroupPosts((prev) => ({ ...prev, [groupId]: postRes.data || [] }));
+  }, []);
+
+  const postToGroup = useCallback(
+    async (groupId, body) => {
+      const me = cloudUserRef.current?.id;
+      if (!me || !body.trim()) return false;
+      const { data, error } = await supabase
+        .from("group_posts")
+        .insert({ group_id: groupId, user_id: me, body: body.trim() })
+        .select("*")
+        .single();
+      if (error) {
+        console.warn("group post:", error.message);
+        notify("Couldn't post — are you a member of this group?");
+        return false;
+      }
+      setGroupPosts((prev) => ({
+        ...prev,
+        [groupId]: [data, ...(prev[groupId] || [])],
+      }));
+      return true;
+    },
+    [notify]
+  );
+
+  const deleteGroupPost = useCallback(async (groupId, postId) => {
+    const { error } = await supabase
+      .from("group_posts")
+      .delete()
+      .eq("id", postId);
+    if (error) return false;
+    setGroupPosts((prev) => ({
+      ...prev,
+      [groupId]: (prev[groupId] || []).filter((p) => p.id !== postId),
+    }));
+    return true;
+  }, []);
+
+  const deleteGroup = useCallback(
+    async (groupId) => {
+      const { error } = await supabase.from("groups").delete().eq("id", groupId);
+      if (error) {
+        console.warn("group delete:", error.message);
+        return false;
+      }
+      setGroups((prev) => prev.filter((g) => g.id !== groupId));
+      const clear = (map) => {
+        const n = { ...map };
+        delete n[groupId];
+        return n;
+      };
+      setGroupMembers(clear);
+      setGroupPosts(clear);
+      notify("Group deleted.");
+      return true;
+    },
+    [notify]
+  );
+
+  // ----------------------------------------------------------
+  // Live streams (sessions catalog; WebRTC happens in the Live page)
+  // ----------------------------------------------------------
+  const [liveSessions, setLiveSessions] = useState([]);
+
+  const loadLiveSessions = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("live_sessions")
+        .select("*")
+        .eq("status", "live")
+        .order("started_at", { ascending: false });
+      if (error) return;
+      setLiveSessions(data || []);
+    } catch {
+      /* offline */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLiveSessions();
+  }, [loadLiveSessions]);
+
+  // Realtime: streams appear / disappear as hosts go live and end.
+  useEffect(() => {
+    const channel = supabase
+      .channel("live-sessions")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "live_sessions" },
+        () => loadLiveSessions()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadLiveSessions]);
+
+  const startLive = useCallback(
+    async (title) => {
+      const me = cloudUserRef.current?.id;
+      if (!me) return null;
+      const { data, error } = await supabase
+        .from("live_sessions")
+        .insert({ host_id: me, title: (title || "Live").slice(0, 80) })
+        .select("*")
+        .single();
+      if (error) {
+        console.warn("start live:", error.message);
+        notify("Couldn't go live — is the schema applied?");
+        return null;
+      }
+      setLiveSessions((prev) => [data, ...prev]);
+      return data;
+    },
+    [notify]
+  );
+
+  const endLive = useCallback(
+    async (sessionId) => {
+      const { error } = await supabase
+        .from("live_sessions")
+        .update({ status: "ended", ended_at: new Date().toISOString() })
+        .eq("id", sessionId);
+      if (error) console.warn("end live:", error.message);
+      supabase
+        .from("live_signals")
+        .delete()
+        .eq("session_id", sessionId)
+        .then(({ error: e }) => {
+          if (e) console.warn("signal cleanup:", e.message);
+        });
+      setLiveSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      notify("Stream ended.");
+    },
+    [notify]
+  );
+
   const removeFromCart = useCallback((id) => {
     setCart((prev) => prev.filter((i) => i.id !== id));
   }, []);
@@ -571,6 +938,7 @@ export function StoreProvider({ children }) {
           location: t.location,
           price: unit,
           commission: Math.round(unit * COMMISSION_RATE),
+          affiliateShare: Math.round(unit * AFFILIATE_RATE),
           holder,
           partyId: item.partyId || null,
           hostId: item.hostId || null,
@@ -597,6 +965,7 @@ export function StoreProvider({ children }) {
               location: t.location,
               price: t.price,
               commission: t.commission ?? null,
+              affiliate_share: t.affiliateShare ?? null,
               holder: JSON.stringify(t.holder),
               design: t.design ? JSON.stringify(t.design) : null,
               promo_used: t.promoUsed ? JSON.stringify(t.promoUsed) : null,
@@ -621,6 +990,7 @@ export function StoreProvider({ children }) {
             hash: t.hash,
             price: t.price,
             commission: t.commission ?? null,
+            affiliate_share: t.affiliateShare ?? null,
           }));
         if (logRows.length) {
           supabase
@@ -1002,6 +1372,29 @@ export function StoreProvider({ children }) {
     globalPromos,
     addGlobalPromo,
     removeGlobalPromo,
+    // affiliates
+    affiliates,
+    applyAffiliate,
+    fetchAffiliates,
+    approveAffiliate,
+    // groups
+    groups,
+    groupMembers,
+    groupPosts,
+    groupsLoading,
+    loadGroups,
+    loadGroupDetail,
+    createGroup,
+    joinGroup,
+    leaveGroup,
+    postToGroup,
+    deleteGroupPost,
+    deleteGroup,
+    // live
+    liveSessions,
+    loadLiveSessions,
+    startLive,
+    endLive,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

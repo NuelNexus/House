@@ -124,7 +124,7 @@ export default function HypeComments({ hype, onClose }) {
           comments.map((c) => (
             <div className="hype-comment" key={c.id}>
               <Avatar
-                name={c.author?.name || "Fest GH member"}
+                name={c.author?.name || "FesGH member"}
                 seed={c.author?.avatar ?? 0}
                 src={c.author?.avatar_url || null}
                 size={34}
@@ -132,7 +132,7 @@ export default function HypeComments({ hype, onClose }) {
               <div className="hype-comment-body">
                 <div className="hype-comment-meta">
                   <span className="hype-comment-name">
-                    {c.author?.name || "Fest GH member"}
+                    {c.author?.name || "FesGH member"}
                   </span>
                   <span className="hype-comment-time">{timeAgo(c.created_at)}</span>
                 </div>

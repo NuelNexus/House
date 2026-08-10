@@ -28,6 +28,8 @@ import Hype from "./pages/Hype";
 import Messages from "./pages/Messages";
 import Contact from "./pages/Contact";
 import Appearance from "./pages/Appearance";
+import Groups from "./pages/Groups";
+import Live from "./pages/Live";
 
 // Safety net: a crash in any single component used to unmount the entire
 // React tree (blank page). Now the site shows a reload screen instead and
@@ -108,6 +110,8 @@ const VALID_TABS = [
   "host",
   "admin",
   "verify",
+  "groups",
+  "live",
 ];
 const AUTH_MODES = ["signin", "signup", "forgot"];
 
@@ -254,6 +258,8 @@ function Shell() {
         )}
         {tab === "contact" && <Contact contactId={contactId} q={q} />}
         {tab === "appearance" && <Appearance />}
+        {tab === "groups" && <Groups />}
+        {tab === "live" && <Live />}
       </main>
 
       {tab !== "messages" && tab !== "hype" && <Footer setTab={setTab} />}

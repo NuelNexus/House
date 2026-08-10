@@ -39,7 +39,7 @@ export default function Home({ setTab, onIntroDone }) {
       {/* Pure-CSS 3D villa — the centerpiece, right where the bubbles are */}
       <CssHouse />
 
-      <h1 className={`main-txt ${ready ? "fade-out" : ""}`}>Fest GH</h1>
+      <h1 className={`main-txt ${ready ? "fade-out" : ""}`}>FesGH</h1>
 
       <section className="banner hide-text">
         <div className="banner-inner">

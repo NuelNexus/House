@@ -147,7 +147,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
         const conv = convByOther.get(f.id);
         return {
           id: f.id,
-          name: f.name || "Fest GH member",
+          name: f.name || "FesGH member",
           avatar: f,
           lastBody: conv?.lastBody,
           lastAt: conv?.lastAt,
@@ -374,7 +374,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                 />
                 <div className="ms-chat-title">
                   <b>{recipientName}</b>
-                  <span>Fest GH member</span>
+                  <span>FesGH member</span>
                 </div>
                 <button
                   className="ms-head-icon"
@@ -550,7 +550,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                   size={64}
                 />
                 <div className="ms-detail-title">{recipientName}</div>
-                <div className="ms-detail-sub">Fest GH member</div>
+                <div className="ms-detail-sub">FesGH member</div>
                 <div className="ms-detail-btns">
                   <button
                     className="ms-detail-btn"
@@ -651,7 +651,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
               <div className="ms-send-list">
                 {sendMatches.length === 0 ? (
                   <p className="pick-empty">
-                    No one found — ask a friend to join Fest GH first.
+                    No one found — ask a friend to join FesGH first.
                   </p>
                 ) : (
                   sendMatches.map((p) => (

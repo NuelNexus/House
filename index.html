@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fest GH — Event Hosting Site in Ghana</title>
+    <title>FesGH — Event Hosting Site</title>
     <meta
       name="description"
-      content="Fest GH is the event hosting site for Ghana — host events, sell tickets, and discover what's happening near you."
+      content="FesGH is the event hosting site — host events, sell tickets, go live, and discover what's happening near you."
     />
     <link
       rel="icon"
@@ -27,14 +27,19 @@
       // Mirrors src/context/ThemeContext.jsx
       try {
         var t = JSON.parse(localStorage.getItem("festivity.theme") || "null");
+        // Dark by default — FesGH opens on Midnight until the visitor
+        // picks something else in Appearance.
+        var d = document.documentElement;
         if (t) {
-          var d = document.documentElement;
-          d.dataset.mode = t.mode || "light";
-          d.dataset.preset = t.preset || "daylight";
+          d.dataset.mode = t.mode || "dark";
+          d.dataset.preset = t.preset || "midnight";
           var bg = t.background || {};
           d.dataset.bg = bg.kind === "pattern" ? bg.value : bg.kind === "image" ? "image" : "none";
           if (t.accent) d.style.setProperty("--rose-deep", t.accent);
           if (bg.kind === "image") d.style.setProperty("--bg-image", 'url("' + bg.value + '")');
+        } else {
+          d.dataset.mode = "dark";
+          d.dataset.preset = "midnight";
         }
       } catch (e) {}
     </script>
