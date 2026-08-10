@@ -241,9 +241,7 @@ export function AuthProvider({ children }) {
     const base = cloudProfile || local || {};
     return {
       name: base.name || displayName(user),
-      bio:
-        base.bio ||
-        "Event lover. Accra · Kumasi · Takoradi. Always first on the dance floor.",
+      bio: base.bio || "",
       avatar: base.avatar ?? seedFor(user.id),
       avatarUrl: base.avatar_url || base.avatarUrl || null,
       theme: base.theme || null,

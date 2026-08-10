@@ -130,6 +130,175 @@ export function SocialProvider({ children }) {
   );
 
   // ============================================================
+  // FRIENDS (friend requests — the connection gate)
+  // You can't send someone a hype until they accept your request.
+  // ============================================================
+  const [friends, setFriends] = useState([]); // accepted friend ids
+  const [friendRequests, setFriendRequests] = useState([]); // incoming pending
+  const friendStatusRef = useRef({}); // id -> 'outgoing' | 'incoming' | 'friends'
+
+  const loadFriends = useCallback(async () => {
+    if (!uidRef.current) {
+      setFriends([]);
+      setFriendRequests([]);
+      friendStatusRef.current = {};
+      return;
+    }
+    const me = uidRef.current;
+    const [accepted, incoming] = await Promise.all([
+      supabase
+        .from("friend_requests")
+        .select("sender_id, recipient_id")
+        .eq("status", "accepted")
+        .or(`sender_id.eq.${me},recipient_id.eq.${me}`),
+      supabase
+        .from("friend_requests")
+        .select("*")
+        .eq("recipient_id", me)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false }),
+    ]);
+    if (!accepted.error) {
+      const ids = (accepted.data || []).map((r) =>
+        r.sender_id === me ? r.recipient_id : r.sender_id
+      );
+      setFriends(ids);
+    }
+    if (!incoming.error) {
+      const rows = incoming.data || [];
+      const profs = await fetchProfiles(rows.map((r) => r.sender_id));
+      setFriendRequests(
+        rows.map((r) => ({ ...r, sender: profs[r.sender_id] || null }))
+      );
+    }
+    // Rebuild the status map from every request touching me.
+    const [allOutgoing, allIncoming] = await Promise.all([
+      supabase
+        .from("friend_requests")
+        .select("recipient_id, status")
+        .eq("sender_id", me)
+        .eq("status", "pending"),
+      supabase
+        .from("friend_requests")
+        .select("sender_id, status")
+        .eq("recipient_id", me)
+        .eq("status", "pending"),
+    ]);
+    const map = {};
+    (friendsRef.current || []).forEach((id) => {
+      map[id] = "friends";
+    });
+    (allOutgoing.data || []).forEach((r) => {
+      map[r.recipient_id] = "outgoing";
+    });
+    (allIncoming.data || []).forEach((r) => {
+      map[r.sender_id] = "incoming";
+    });
+    friendStatusRef.current = map;
+  }, [fetchProfiles]);
+
+  // Keep a ref mirror of friends so loadFriends' status map can read the
+  // freshest list without a stale closure.
+  const friendsRef = useRef([]);
+  useEffect(() => {
+    friendsRef.current = friends;
+  }, [friends]);
+
+  useEffect(() => {
+    loadFriends();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid]);
+
+  const isFriend = useCallback((id) => friends.includes(id), [friends]);
+
+  const friendStatus = useCallback(
+    (id) => {
+      if (friends.includes(id)) return "friends";
+      return friendStatusRef.current[id] || "none";
+    },
+    [friends]
+  );
+
+  const sendFriendRequest = useCallback(
+    async (targetId) => {
+      if (!uidRef.current || !targetId) return false;
+      // If they already asked me, accepting makes us friends instantly.
+      const pending = await supabase
+        .from("friend_requests")
+        .select("id")
+        .eq("sender_id", targetId)
+        .eq("recipient_id", uidRef.current)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (pending.data) {
+        await acceptFriendRequest(pending.data.id);
+        return true;
+      }
+      const { error } = await supabase.from("friend_requests").insert({
+        sender_id: uidRef.current,
+        recipient_id: targetId,
+        status: "pending",
+      });
+      if (error) {
+        console.warn("friend request:", error.message);
+        notify("Couldn't send the request.");
+        return false;
+      }
+      friendStatusRef.current[targetId] = "outgoing";
+      notify("Friend request sent");
+      return true;
+    },
+    [notify]
+  );
+
+  const acceptFriendRequest = useCallback(
+    async (requestId) => {
+      const { data, error } = await supabase
+        .from("friend_requests")
+        .update({ status: "accepted", responded_at: new Date().toISOString() })
+        .eq("id", requestId)
+        .select("sender_id, recipient_id")
+        .single();
+      if (error) {
+        console.warn("accept request:", error.message);
+        return false;
+      }
+      const other = data.sender_id === uidRef.current ? data.recipient_id : data.sender_id;
+      setFriends((p) => (p.includes(other) ? p : [...p, other]));
+      setFriendRequests((p) => p.filter((r) => r.id !== requestId));
+      friendStatusRef.current[other] = "friends";
+      notify("You're friends now!");
+      return true;
+    },
+    [notify]
+  );
+
+  const declineFriendRequest = useCallback(async (requestId) => {
+    await supabase
+      .from("friend_requests")
+      .update({ status: "declined", responded_at: new Date().toISOString() })
+      .eq("id", requestId);
+    setFriendRequests((p) => p.filter((r) => r.id !== requestId));
+    notify("Request declined");
+  }, [notify]);
+
+  const unfriend = useCallback(
+    async (targetId) => {
+      const me = uidRef.current;
+      if (!me || !targetId) return;
+      setFriends((p) => p.filter((x) => x !== targetId));
+      friendStatusRef.current[targetId] = "none";
+      await supabase
+        .from("friend_requests")
+        .delete()
+        .eq("status", "accepted")
+        .or(`and(sender_id.eq.${me},recipient_id.eq.${targetId}),and(sender_id.eq.${targetId},recipient_id.eq.${me})`);
+      notify("Removed from friends");
+    },
+    [notify]
+  );
+
+  // ============================================================
   // MESSENGER
   // ============================================================
   const [conversations, setConversations] = useState([]);
@@ -382,19 +551,33 @@ export function SocialProvider({ children }) {
   }, [loadHype]);
 
   // My own public clips — the "Hypes" tab on my profile, with view counts.
+  // Only published clips (group-only videos have published=false, so they
+  // stay in the group and never surface here).
   const loadMyHypes = useCallback(async () => {
     const me = uidRef.current;
     if (!me) {
       setMyHypes([]);
       return;
     }
-    const { data } = await supabase
+    let res = await supabase
       .from("hypes")
       .select("*")
       .eq("user_id", me)
       .is("recipient_id", null)
+      .eq("published", true)
       .order("created_at", { ascending: false })
       .limit(50);
+    if (res.error && /published/i.test(res.error.message || "")) {
+      // Schema not updated yet — fall back to the unfiltered list.
+      res = await supabase
+        .from("hypes")
+        .select("*")
+        .eq("user_id", me)
+        .is("recipient_id", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+    }
+    const data = res.data;
     if (!data) return;
     const profs = await fetchProfiles([me]);
     const mine = data.map((h) => ({ ...h, author: profs[me] || null }));
@@ -489,6 +672,14 @@ export function SocialProvider({ children }) {
       )
       .on(
         "postgres_changes",
+        { event: "*", schema: "public", table: "friend_requests" },
+        () => {
+          // A new request, acceptance or decline lands instantly.
+          if (active) loadFriends();
+        }
+      )
+      .on(
+        "postgres_changes",
         { event: "*", schema: "public", table: "hypes" },
         () => {
           // New hypes (public or sent to me) appear live in the feed.
@@ -530,7 +721,7 @@ export function SocialProvider({ children }) {
       supabase.removeChannel(channel);
       window.clearInterval(poll);
     };
-  }, [uid, refreshSocial, loadFollows, loadHype, loadMyHypes, loadSeenHypes]);
+  }, [uid, refreshSocial, loadFollows, loadFriends, loadHype, loadMyHypes, loadSeenHypes]);
 
   const uploadVideo = useCallback(async (blob, name) => {
     const me = uidRef.current;
@@ -588,6 +779,10 @@ export function SocialProvider({ children }) {
     async ({ blob, name, caption, recipientId, published }) => {
       const me = uidRef.current;
       if (!me) throw new Error("Sign in to post hype");
+      // Private clips only go to friends — send a request first.
+      if (recipientId && !friendsRef.current.includes(recipientId)) {
+        throw new Error("Send a friend request first — they need to accept before you can hype them.");
+      }
       const videoUrl = await uploadVideo(blob, name);
       const row = {
         user_id: me,
@@ -781,6 +976,16 @@ export function SocialProvider({ children }) {
       toggleFollow,
       followCounts,
       loadFollowCounts,
+      // friends
+      friends,
+      friendRequests,
+      isFriend,
+      friendStatus,
+      sendFriendRequest,
+      acceptFriendRequest,
+      declineFriendRequest,
+      unfriend,
+      loadFriends,
       // messenger
       conversations,
       threads,
@@ -825,6 +1030,15 @@ export function SocialProvider({ children }) {
       toggleFollow,
       followCounts,
       loadFollowCounts,
+      friends,
+      friendRequests,
+      isFriend,
+      friendStatus,
+      sendFriendRequest,
+      acceptFriendRequest,
+      declineFriendRequest,
+      unfriend,
+      loadFriends,
       conversations,
       threads,
       unread,

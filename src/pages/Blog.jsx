@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
-import { SEED_NEWS } from "../data/seed";
 import ArticleCard from "../components/ArticleCard";
 import ArticleModal from "../components/ArticleModal";
 import Marquee from "../components/Marquee";
@@ -19,7 +18,6 @@ const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 const FILTERS = [
   { id: "All", label: "All" },
   { id: "Live", label: "Live wire" },
-  { id: "Scene", label: "Scene reports" },
   { id: "Community", label: "Community" },
 ];
 
@@ -87,22 +85,20 @@ export default function Blog({ setTab }) {
   };
 
   const showLive = filter === "All" || filter === "Live";
-  const showScene = filter === "All" || filter === "Scene";
   const showCommunity = filter === "All" || filter === "Community";
 
-  const [sceneFeatured, ...sceneRest] = SEED_NEWS;
   const [commFeatured, ...commRest] = allPosts;
 
   return (
     <div className="page">
       <header className="page-head reveal in">
-        <div className="kicker">04 · Stories & the scene report</div>
+        <div className="kicker">04 · Stories from the scene</div>
         <h1>
           Blog<span className="outline">.</span>
         </h1>
         <p className="lede">
-          News from the wire, scene reports from our desk, and stories posted by
-          the community — all in one place.
+          News from the wire and stories posted by the community — all in
+          one place.
         </p>
       </header>
 
@@ -161,38 +157,7 @@ export default function Blog({ setTab }) {
         </>
       )}
 
-      {/* Curated scene reports (ex-News) */}
-      {showScene && (
-        <>
-          <Reveal>
-            <div className="section-label">
-              Scene reports · Ghana ({SEED_NEWS.length})
-            </div>
-          </Reveal>
-          {sceneFeatured && (
-            <Reveal>
-              <ArticleCard article={sceneFeatured} onOpen={setOpen} featured />
-            </Reveal>
-          )}
-          {sceneRest.length === 0 ? (
-            <div className="empty-state">
-              <i className="fa-solid fa-newspaper" />
-              <h3>Nothing here yet</h3>
-              <p>Check back soon for the latest from the scene.</p>
-            </div>
-          ) : (
-            <div className="grid">
-              {sceneRest.map((n, i) => (
-                <Reveal key={n.id} delay={Math.min(i, 8) * 60}>
-                  <ArticleCard article={n} onOpen={setOpen} />
-                </Reveal>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Community posts (user-published + editors' blog) */}
+      {/* Community posts (user-published only) */}
       {showCommunity && (
         <>
           <Reveal>

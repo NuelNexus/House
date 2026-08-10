@@ -3,6 +3,7 @@ import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { promoOf } from "../lib/ticketPresets";
+import { payWithPaystack, verifyPaystack } from "../lib/paystack";
 import TicketStub from "../components/TicketStub";
 import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
@@ -10,12 +11,13 @@ import Reveal from "../components/Reveal";
 const STEP_LABELS = ["Order", "Details", "Done"];
 
 export default function Checkout({ setTab }) {
-  const { cartItems, total, checkout, globalPromos } = useStore();
+  const { cartItems, cartCount, total, checkout, globalPromos } = useStore();
   const { user, authLoading, name: authName, openAuth } = useAuth();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: authName || "", email: "", phone: "" });
   const [tickets, setTickets] = useState([]);
   const [error, setError] = useState("");
+  const [paying, setPaying] = useState(false);
   const [promoInput, setPromoInput] = useState("");
   const [promoApplied, setPromoApplied] = useState("");
   const [promoError, setPromoError] = useState("");
@@ -68,23 +70,63 @@ export default function Checkout({ setTab }) {
     }
   };
 
-  const submitDetails = (e) => {
+  // Pay for the order through Paystack (GHS). Tickets are only issued
+  // once the popup confirms the charge. If PAYSTACK_SECRET_KEY is set
+  // server-side, the charge is also verified before checkout completes.
+  const submitDetails = async (e) => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
       setError("Please fill in all fields to secure your tickets.");
       return;
     }
+    if (finalTotal <= 0) {
+      // Free order — no payment needed.
+      setError("");
+      const purchased = checkout(
+        {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+        },
+        promoApplied
+      );
+      setTickets(purchased);
+      setStep(3);
+      return;
+    }
     setError("");
-    const purchased = checkout(
-      {
-        name: form.name.trim(),
+    setPaying(true);
+    try {
+      const ref = await payWithPaystack({
         email: form.email.trim(),
-        phone: form.phone.trim(),
-      },
-      promoApplied
-    );
-    setTickets(purchased);
-    setStep(3);
+        amount: finalTotal,
+        label: `${cartCount} ticket${cartCount === 1 ? "" : "s"}`,
+      });
+      // Best-effort server verification when the secret key is configured.
+      // Without PAYSTACK_SECRET_KEY the endpoint reports not-set — that's
+      // expected and the popup callback is trusted instead.
+      const verified = await verifyPaystack(ref).catch(() => null);
+      if (verified && verified.verified === false && verified.reason && !/not set|MISSING|unavailable|missing reference/.test(verified.reason)) {
+        throw new Error("Payment could not be verified — please try again.");
+      }
+      const purchased = checkout(
+        {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+        },
+        promoApplied,
+        ref
+      );
+      setTickets(purchased);
+      setStep(3);
+    } catch (err) {
+      setError(
+        err?.message || "Payment didn't go through — nothing was charged, try again."
+      );
+    } finally {
+      setPaying(false);
+    }
   };
 
   const head = (
@@ -338,8 +380,21 @@ export default function Checkout({ setTab }) {
                 >
                   Back
                 </button>
-                <button type="submit" className="btn" style={{ flex: 2, justifyContent: "center" }}>
-                  Pay {GH_CD(finalTotal)} <i className="fa-solid fa-lock icon" />
+                <button
+                  type="submit"
+                  className="btn"
+                  style={{ flex: 2, justifyContent: "center" }}
+                  disabled={paying}
+                >
+                  {paying ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin icon" /> Opening Paystack…
+                    </>
+                  ) : (
+                    <>
+                      Pay {GH_CD(finalTotal)} <i className="fa-solid fa-lock icon" />
+                    </>
+                  )}
                 </button>
               </div>
               <p
@@ -351,7 +406,7 @@ export default function Checkout({ setTab }) {
                   color: "var(--ink-soft)",
                 }}
               >
-                Demo checkout — no real payment is processed.
+                Secured by Paystack · card, mobile money & bank transfer
               </p>
             </form>
           )}

@@ -61,13 +61,16 @@ alter table public.parties add column if not exists tickets_sold int not null de
 -- have no affiliate_id and sit in the pool on the Affiliate page until an
 -- approved AFFILIATE reposts them. A repost is a copy of the host's party
 -- with the affiliate's own price + ticket design:
---   affiliate_id     = the reposter (earns the 5% commission)
---   host_id          = the original poster (earns 65% of every repost sale)
+--   affiliate_id     = the reposter (keeps 70% of their price margin)
+--   host_id          = the original poster (keeps 70% of the base price)
 --   source_party_id  = the host party this repost copies
+--   price            = the repost's sale price (what the buyer pays)
+--   original_price   = the host's base price that repost marks up from
 alter table public.parties add column if not exists status text not null default 'live';
 alter table public.parties add column if not exists affiliate_id uuid references auth.users (id) on delete set null;
 alter table public.parties add column if not exists host_id uuid references auth.users (id) on delete set null;
 alter table public.parties add column if not exists source_party_id text;
+alter table public.parties add column if not exists original_price numeric not null default 0;
 create index if not exists parties_status on public.parties (status, created_at desc);
 -- One repost per affiliate per party — an affiliate can't double-list.
 create unique index if not exists parties_repost_unique
@@ -120,10 +123,14 @@ create table if not exists public.ticket_purchases (
 );
 create index if not exists ticket_purchases_host on public.ticket_purchases (host_id, created_at desc);
 alter table public.ticket_purchases add column if not exists commission numeric not null default 0;
--- The reposting affiliate who drove the sale (earns the 5% affiliate_share).
--- host_id above is always the ORIGINAL party host (65%); affiliate_id is
--- the reposter, so their dashboard can log every sale they drove.
+-- The reposting affiliate who drove the sale (keeps 70% of their price
+-- margin). host_id above is always the ORIGINAL party host (70% of the
+-- base price); affiliate_id is the reposter, so their dashboard can log
+-- every sale they drove. original_price is the host's base price the
+-- repost marked up from, and payment_reference is the Paystack charge.
 alter table public.ticket_purchases add column if not exists affiliate_id uuid references auth.users (id) on delete set null;
+alter table public.ticket_purchases add column if not exists original_price numeric not null default 0;
+alter table public.ticket_purchases add column if not exists payment_reference text;
 create index if not exists ticket_purchases_affiliate on public.ticket_purchases (affiliate_id, created_at desc);
 
 -- Keep each party's tickets_sold counter accurate whenever a pass is
@@ -207,8 +214,12 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- Affiliate hosts: users approved to post events and sell tickets at
--- their own prices. Every sale splits as:
---   30% platform (the creator) · 5% affiliate · 65% host earnings
+-- their own prices. Applying costs a one-time 40 GHS fee (paid via
+-- Paystack before the application is submitted; fee_reference records
+-- the charge). Every sale splits as:
+--   30% platform (30% of the host's base price + 30% of the affiliate's
+--   margin) · host keeps 70% of their base · affiliate keeps 70% of
+--   their margin.
 -- Defined up here (before RLS) because the parties policies reference it.
 create table if not exists public.affiliates (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -217,6 +228,9 @@ create table if not exists public.affiliates (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.affiliates add column if not exists fee_paid boolean not null default false;
+alter table public.affiliates add column if not exists fee_reference text;
+alter table public.affiliates add column if not exists fee_amount numeric not null default 40;
 
 -- ------------------------------------------------------------
 -- Row level security
@@ -255,10 +269,11 @@ create policy "parties_select" on public.parties
 -- with no affiliate_id), and approved affiliates repost them with their
 -- own price. Only approved affiliates may carry affiliate_id / a source
 -- party — anyone else gets those stripped so their row stays a host
--- original. The trigger also pins a repost's HOST attribution to the
--- original poster on insert (resolving it from source_party_id) and
--- freezes it on every update — so the 65% host earnings can never be
--- rerouted; the reposter only ever earns the 5% commission.
+-- original. The trigger also pins a repost's HOST attribution and the
+-- host's ORIGINAL_PRICE to the original party on insert (resolving both
+-- from source_party_id) and freezes them on every update — so the split
+-- (platform 30% · host 70% of base · affiliate 70% of margin) can never
+-- be rerouted or re-anchored by the reposter.
 create or replace function public.enforce_party_lifecycle()
 returns trigger
 language plpgsql
@@ -268,6 +283,7 @@ as $$
 declare
   is_affiliate boolean;
   src_user uuid;
+  src_price numeric;
 begin
   is_affiliate := exists (
     select 1 from public.affiliates a
@@ -284,15 +300,18 @@ begin
     new.affiliate_id := null;
     new.source_party_id := null;
     new.host_id := null;
+    new.original_price := 0;
   elsif (new.source_party_id is not null and new.affiliate_id is not null) then
-    -- Approved affiliate reposting: resolve the host from the original
-    -- party on insert, freeze it on every update.
+    -- Approved affiliate reposting: resolve the host + base price from
+    -- the original party on insert, freeze both on every update.
     if (tg_op = 'INSERT') then
-      select user_id into src_user
+      select user_id, price into src_user, src_price
         from public.parties where id = new.source_party_id;
       new.host_id := src_user;
+      new.original_price := coalesce(src_price, 0);
     else
       new.host_id := old.host_id;
+      new.original_price := old.original_price;
     end if;
   end if;
 
@@ -423,6 +442,20 @@ create table if not exists public.follows (
   primary key (follower_id, following_id)
 );
 
+-- Friend requests: the connection model. You can't send someone a hype
+-- until they accept your request — one accepted row (either direction)
+-- makes two people friends.
+create table if not exists public.friend_requests (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references auth.users (id) on delete cascade,
+  recipient_id uuid not null references auth.users (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  unique (sender_id, recipient_id)
+);
+create index if not exists friend_requests_inbox on public.friend_requests (recipient_id, created_at desc);
+
 -- Messenger (direct messages between two users)
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
@@ -552,10 +585,32 @@ drop policy if exists "hype_owner_delete" on storage.objects;
 create policy "hype_owner_delete" on storage.objects
   for delete using (bucket_id = 'hype' and owner = auth.uid());
 
+-- Public "groups" storage bucket for group cover photos
+insert into storage.buckets (id, name, public)
+values ('groups', 'groups', true)
+on conflict (id) do nothing;
+
+drop policy if exists "groups_public_read" on storage.objects;
+create policy "groups_public_read" on storage.objects
+  for select using (bucket_id = 'groups');
+
+drop policy if exists "groups_owner_write" on storage.objects;
+create policy "groups_owner_write" on storage.objects
+  for insert with check (bucket_id = 'groups' and owner = auth.uid());
+
+drop policy if exists "groups_owner_update" on storage.objects;
+create policy "groups_owner_update" on storage.objects
+  for update using (bucket_id = 'groups' and owner = auth.uid());
+
+drop policy if exists "groups_owner_delete" on storage.objects;
+create policy "groups_owner_delete" on storage.objects
+  for delete using (bucket_id = 'groups' and owner = auth.uid());
+
 -- ------------------------------------------------------------
 -- Row level security
 -- ------------------------------------------------------------
 alter table public.follows enable row level security;
+alter table public.friend_requests enable row level security;
 alter table public.messages enable row level security;
 alter table public.hypes enable row level security;
 alter table public.hype_comments enable row level security;
@@ -575,6 +630,22 @@ drop policy if exists "follows_delete" on public.follows;
 create policy "follows_delete" on public.follows
   for delete using (auth.uid() = follower_id);
 
+drop policy if exists "friend_requests_select" on public.friend_requests;
+create policy "friend_requests_select" on public.friend_requests
+  for select using (auth.uid() = sender_id or auth.uid() = recipient_id);
+
+drop policy if exists "friend_requests_insert" on public.friend_requests;
+create policy "friend_requests_insert" on public.friend_requests
+  for insert with check (auth.uid() = sender_id and status = 'pending');
+
+drop policy if exists "friend_requests_update" on public.friend_requests;
+create policy "friend_requests_update" on public.friend_requests
+  for update using (auth.uid() = recipient_id);
+
+drop policy if exists "friend_requests_delete" on public.friend_requests;
+create policy "friend_requests_delete" on public.friend_requests
+  for delete using (auth.uid() = sender_id or auth.uid() = recipient_id);
+
 drop policy if exists "messages_select" on public.messages;
 create policy "messages_select" on public.messages
   for select using (auth.uid() = sender_id or auth.uid() = recipient_id);
@@ -593,7 +664,21 @@ create policy "hypes_select" on public.hypes
 
 drop policy if exists "hypes_insert" on public.hypes;
 create policy "hypes_insert" on public.hypes
-  for insert with check (auth.uid() = user_id);
+  for insert with check (
+    auth.uid() = user_id and (
+      recipient_id is null
+      -- A private hype can only go to someone who accepted your friend
+      -- request (or whose request you accepted) — no cold-call clips.
+      or exists (
+        select 1 from public.friend_requests fr
+        where fr.status = 'accepted'
+          and (
+            (fr.sender_id = auth.uid() and fr.recipient_id = recipient_id)
+            or (fr.sender_id = recipient_id and fr.recipient_id = auth.uid())
+          )
+      )
+    )
+  );
 
 drop policy if exists "hypes_delete" on public.hypes;
 create policy "hypes_delete" on public.hypes
@@ -670,7 +755,7 @@ create policy "posts_delete" on public.posts
   for delete using (auth.uid() = user_id);
 
 grant select on table public.follows, public.messages, public.hypes, public.hype_streaks, public.contact_requests, public.posts to anon;
-grant all on table public.follows, public.messages, public.hypes, public.hype_comments, public.hype_views, public.hype_streaks, public.contact_requests, public.posts to authenticated;
+grant all on table public.follows, public.messages, public.hypes, public.hype_comments, public.hype_views, public.hype_streaks, public.contact_requests, public.posts, public.friend_requests to authenticated;
 
 -- Global promo codes created from the Admin dashboard. One row per
 -- code; buyers see them at checkout (discounts every ticket in an
@@ -720,6 +805,9 @@ create table if not exists public.groups (
   created_at timestamptz not null default now()
 );
 create index if not exists groups_feed on public.groups (created_at desc);
+-- Group setting: videos posted in the group ALSO go to the public Hype
+-- feed by default; the owner can switch this off in group settings.
+alter table public.groups add column if not exists videos_to_hype boolean not null default true;
 
 create table if not exists public.group_members (
   group_id uuid not null references public.groups (id) on delete cascade,
@@ -737,6 +825,12 @@ create table if not exists public.group_posts (
   created_at timestamptz not null default now()
 );
 create index if not exists group_posts_feed on public.group_posts (group_id, created_at desc);
+-- Group posts can carry a video: the clip is also a hype row (so it can
+-- appear on the public feed per the group's videos_to_hype setting) and
+-- the group post links back to it for in-chat playback.
+alter table public.group_posts add column if not exists video_url text;
+alter table public.group_posts add column if not exists hype_id uuid references public.hypes (id) on delete cascade;
+alter table public.group_posts add column if not exists kind text not null default 'text';
 
 -- Keep groups.member_count accurate whenever anyone joins or leaves.
 create or replace function public.sync_group_members()
@@ -784,9 +878,13 @@ create table if not exists public.live_signals (
 );
 create index if not exists live_signals_to on public.live_signals (session_id, to_id, created_at);
 
--- Per-sale commission split for the affiliate (5%). The existing
--- commission column on both tables is the platform's 30% cut.
+-- Per-sale commission split: affiliate_share = 70% of the affiliate's
+-- price margin (repost price − host's base price). The existing
+-- commission column on both tables is the platform's 30% cut (30% of
+-- the base + 30% of the margin = 30% of the sale price).
 alter table public.tickets add column if not exists affiliate_share numeric not null default 0;
+alter table public.tickets add column if not exists original_price numeric not null default 0;
+alter table public.tickets add column if not exists payment_reference text;
 alter table public.ticket_purchases add column if not exists affiliate_share numeric not null default 0;
 
 -- ------------------------------------------------------------
@@ -803,15 +901,27 @@ drop policy if exists "affiliates_select" on public.affiliates;
 create policy "affiliates_select" on public.affiliates
   for select using (true);
 
+-- Anyone can start an application, but it ALWAYS lands as 'pending' —
+-- no one can insert themselves straight into 'approved'. Approval only
+-- happens through the update path below (Admin panel).
 drop policy if exists "affiliates_insert" on public.affiliates;
 create policy "affiliates_insert" on public.affiliates
-  for insert with check (auth.uid() = user_id);
+  for insert with check (auth.uid() = user_id and status = 'pending');
 
--- The creator approves / rejects applications from the Admin panel.
--- (Client-gated like the rest of the admin tooling.)
+-- The creator approves / rejects applications from the Admin panel
+-- (client-gated like the rest of the admin tooling). A user may also
+-- touch their OWN row while it's pending or rejected (fixing fee
+-- details, re-applying) — but can never flip themselves to 'approved'.
 drop policy if exists "affiliates_update" on public.affiliates;
 create policy "affiliates_update" on public.affiliates
-  for update using (true);
+  for update using (
+    auth.uid() <> user_id
+    or status in ('pending', 'rejected')
+  )
+  with check (
+    auth.uid() <> user_id
+    or status = 'pending'
+  );
 
 drop policy if exists "groups_select" on public.groups;
 create policy "groups_select" on public.groups
@@ -835,7 +945,21 @@ create policy "group_members_select" on public.group_members
 
 drop policy if exists "group_members_insert" on public.group_members;
 create policy "group_members_insert" on public.group_members
-  for insert with check (auth.uid() = user_id);
+  for insert with check (
+    auth.uid() = user_id
+    -- Any member can invite others (inserting their membership row).
+    or exists (
+      select 1 from public.group_members gm
+      where gm.group_id = group_members.group_id and gm.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "group_members_update" on public.group_members;
+create policy "group_members_update" on public.group_members
+  for update using (
+    auth.uid() = user_id or
+    auth.uid() = (select g.owner_id from public.groups g where g.id = group_id)
+  );
 
 drop policy if exists "group_members_delete" on public.group_members;
 create policy "group_members_delete" on public.group_members
@@ -897,7 +1021,7 @@ grant all on table public.affiliates, public.groups, public.group_members, publi
 do $$
 declare t text;
 begin
-  foreach t in array array['messages', 'hypes', 'hype_comments', 'hype_views', 'follows', 'parties', 'ticket_purchases', 'groups', 'group_posts', 'live_sessions'] loop
+  foreach t in array array['messages', 'hypes', 'hype_comments', 'hype_views', 'follows', 'friend_requests', 'parties', 'ticket_purchases', 'groups', 'group_members', 'group_posts', 'live_sessions'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

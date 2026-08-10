@@ -8,6 +8,37 @@ import CoverArt from "../components/CoverArt";
 import ProfileItemModal from "../components/ProfileItemModal";
 import { formatCount } from "../lib/fyp";
 
+// Add friend is the connection model now (replaces Follow). The button
+// walks through: Add friend → Request sent → Accept request → Friends.
+function FriendButton({ status, busy, onAction }) {
+  if (status === "friends") {
+    return (
+      <button className="btn btn-sm friend-btn friends" onClick={onAction} disabled={busy}>
+        <i className="fa-solid fa-user-check" /> Friends
+      </button>
+    );
+  }
+  if (status === "outgoing") {
+    return (
+      <button className="btn btn-sm friend-btn requested" disabled>
+        <i className="fa-solid fa-hourglass-half" /> Request sent
+      </button>
+    );
+  }
+  if (status === "incoming") {
+    return (
+      <button className="btn btn-sm friend-btn accept" onClick={onAction} disabled={busy}>
+        <i className="fa-solid fa-user-check" /> Accept request
+      </button>
+    );
+  }
+  return (
+    <button className="btn btn-sm friend-btn" onClick={onAction} disabled={busy}>
+      <i className="fa-solid fa-user-plus" /> Add friend
+    </button>
+  );
+}
+
 const FILTERS = ["All", "Hypes", "Parties", "Reviews"];
 
 const KIND_ICON = {
@@ -27,7 +58,15 @@ function categoryFor(name, tickets, allParties) {
 export default function PublicProfile({ userId }) {
   const { tickets, allParties } = useStore();
   const { user, openAuth } = useAuth();
-  const { isFollowing, toggleFollow, followCounts, loadFollowCounts } = useSocial();
+  const {
+    followCounts,
+    loadFollowCounts,
+    friendStatus,
+    friendRequests,
+    sendFriendRequest,
+    acceptFriendRequest,
+    unfriend,
+  } = useSocial();
   const [state, setState] = useState({
     loading: true,
     profile: null,
@@ -37,23 +76,32 @@ export default function PublicProfile({ userId }) {
   });
   const [filter, setFilter] = useState("All");
   const [detail, setDetail] = useState(null);
-  const [followBusy, setFollowBusy] = useState(false);
+  const [friendBusy, setFriendBusy] = useState(false);
 
   const isSelf = user?.id === userId;
   const counts = followCounts[userId] || { followers: 0, following: 0 };
+  const status = isSelf ? "none" : friendStatus(userId);
 
   useEffect(() => {
     loadFollowCounts(userId);
   }, [userId, loadFollowCounts]);
 
-  const handleFollow = async () => {
+  const handleFriendAction = async () => {
     if (!user) {
       openAuth();
       return;
     }
-    setFollowBusy(true);
-    await toggleFollow(userId);
-    setFollowBusy(false);
+    setFriendBusy(true);
+    if (status === "friends") {
+      await unfriend(userId);
+    } else if (status === "incoming") {
+      const req = friendRequests.find((r) => r.sender_id === userId);
+      if (req) await acceptFriendRequest(req.id);
+      else await sendFriendRequest(userId);
+    } else {
+      await sendFriendRequest(userId);
+    }
+    setFriendBusy(false);
   };
 
   useEffect(() => {
@@ -76,13 +124,28 @@ export default function PublicProfile({ userId }) {
           .select("*")
           .eq("user_id", userId)
           .order("created_at", { ascending: false }),
-        supabase
-          .from("hypes")
-          .select("*")
-          .eq("user_id", userId)
-          .is("recipient_id", null)
-          .order("created_at", { ascending: false })
-          .limit(50),
+        (async () => {
+          // Public clips only — group-only videos (published=false) stay
+          // in the group and never surface on a profile.
+          let r = await supabase
+            .from("hypes")
+            .select("*")
+            .eq("user_id", userId)
+            .is("recipient_id", null)
+            .eq("published", true)
+            .order("created_at", { ascending: false })
+            .limit(50);
+          if (r.error && /published/i.test(r.error.message || "")) {
+            r = await supabase
+              .from("hypes")
+              .select("*")
+              .eq("user_id", userId)
+              .is("recipient_id", null)
+              .order("created_at", { ascending: false })
+              .limit(50);
+          }
+          return r;
+        })(),
       ]);
       if (!active) return;
       const parties = (partiesRes.data ?? []).map((p) => ({
@@ -205,23 +268,11 @@ export default function PublicProfile({ userId }) {
                 </span>
                 {!isSelf && (
                   <div className="profile-actions">
-                    <button
-                      className={`btn btn-sm follow-btn ${
-                        isFollowing(userId) ? "following" : ""
-                      }`}
-                      disabled={followBusy}
-                      onClick={handleFollow}
-                    >
-                      {isFollowing(userId) ? (
-                        <>
-                          <i className="fa-solid fa-user-check" /> Following
-                        </>
-                      ) : (
-                        <>
-                          <i className="fa-solid fa-user-plus" /> Follow
-                        </>
-                      )}
-                    </button>
+                    <FriendButton
+                      status={status}
+                      busy={friendBusy}
+                      onAction={handleFriendAction}
+                    />
                     <button
                       className="btn btn-sm btn-outline"
                       onClick={() => {
@@ -251,8 +302,7 @@ export default function PublicProfile({ userId }) {
               <div className="profile-bio">
                 <p>
                   <span className="profile-real-name">{name}</span>
-                  {state.profile?.bio ||
-                    "On the FesGH scene — posting parties and keeping the vibes honest."}
+                  {state.profile?.bio}
                 </p>
               </div>
             </header>

@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
 import { GH_CD } from "../data/seed";
-import { COMMISSION_RATE, AFFILIATE_RATE } from "../context/StoreContext";
+import { COMMISSION_RATE } from "../context/StoreContext";
 import { promoOf } from "../lib/ticketPresets";
 import Reveal from "../components/Reveal";
 import CoverArt from "../components/CoverArt";
@@ -13,7 +13,7 @@ import Avatar from "../components/Avatar";
 // Admin dashboard — the creator's private command center. Password
 // gated (hashed, session unlock + attempt limiter). It shows the
 // platform overview, every order, and — most importantly — the
-// creator's 20% commission on every ticket sold, broken down per
+// creator's 30% commission on every ticket sold, broken down per
 // party. Reads the same public tables the site already uses, so it
 // needs zero setup.
 // ------------------------------------------------------------------
@@ -259,7 +259,7 @@ export default function Admin({ setTab }) {
   };
 
   // ------------------------------------------------------------
-  // Revenue + the creator's 20% commission.
+  // Revenue + the creator's 30% commission.
   // ------------------------------------------------------------
   const commissionOf = (price) => Math.round((Number(price) || 0) * COMMISSION_RATE);
 
@@ -291,7 +291,7 @@ export default function Admin({ setTab }) {
   );
 
   const ownIncome = hostLogs.reduce((s, l) => s + (Number(l.price) || 0), 0);
-  // Creator commission on confirmed sales in the host log (20% of each).
+  // Creator commission on confirmed sales in the host log (30% of each).
   const ownCommission = hostLogs.reduce((s, l) => s + commissionOf(l.price), 0);
   // Creator commission on tickets bought on this device.
   const boughtCommission = myTickets.reduce(
@@ -496,7 +496,17 @@ export default function Admin({ setTab }) {
                   </div>
                   <div className="admin-affiliate-actions">
                     <span className="admin-affiliate-note">
-                      {Math.round(AFFILIATE_RATE * 100)}% commission · your {Math.round(COMMISSION_RATE * 100)}% stays
+                      {a.fee_paid ? (
+                        <>
+                          <i className="fa-solid fa-circle-check" style={{ color: "#1f7a4d" }} /> Fee paid ·{" "}
+                          GH₵ {Number(a.fee_amount) || 40}
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-circle-exclamation" style={{ color: "var(--gold)" }} /> No fee yet
+                        </>
+                      )}
+                      {" "}· your {Math.round(COMMISSION_RATE * 100)}% stays
                     </span>
                     {a.status === "pending" ? (
                       <>

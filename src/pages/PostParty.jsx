@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
+import { GH_CD } from "../data/seed";
 import Reveal from "../components/Reveal";
 import TicketDesigner from "../components/TicketDesigner";
 import { DEFAULT_DESIGN } from "../lib/ticketPresets";
@@ -9,12 +10,13 @@ const CATEGORIES = ["Kickback", "Rave", "Rooftop", "Pool", "Villa", "Birthday", 
 
 // ------------------------------------------------------------------
 // Post a party — two roles, never mixed:
-//   · HOST (anyone signed in): posts a party's details. It lands in the
-//     pool on the Affiliate page — NOT the Events page — until an
-//     approved affiliate reposts it. Hosts keep 65% of every repost sale.
+//   · HOST (anyone signed in): posts a party's details + base price. It
+//     lands in the pool on the Affiliate page — NOT the Events page —
+//     until an approved affiliate reposts it. Hosts keep 70% of their
+//     base price on every repost sale.
 //   · AFFILIATE: #parties/new?repost=<id> copies a host's party from the
 //     pool, sets their own price + ticket design, and puts it live on
-//     the scene. They earn 5% on every ticket sold through their repost.
+//     the scene. They keep 70% of their margin (price − base).
 // ------------------------------------------------------------------
 
 export default function PostParty({ setTab, q }) {
@@ -96,13 +98,17 @@ export default function PostParty({ setTab, q }) {
       setError("Title, date, location and description are required.");
       return;
     }
+    if (!repostTarget && Number(form.price) <= 0) {
+      setError("Set a base price for your party — the host keeps 70% of it on every repost sale.");
+      return;
+    }
     setError("");
 
     if (repostTarget) {
       // Affiliate reposting a host's party — their price + ticket go
       // live on the scene as their own listing.
       if (!isAffiliate) {
-        setError("Reposting parties is exclusive to approved affiliates.");
+        setError("Setting a price on a party is exclusive to approved affiliates.");
         return;
       }
       repostParty(repostTarget.id, {
@@ -117,13 +123,13 @@ export default function PostParty({ setTab, q }) {
       return;
     }
 
-    // Host role: post the party's details into the affiliate pool.
+    // Host role: post the party's details + base price into the pool.
     postParty({
       title: form.title.trim(),
       host: form.host.trim() || authName || "Anonymous Host",
       date: form.date.trim(),
       location: form.location.trim(),
-      price: 0,
+      price: Math.max(0, Number(form.price) || 0),
       capacity: "",
       description: form.description.trim(),
       category: form.category,
@@ -142,16 +148,16 @@ export default function PostParty({ setTab, q }) {
   const head = (
     <header className="page-head reveal in">
       <div className="kicker">
-        {repostTarget ? "Affiliate repost" : "Post a party"}
+        {repostTarget ? "Affiliate post" : "Post a party"}
       </div>
       <h1>
-        {repostTarget ? "Repost with your price" : "Post a party"}
+        {repostTarget ? "Set your price" : "Post a party"}
         <span className="outline">.</span>
       </h1>
       <p className="lede">
         {repostTarget
-          ? `${repostTarget.host || "Someone"} posted “${repostTarget.title}” on the scene. Repost it with your own price and ticket — it goes live on the Events page and you earn 5% on every sale.`
-          : "You're the host — post your party's details and it lands in the pool on the Affiliate page. An approved affiliate reposts it with their price and puts it on the scene; you keep 65% of every sale."}
+          ? `${repostTarget.host || "Someone"} posted “${repostTarget.title}” with a base price of ${GH_CD(Number(repostTarget.price) || 0)}. Post it with your own price and ticket — it goes live on the Events page and you keep 70% of your margin (price − base).`
+          : "You're the host — post your party's details and set a base price. It lands in the pool on the Affiliate page; an approved affiliate posts it with their own price and puts it on the scene. You keep 70% of your base price on every sale."}
       </p>
     </header>
   );
@@ -295,7 +301,8 @@ export default function PostParty({ setTab, q }) {
               {showCommerce ? (
                 <div className="field">
                   <label htmlFor="pp-price">
-                    Your repost price (GH₵, 0 = free)
+                    Your price (GH₵) — base is{" "}
+                    {GH_CD(Number(repostTarget?.price) || 0)}
                   </label>
                   <input
                     id="pp-price"
@@ -305,15 +312,45 @@ export default function PostParty({ setTab, q }) {
                     value={form.price}
                     onChange={set("price")}
                   />
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: 6,
+                      fontSize: 12,
+                      color: "var(--ink-soft)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    You keep 70% of your margin (price − base{" "}
+                    {GH_CD(Number(repostTarget?.price) || 0)}). The host
+                    keeps 70% of the base, the platform takes 30%.
+                  </small>
                 </div>
               ) : (
                 <div className="field">
-                  <label>Status</label>
+                  <label htmlFor="pp-price">Base price (GH₵)</label>
                   <input
+                    id="pp-price"
+                    type="number"
+                    min="0"
                     className="input"
-                    value="Pool — waiting for an affiliate repost"
-                    disabled
+                    placeholder="e.g. 50"
+                    value={form.price}
+                    onChange={set("price")}
                   />
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: 6,
+                      fontSize: 12,
+                      color: "var(--ink-soft)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Your base price is what you earn from — you keep 70% of
+                    it on every ticket sold when an affiliate posts your
+                    party. Affiliates mark it up with their own price.
+                  </small>
                 </div>
               )}
             </div>
@@ -374,7 +411,7 @@ export default function PostParty({ setTab, q }) {
             >
               {repostTarget ? (
                 <>
-                  <i className="fa-solid fa-retweet icon" /> Repost & put on the scene
+                  <i className="fa-solid fa-upload icon" /> Post & put on the scene
                 </>
               ) : (
                 <>

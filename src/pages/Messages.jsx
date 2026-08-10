@@ -9,8 +9,6 @@ import VideoRecorder from "../components/VideoRecorder";
 import HypePlayerSlide from "../components/HypePlayerSlide";
 import Modal from "../components/Modal";
 
-const COVERS = ["👥", "🎧", "🎪", "🔥", "🍹", "🎬", "🕺", "🎨", "🎤", "🏖️"];
-
 // Chat accent palette (Instagram-style "change color" swatches).
 const CHAT_COLORS = [
   { id: "rose", name: "Rose", value: "var(--rose-deep)" },
@@ -41,7 +39,11 @@ function formatDay(iso) {
   });
 }
 
-// A group opened inside Messages — posts + composer + members.
+const isUrl = (v) => typeof v === "string" && /^https?:\/\//i.test(v);
+
+// A group opened inside Messages — styled exactly like a chat thread:
+// bubbles (mine on the right, everyone else on the left), a chat-style
+// composer with a camera button, and the members strip underneath.
 function MsGroupDetail({
   group,
   members,
@@ -57,24 +59,61 @@ function MsGroupDetail({
   composer,
   setComposer,
   onDeletePost,
+  onInvite,
+  onOpenVideo,
+  onToggleHype,
 }) {
+  const isOwner = myRole === "owner";
+  const list = [...(posts || [])].reverse(); // newest at the bottom
+  const bubblesRef = useRef(null);
+
+  useEffect(() => {
+    bubblesRef.current?.scrollTo({ top: bubblesRef.current.scrollHeight });
+  }, [posts?.length]);
+
   return (
     <div className="ms-group-detail">
       <div className="ms-chat-head">
         <button className="ms-back" aria-label="Back" onClick={onBack}>
           <i className="fa-solid fa-arrow-left" />
         </button>
-        <span className="ms-group-cover">{group.cover || "👥"}</span>
+        {isUrl(group.cover) ? (
+          <span
+            className="ms-group-cover has-img"
+            role="img"
+            aria-label={`${group.name} cover`}
+            style={{ backgroundImage: `url(${group.cover})` }}
+          />
+        ) : (
+          <span className="ms-group-cover">{group.cover || "👥"}</span>
+        )}
         <div className="ms-chat-title">
           <b>{group.name}</b>
           <span>{group.member_count || 0} members</span>
         </div>
-        {myRole === "owner" ? (
-          <span className="group-role-chip">Owner</span>
-        ) : myRole ? (
-          <button className="ms-head-icon" title="Leave group" onClick={onLeave}>
-            <i className="fa-solid fa-right-from-bracket" />
-          </button>
+        {myRole ? (
+          <>
+            <button className="ms-head-icon" title="Invite people" onClick={onInvite}>
+              <i className="fa-solid fa-user-plus" />
+            </button>
+            {isOwner ? (
+              <>
+                <label className="ms-group-toggle" title="Post group videos to the Hype feed too">
+                  <input
+                    type="checkbox"
+                    checked={group.videos_to_hype !== false}
+                    onChange={(e) => onToggleHype(e.target.checked)}
+                  />
+                  <span>Hype feed</span>
+                </label>
+                <span className="group-role-chip">Owner</span>
+              </>
+            ) : (
+              <button className="ms-head-icon" title="Leave group" onClick={onLeave}>
+                <i className="fa-solid fa-right-from-bracket" />
+              </button>
+            )}
+          </>
         ) : (
           <button className="btn btn-sm" onClick={onJoin}>
             <i className="fa-solid fa-user-plus" /> Join
@@ -82,43 +121,39 @@ function MsGroupDetail({
         )}
       </div>
 
-      {myRole && (
-        <form className="ms-group-composer" onSubmit={onPost}>
-          <input
-            className="input"
-            placeholder={`Post in ${group.name}…`}
-            value={composer}
-            onChange={(e) => setComposer(e.target.value)}
-            maxLength={400}
-          />
-          <button className="btn btn-sm" type="submit" disabled={posting || !composer.trim()}>
-            {posting ? "Posting…" : "Post"}
-          </button>
-        </form>
-      )}
-
-      <div className="ms-bubbles ms-group-posts">
-        {posts.length === 0 ? (
+      <div className="ms-bubbles ms-group-posts" ref={bubblesRef}>
+        {list.length === 0 ? (
           <p className="ms-none">
-            {myRole ? "Start the conversation." : "Join the group to post here."}
+            {myRole ? "Start the conversation." : "Join the group to chat here."}
           </p>
         ) : (
-          posts.map((p) => {
+          list.map((p) => {
             const author = profs[p.user_id] || null;
+            const mine = p.user_id === me;
+            const hasText = p.body && p.body !== "Sent a video";
             return (
-              <div className="group-post" key={p.id}>
-                <div className="group-post-head">
+              <div key={p.id} className={`chat-msg group-chat-msg ${mine ? "owner" : ""}`}>
+                <div className="chat-msg-profile">
                   <Avatar
                     name={author?.name || "Member"}
                     seed={author?.avatar ?? 0}
                     src={author?.avatar_url || null}
                     size={34}
                   />
-                  <div>
-                    <b>{author?.name || "Member"}</b>
-                    <small>{formatDay(p.created_at)}</small>
-                  </div>
-                  {me === p.user_id && (
+                  <div className="chat-msg-date">{formatDay(p.created_at)}</div>
+                </div>
+                <div className="chat-msg-content">
+                  {p.kind === "video" && p.video_url && (
+                    <video
+                      className="group-chat-video"
+                      src={p.video_url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
+                  )}
+                  {hasText && <div className="chat-msg-text">{p.body}</div>}
+                  {mine && (
                     <button
                       className="gallery-item-del"
                       title="Delete"
@@ -128,12 +163,49 @@ function MsGroupDetail({
                     </button>
                   )}
                 </div>
-                <p className="group-post-body">{p.body}</p>
               </div>
             );
           })
         )}
       </div>
+
+      {myRole && (
+        <div className="ms-chat-foot ms-group-composer">
+          <input
+            placeholder={`Message ${group.name}…`}
+            value={composer}
+            aria-label="Group message"
+            onChange={(e) => setComposer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onPost(e);
+              }
+            }}
+            maxLength={400}
+          />
+          <button
+            className="ms-group-cam"
+            title="Send a video to the group"
+            aria-label="Send a video"
+            onClick={onOpenVideo}
+          >
+            <i className="fa-solid fa-camera" />
+          </button>
+          <button
+            className="ms-send"
+            disabled={posting || !composer.trim()}
+            aria-label="Send message"
+            onClick={onPost}
+          >
+            {posting ? (
+              <i className="fa-solid fa-spinner fa-spin" />
+            ) : (
+              <i className="fa-solid fa-paper-plane" />
+            )}
+          </button>
+        </div>
+      )}
 
       <div className="ms-group-members">
         {members.length === 0 ? (
@@ -157,6 +229,16 @@ function MsGroupDetail({
             );
           })
         )}
+        {myRole && (
+          <button
+            className="ms-group-member ms-group-invite"
+            title="Invite people"
+            aria-label="Invite people"
+            onClick={onInvite}
+          >
+            <i className="fa-solid fa-user-plus" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -172,7 +254,12 @@ export default function Messages({ compose, sendHype, q, setTab }) {
     sendMessage,
     people,
     loadPeople,
-    followers,
+    friends,
+    friendRequests,
+    friendStatus,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
     incomingHypes,
     postHype,
     fetchProfiles,
@@ -183,10 +270,15 @@ export default function Messages({ compose, sendHype, q, setTab }) {
     groupPosts,
     loadGroupDetail,
     createGroup,
+    updateGroup,
     joinGroup,
     leaveGroup,
     postToGroup,
+    postGroupVideo,
+    inviteToGroup,
+    uploadGroupCover,
     deleteGroupPost,
+    notify,
   } = useStore();
   const { theme, setMode } = useTheme();
 
@@ -212,8 +304,9 @@ export default function Messages({ compose, sendHype, q, setTab }) {
   // people-load must not re-open it after the user closed it.
   const sendAutoOpened = useRef(false);
 
-  // Groups live on the message side: Chats | Groups sections, a plus
-  // button to start a chat or make a group, and an in-chat group detail.
+  // Groups live on the message side: Chats | Groups | Requests sections,
+  // a plus button to start a chat or make a group, and an in-chat group
+  // detail that looks exactly like the DM thread.
   const [msSection, setMsSection] = useState("chats");
   const [openGroupId, setOpenGroupId] = useState(null);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -222,11 +315,33 @@ export default function Messages({ compose, sendHype, q, setTab }) {
   const [groupComposer, setGroupComposer] = useState("");
   const [groupPosting, setGroupPosting] = useState(false);
   const [groupProfs, setGroupProfs] = useState({});
+  const [groupVideoGroup, setGroupVideoGroup] = useState(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverFileRef = useRef(null);
   const chatSearchRef = useRef(null);
+  // Invite flow.
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteGroup, setInviteGroup] = useState(null);
+  const [inviteSel, setInviteSel] = useState([]);
+  const [inviteQuery, setInviteQuery] = useState("");
 
   const openGroup = openGroupId ? groups.find((g) => g.id === openGroupId) : null;
   const groupMembersList = openGroupId ? groupMembers[openGroupId] || [] : [];
   const groupPostList = openGroupId ? groupPosts[openGroupId] || [] : [];
+
+  // Names for friends who aren't in the 300-person search list yet.
+  const [friendProfs, setFriendProfs] = useState({});
+  useEffect(() => {
+    const missing = friends.filter(
+      (id) => !people.some((p) => p.id === id) && !friendProfs[id]
+    );
+    if (!missing.length) return;
+    (async () => {
+      const map = await fetchProfiles(missing);
+      setFriendProfs((p) => ({ ...p, ...map }));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friends, people]);
 
   useEffect(() => {
     if (openGroupId) loadGroupDetail(openGroupId);
@@ -278,19 +393,13 @@ export default function Messages({ compose, sendHype, q, setTab }) {
   }, [compose, q.to, q.event, q.offer, q.host]);
 
   // Deep link #hype/send?to=<id> now lands here — open the send-hype flow.
+  // The picker shows friend status, so non-friends can send a request first.
   useEffect(() => {
     if (sendHype && !sendAutoOpened.current) {
       sendAutoOpened.current = true;
       if (!people.length) loadPeople();
       setSendMode(true);
-      if (q.to) {
-        const target =
-          people.find((p) => p.id === q.to) || {
-            id: q.to,
-            name: q.host || "a friend",
-          };
-        setFriend(target);
-      }
+      if (q.to && q.host) setSendQuery(q.host);
     }
   }, [sendHype, q, people, loadPeople]);
 
@@ -305,27 +414,30 @@ export default function Messages({ compose, sendHype, q, setTab }) {
   }, [recipient, messages.length]);
 
   const recipientProfile = recipient
-    ? people.find((p) => p.id === recipient)
+    ? people.find((p) => p.id === recipient) || friendProfs[recipient] || null
     : null;
   const recipientName =
     recipientProfile?.name ||
     (q.to === recipient ? q.host : null) ||
     "Chat";
 
-  // Chats = the people who follow me — the only people I can text.
+  // Chats = my friends (accepted friend requests). Sending a hype to
+  // someone needs the same gate, so the two stay in sync.
   const chatList = useMemo(() => {
     const convByOther = new Map(conversations.map((c) => [c.other, c]));
-    return followers
-      .map((f) => {
-        const conv = convByOther.get(f.id);
+    return friends
+      .map((id) => {
+        const prof =
+          people.find((p) => p.id === id) || friendProfs[id] || null;
+        const conv = convByOther.get(id);
         return {
-          id: f.id,
-          name: f.name || "FesGH member",
-          avatar: f,
+          id,
+          name: prof?.name || "FesGH member",
+          avatar: prof || { id, name: "FesGH member" },
           lastBody: conv?.lastBody,
           lastAt: conv?.lastAt,
           lastMine: conv?.lastMine,
-          unread: unread[f.id] || 0,
+          unread: unread[id] || 0,
         };
       })
       .sort((a, b) => {
@@ -333,7 +445,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
         const tb = b.lastAt ? new Date(b.lastAt).getTime() : 0;
         return tb - ta;
       });
-  }, [followers, conversations, unread]);
+  }, [friends, people, friendProfs, conversations, unread]);
 
   const filteredChats = useMemo(() => {
     const qs = search.trim().toLowerCase();
@@ -367,6 +479,17 @@ export default function Messages({ compose, sendHype, q, setTab }) {
       ),
     [people, sendQuery, user]
   );
+
+  // Invite picker: my friends (who aren't already in the group).
+  const inviteMatches = useMemo(() => {
+    const qs = inviteQuery.trim().toLowerCase();
+    const memberIds = new Set(groupMembersList.map((m) => m.user_id));
+    return friends
+      .filter((id) => !memberIds.has(id))
+      .map((id) => people.find((p) => p.id === id) || friendProfs[id] || null)
+      .filter(Boolean)
+      .filter((p) => !qs || (p.name || "").toLowerCase().includes(qs));
+  }, [friends, people, friendProfs, groupMembersList, inviteQuery]);
 
   const handleSend = async () => {
     if (!recipient || !draft.trim() || sending) return;
@@ -424,6 +547,55 @@ export default function Messages({ compose, sendHype, q, setTab }) {
     }
   };
 
+  const onPickCover = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      notify("Pick an image file for the cover.");
+      return;
+    }
+    setCoverUploading(true);
+    try {
+      const url = await uploadGroupCover(file);
+      setGroupForm((f) => ({ ...f, cover: url }));
+      notify("Cover added");
+    } catch (err) {
+      notify(err.message || "Upload failed");
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const openInvite = () => {
+    setInviteSel([]);
+    setInviteQuery("");
+    setInviteOpen(true);
+  };
+
+  const doInvite = async () => {
+    if (!inviteGroup || !inviteSel.length) return;
+    await inviteToGroup(inviteGroup.id, inviteSel);
+    setInviteOpen(false);
+    setInviteSel([]);
+  };
+
+  const toggleGroupHype = async (on) => {
+    if (!openGroup) return;
+    await updateGroup(openGroup.id, { videos_to_hype: on });
+    notify(on ? "Group videos will post to the Hype feed" : "Group videos are group-only now");
+  };
+
+  const handleGroupVideoDone = async ({ blob, name: fname, caption, kind }) => {
+    if (!groupVideoGroup) return;
+    try {
+      await postGroupVideo(groupVideoGroup.id, { blob, name: fname, caption });
+    } catch (err) {
+      notify(err.message || "Couldn't post the video.");
+    }
+    setGroupVideoGroup(null);
+  };
+
   const openSendHype = () => {
     if (!user) {
       openAuth();
@@ -443,8 +615,13 @@ export default function Messages({ compose, sendHype, q, setTab }) {
 
   const handleHypeSend = async ({ blob, name: fname, caption, kind }) => {
     if (!friend) return;
-    await postHype({ blob, name: fname, caption, recipientId: friend.id, kind });
-    closeSend();
+    try {
+      await postHype({ blob, name: fname, caption, recipientId: friend.id, kind });
+      closeSend();
+    } catch (err) {
+      notify(err.message || "Couldn't send the hype.");
+      closeSend();
+    }
   };
 
   const toggleMode = () =>
@@ -467,8 +644,8 @@ export default function Messages({ compose, sendHype, q, setTab }) {
           </div>
           <h2>Your inbox lives here</h2>
           <p>
-            Chat with hosts, coordinate with friends and keep the hype going
-            between parties.
+            Chat with friends, run groups and keep the hype going between
+            parties.
           </p>
           <button className="btn" onClick={() => openAuth()}>
             <i className="fa-solid fa-right-to-bracket icon" /> Sign in
@@ -520,8 +697,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
       </header>
 
       <div className="ms-wrap">
-        {/* Hype inbox — replaces the chats column with the profile pics of
-            everyone who sent you a hype. Tap one to play their hype. */}
+        {/* Hype inbox — the profile pics of everyone who sent you a hype. */}
         <aside className="ms-convs">
           <div className="ms-convs-head">
             <h3>Hype</h3>
@@ -561,8 +737,7 @@ export default function Messages({ compose, sendHype, q, setTab }) {
           </div>
         </aside>
 
-        {/* Chat area — follower list (styled like the old compose panel),
-            or the open thread when one is selected. */}
+        {/* Chat area — friend list, the open thread, or the open group. */}
         <section className="ms-chat">
           {recipient ? (
             <>
@@ -674,6 +849,12 @@ export default function Messages({ compose, sendHype, q, setTab }) {
               composer={groupComposer}
               setComposer={setGroupComposer}
               onDeletePost={(postId) => deleteGroupPost(openGroup.id, postId)}
+              onInvite={() => {
+                setInviteGroup(openGroup);
+                openInvite();
+              }}
+              onOpenVideo={() => setGroupVideoGroup(openGroup)}
+              onToggleHype={toggleGroupHype}
             />
           ) : (
             <div className="ms-compose">
@@ -704,9 +885,9 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                 ))}
               </div>
 
-              {/* Chats | Groups + the add (+) chooser */}
+              {/* Chats | Groups | Requests + the add (+) chooser */}
               <div className="ms-compose-head">
-                <div className="ms-section-switch" role="tablist" aria-label="Chats or groups">
+                <div className="ms-section-switch" role="tablist" aria-label="Inbox sections">
                   <button
                     role="tab"
                     aria-selected={msSection === "chats"}
@@ -722,6 +903,17 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                     onClick={() => setMsSection("groups")}
                   >
                     <i className="fa-solid fa-people-group" /> Groups
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={msSection === "requests"}
+                    className={`ms-requests-tab ${msSection === "requests" ? "active" : ""}`}
+                    onClick={() => setMsSection("requests")}
+                  >
+                    <i className="fa-solid fa-user-plus" /> Requests
+                    {friendRequests.length > 0 && (
+                      <b className="ms-tab-badge">{friendRequests.length}</b>
+                    )}
                   </button>
                 </div>
                 <div className="ms-plus-wrap">
@@ -772,18 +964,18 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                       <i className="fa-solid fa-magnifying-glass" />
                       <input
                         ref={chatSearchRef}
-                        placeholder="Search followers…"
+                        placeholder="Search friends…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        aria-label="Search followers"
+                        aria-label="Search friends"
                       />
                     </div>
                   </div>
                   {filteredChats.length === 0 ? (
                     <p className="pick-empty">
-                      {followers.length === 0
-                        ? "No one follows you yet — people who follow you show up here so you can chat."
-                        : "No chats with followers found."}
+                      {friends.length === 0
+                        ? "No friends yet — visit someone's profile and send a friend request to start chatting."
+                        : "No chats with friends found."}
                     </p>
                   ) : (
                     filteredChats.map((c) => (
@@ -821,6 +1013,42 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                     ))
                   )}
                 </>
+              ) : msSection === "requests" ? (
+                <div className="ms-requests">
+                  {friendRequests.length === 0 ? (
+                    <p className="pick-empty">
+                      No friend requests right now. People who want to hype
+                      you or chat will show up here.
+                    </p>
+                  ) : (
+                    friendRequests.map((r) => (
+                      <div className="ms-request-row" key={r.id}>
+                        <Avatar
+                          name={r.sender?.name || "?"}
+                          seed={r.sender?.avatar ?? 0}
+                          src={r.sender?.avatar_url || null}
+                          size={40}
+                        />
+                        <div className="ms-request-mid">
+                          <b>{r.sender?.name || "FesGH member"}</b>
+                          <small>wants to be friends</small>
+                        </div>
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => acceptFriendRequest(r.id)}
+                        >
+                          <i className="fa-solid fa-user-check" /> Accept
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline danger"
+                          onClick={() => declineFriendRequest(r.id)}
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
               ) : (
                 <div className="ms-groups">
                   {groups.length === 0 ? (
@@ -834,7 +1062,14 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                         className="ms-group-row"
                         onClick={() => setOpenGroupId(g.id)}
                       >
-                        <span className="ms-group-cover">{g.cover || "👥"}</span>
+                        {isUrl(g.cover) ? (
+                          <span
+                            className="ms-group-cover has-img"
+                            style={{ backgroundImage: `url(${g.cover})` }}
+                          />
+                        ) : (
+                          <span className="ms-group-cover">{g.cover || "👥"}</span>
+                        )}
                         <span className="ms-group-mid">
                           <b>{g.name}</b>
                           <small>
@@ -948,7 +1183,8 @@ export default function Messages({ compose, sendHype, q, setTab }) {
         </div>
       )}
 
-      {/* Send hype — pick a friend, then record the clip */}
+      {/* Send hype — pick a friend (only friends can receive hypes), then
+          record the clip. Non-friends get an Add friend action instead. */}
       {sendMode && (
         <div className="ms-send-overlay">
           {!friend ? (
@@ -969,35 +1205,72 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                 <div className="search">
                   <i className="fa-solid fa-magnifying-glass" />
                   <input
-                    placeholder="Search friends…"
+                    placeholder="Search people…"
                     value={sendQuery}
                     onChange={(e) => setSendQuery(e.target.value)}
-                    aria-label="Search friends"
+                    aria-label="Search people"
                   />
                 </div>
               </div>
+              <p className="ms-send-hint">
+                <i className="fa-solid fa-shield-halved" /> Only friends can
+                receive hypes — send a request first if needed.
+              </p>
               <div className="ms-send-list">
                 {sendMatches.length === 0 ? (
                   <p className="pick-empty">
                     No one found — ask a friend to join FesGH first.
                   </p>
                 ) : (
-                  sendMatches.map((p) => (
-                    <button
-                      key={p.id}
-                      className="user-row"
-                      onClick={() => setFriend(p)}
-                    >
-                      <Avatar
-                        name={p.name}
-                        seed={p.avatar ?? 0}
-                        src={p.avatar_url || null}
-                        size={36}
-                      />
-                      <b>{p.name}</b>
-                      <i className="fa-solid fa-chevron-right" />
-                    </button>
-                  ))
+                  sendMatches.map((p) => {
+                    const status = friendStatus(p.id);
+                    const isF = status === "friends";
+                    return isF ? (
+                      <button
+                        key={p.id}
+                        className="user-row"
+                        onClick={() => setFriend(p)}
+                      >
+                        <Avatar
+                          name={p.name}
+                          seed={p.avatar ?? 0}
+                          src={p.avatar_url || null}
+                          size={36}
+                        />
+                        <b>{p.name}</b>
+                        <i className="fa-solid fa-chevron-right" />
+                      </button>
+                    ) : (
+                      <div className="user-row ms-not-friend" key={p.id}>
+                        <Avatar
+                          name={p.name}
+                          seed={p.avatar ?? 0}
+                          src={p.avatar_url || null}
+                          size={36}
+                        />
+                        <b>{p.name}</b>
+                        {status === "outgoing" ? (
+                          <em className="ms-friend-pending">
+                            <i className="fa-solid fa-hourglass-half" /> Request sent
+                          </em>
+                        ) : (
+                          <button
+                            className="ms-add-friend"
+                            onClick={() => sendFriendRequest(p.id)}
+                          >
+                            <i
+                              className={`fa-solid ${
+                                status === "incoming"
+                                  ? "fa-user-check"
+                                  : "fa-user-plus"
+                              }`}
+                            />{" "}
+                            {status === "incoming" ? "Accept request" : "Add friend"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1011,7 +1284,17 @@ export default function Messages({ compose, sendHype, q, setTab }) {
         </div>
       )}
 
-      {/* Make a group */}
+      {/* Video recorder for a GROUP — the clip posts to the group (and the
+          Hype feed when the group setting is on). */}
+      {groupVideoGroup && (
+        <VideoRecorder
+          sendToName={groupVideoGroup.name}
+          onDone={handleGroupVideoDone}
+          onCancel={() => setGroupVideoGroup(null)}
+        />
+      )}
+
+      {/* Make a group — picture cover, no emoji picker anymore. */}
       {createOpen && (
         <Modal title="Make a group" onClose={() => setCreateOpen(false)}>
           <form onSubmit={createGroupNow}>
@@ -1044,18 +1327,51 @@ export default function Messages({ compose, sendHype, q, setTab }) {
               />
             </div>
             <div className="field">
-              <label>Cover</label>
-              <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {COVERS.map((c) => (
+              <label>Cover photo</label>
+              <div className="group-cover-upload">
+                {isUrl(groupForm.cover) ? (
+                  <img
+                    src={groupForm.cover}
+                    alt="Cover preview"
+                    className="group-cover-preview"
+                  />
+                ) : (
+                  <div className="group-cover-placeholder">
+                    <i className="fa-solid fa-image" />
+                    <span>No cover yet</span>
+                  </div>
+                )}
+                <div className="group-cover-actions">
                   <button
                     type="button"
-                    key={c}
-                    className={`chip group-cover-chip ${groupForm.cover === c ? "active" : ""}`}
-                    onClick={() => setGroupForm((f) => ({ ...f, cover: c }))}
+                    className="btn btn-sm btn-outline"
+                    onClick={() => coverFileRef.current?.click()}
+                    disabled={coverUploading}
                   >
-                    {c}
+                    {coverUploading ? (
+                      <i className="fa-solid fa-spinner fa-spin icon" />
+                    ) : (
+                      <i className="fa-solid fa-camera icon" />
+                    )}
+                    {isUrl(groupForm.cover) ? "Change photo" : "Upload cover"}
                   </button>
-                ))}
+                  {isUrl(groupForm.cover) && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline danger"
+                      onClick={() => setGroupForm((f) => ({ ...f, cover: null }))}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={coverFileRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={onPickCover}
+                />
               </div>
             </div>
             <div className="designer-save">
@@ -1071,6 +1387,81 @@ export default function Messages({ compose, sendHype, q, setTab }) {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Invite friends to the group */}
+      {inviteOpen && inviteGroup && (
+        <Modal
+          title={`Invite to ${inviteGroup.name}`}
+          onClose={() => setInviteOpen(false)}
+        >
+          <div className="user-search">
+            <div className="search">
+              <i className="fa-solid fa-magnifying-glass" />
+              <input
+                placeholder="Search your friends…"
+                value={inviteQuery}
+                onChange={(e) => setInviteQuery(e.target.value)}
+                aria-label="Search friends to invite"
+              />
+            </div>
+          </div>
+          <div className="ms-invite-list">
+            {inviteMatches.length === 0 ? (
+              <p className="pick-empty">
+                {friends.length === 0
+                  ? "You don't have friends to invite yet — send friend requests first."
+                  : "Everyone you know is already in this group."}
+              </p>
+            ) : (
+              inviteMatches.map((p) => {
+                const on = inviteSel.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    className={`user-row ${on ? "selected" : ""}`}
+                    onClick={() =>
+                      setInviteSel((s) =>
+                        on ? s.filter((x) => x !== p.id) : [...s, p.id]
+                      )
+                    }
+                  >
+                    <Avatar
+                      name={p.name}
+                      seed={p.avatar ?? 0}
+                      src={p.avatar_url || null}
+                      size={36}
+                    />
+                    <b>{p.name}</b>
+                    <i
+                      className={`fa-solid ${
+                        on ? "fa-square-check" : "fa-square"
+                      }`}
+                    />
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div className="designer-save">
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setInviteOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!inviteSel.length}
+              onClick={doInvite}
+            >
+              <i className="fa-solid fa-user-plus icon" /> Invite{" "}
+              {inviteSel.length > 0 ? `(${inviteSel.length})` : ""}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

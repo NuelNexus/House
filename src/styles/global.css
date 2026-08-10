@@ -10196,7 +10196,330 @@ html[data-mode="dark"][data-bg="image"] body::before {
   }
 }
 
-/* Affiliate tab — the "or post a party idea" split under the apply CTA */
+/* ============================================================
+   Groups as chats — image covers, chat bubbles, video posts,
+   invites, friend requests, group settings
+   ============================================================ */
+
+/* Cover photo inside the round avatar slot */
+.ms-group-cover.has-img {
+  background-size: cover;
+  background-position: center;
+  background-color: var(--paper-2);
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* Group thread bubbles — reuse chat-msg, with room for video */
+.ms-group-posts {
+  gap: 16px;
+}
+
+.ms-group-posts .chat-msg {
+  max-width: 82%;
+}
+
+.group-chat-msg .chat-msg-content {
+  max-width: min(460px, 100%);
+  gap: 10px;
+}
+
+.group-chat-msg .chat-msg-text {
+  background: var(--paper-2);
+}
+
+.group-chat-msg.owner .chat-msg-text {
+  background: var(--chat-accent);
+  color: #fff;
+}
+
+.group-chat-msg .gallery-item-del {
+  width: fit-content;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding: 4px 0;
+  margin-left: auto;
+}
+
+.group-chat-video {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #000;
+  display: block;
+}
+
+.group-chat-msg.owner .group-chat-video {
+  align-self: flex-end;
+}
+
+/* Composer now sits at the bottom of the thread, like the DM bar */
+.ms-group-composer {
+  border-bottom: 0;
+}
+
+.ms-group-cam {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ms-group-cam:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Owner-only "post to hype feed" toggle in the group header */
+.ms-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.ms-group-toggle:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.ms-group-toggle input {
+  accent-color: var(--rose-deep);
+}
+
+/* The + invite bubble at the end of the members strip */
+.ms-group-member.ms-group-invite {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px dashed var(--ink);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ms-group-member.ms-group-invite:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Friend requests tab + rows */
+.ms-requests-tab {
+  position: relative;
+}
+
+.ms-tab-badge {
+  position: absolute;
+  top: -7px;
+  right: -8px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 50px;
+  background: var(--rose-deep);
+  color: var(--paper);
+  font-size: 10px;
+  line-height: 17px;
+  text-align: center;
+}
+
+.ms-requests {
+  overflow-y: auto;
+}
+
+.ms-request-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.ms-request-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.ms-request-mid b {
+  display: block;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ms-request-mid small {
+  color: var(--ink-soft);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Send-hype picker: friends selectable, non-friends get a gate */
+.ms-send-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 0.5px;
+  padding: 10px 18px 0;
+  line-height: 1.5;
+}
+
+.ms-send-hint i {
+  color: var(--rose-deep);
+  margin-right: 6px;
+}
+
+.ms-not-friend {
+  opacity: 0.92;
+  cursor: default;
+}
+
+.ms-add-friend {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ms-add-friend:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.ms-friend-pending {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Invite modal */
+.ms-invite-list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: 14px;
+}
+
+.user-row.selected {
+  background: rgba(var(--ink-rgb), 0.06);
+}
+
+.user-row.selected i {
+  color: var(--rose-deep);
+}
+
+/* Group create — picture cover upload */
+.group-cover-upload {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.group-cover-preview {
+  width: 86px;
+  height: 86px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid var(--ink);
+}
+
+.group-cover-placeholder {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  border: 1px dashed var(--line);
+  background: var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.group-cover-placeholder i {
+  font-size: 20px;
+}
+
+.group-cover-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Add friend button states on public profiles */
+.friend-btn.requested {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.friend-btn.accept,
+.friend-btn.friends {
+  background: var(--rose-deep);
+  border-color: var(--rose-deep);
+}
+
+.friend-btn.friends::after {
+  background: var(--paper);
+}
+
+.btn-outline.danger {
+  border-color: rgba(160, 70, 70, 0.5);
+  color: var(--rose-deep);
+}
+
+.btn-outline.danger::after {
+  background: var(--rose-deep);
+}
+
+.btn-outline.danger:hover {
+  color: var(--paper);
+}
+
 .affiliate-or {
   margin: 16px auto 12px;
   color: var(--ink-soft);
@@ -10251,4 +10574,25 @@ html[data-mode="dark"][data-bg="image"] body::before {
     align-items: stretch;
     text-align: center;
   }
+}
+
+/* Hint above the pool grid — explains the affiliate Post action */
+.pool-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.pool-hint i {
+  color: var(--gold);
+  font-size: 14px;
+}
+.pool-hint b {
+  color: var(--ink);
 }

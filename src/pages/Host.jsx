@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useStore, COMMISSION_RATE, AFFILIATE_RATE } from "../context/StoreContext";
+import { useStore, COMMISSION_RATE, AFFILIATE_MARGIN_RATE } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
+import { payWithPaystack } from "../lib/paystack";
 import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 import Modal from "../components/Modal";
 import TicketDesigner from "../components/TicketDesigner";
@@ -10,15 +11,19 @@ import Reveal from "../components/Reveal";
 
 // ------------------------------------------------------------------
 // Affiliate — two roles, never mixed:
-//   · HOST (anyone signed in) posts a party's details. It lands in the
-//     pool below and stays there until an approved affiliate reposts it.
-//     The host keeps 65% of every ticket sold on a repost of their party.
-//   · AFFILIATE (approved by the admin) reposts host parties from the
-//     pool with their OWN price + ticket design — the repost is what goes
-//     live on the Events page. They earn 5% on every sale of a repost,
-//     and share their repost link to bring people to the site.
-//   · Split per sale: 5% affiliate · 65% host · 30% platform.
+//   · HOST (anyone signed in) posts a party's details + base price. It
+//     lands in the pool below and stays there until an approved
+//     affiliate reposts it. The host keeps 70% of their base price on
+//     every ticket sold on a repost of their party.
+//   · AFFILIATE (approved by the admin after paying the 40 GHS fee)
+//     reposts host parties from the pool with their OWN price — the
+//     repost is what goes live on the Events page. They keep 70% of
+//     their margin (their price − the host's base price).
+//   · Split per sale: platform 30% of the sale (= 30% of the base +
+//     30% of the margin) · host 70% of base · affiliate 70% of margin.
 // ------------------------------------------------------------------
+
+const AFFILIATE_FEE = 40;
 
 const shareUrl = (id) =>
   `${window.location.origin}${window.location.pathname}#party/${id}`;
@@ -59,25 +64,31 @@ export default function Host({ setTab }) {
     return m;
   }, [hostPartyPool, myReposts, userParties]);
 
-  // Repost sales — the affiliate's 5% per sale, grouped per repost.
+  // Repost sales — the affiliate's margin (price − base) × 70%.
   const affiliateStats = useMemo(() => {
     const soldByParty = {};
     let commission = 0;
     affiliateLogs.forEach((l) => {
       const price = Number(l.price) || 0;
-      const aff = Number(l.affiliate_share) || Math.round(price * AFFILIATE_RATE);
+      const base = Number(l.original_price) || 0;
+      const margin = Math.max(0, price - base);
+      const aff =
+        Number(l.affiliate_share) || Math.round(margin * AFFILIATE_MARGIN_RATE);
       soldByParty[l.party_id] = (soldByParty[l.party_id] || 0) + 1;
       commission += aff;
     });
     return { commission, sold: affiliateLogs.length, soldByParty };
   }, [affiliateLogs]);
 
-  // Host sales — the 65% the party owner keeps on every repost sale.
+  // Host sales — the 70% of the base price the party owner keeps.
   const hostStats = useMemo(() => {
     let earnings = 0;
     hostLogs.forEach((l) => {
       const price = Number(l.price) || 0;
-      const aff = Number(l.affiliate_share) || Math.round(price * AFFILIATE_RATE);
+      const base = Number(l.original_price) || 0;
+      const margin = Math.max(0, price - base);
+      const aff =
+        Number(l.affiliate_share) || Math.round(margin * AFFILIATE_MARGIN_RATE);
       const plat = Number(l.commission) || Math.round(price * COMMISSION_RATE);
       earnings += Math.max(0, price - aff - plat);
     });
@@ -138,9 +149,26 @@ export default function Host({ setTab }) {
   const apply = async () => {
     if (busy) return;
     setBusy(true);
-    const ok = await applyAffiliate();
-    setBusy(false);
-    if (ok) refreshAffiliate();
+    try {
+      // The 40 GHS application fee is paid up front via Paystack — the
+      // application is only submitted once the charge goes through.
+      if (!user?.email) {
+        throw new Error("Add an email to your account before paying the application fee.");
+      }
+      const feeRef = await payWithPaystack({
+        email: user.email,
+        amount: AFFILIATE_FEE,
+        label: "Affiliate application fee",
+      });
+      const ok = await applyAffiliate(feeRef);
+      if (ok) refreshAffiliate();
+    } catch (err) {
+      notify(
+        err?.message || "Payment didn't go through — your application wasn't sent."
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const head = (
@@ -150,11 +178,13 @@ export default function Host({ setTab }) {
         Affiliate<span className="outline">.</span>
       </h1>
       <p className="lede">
-        Hosts post their parties and they land in the pool below. Approved
-        affiliates repost a party with their own price, put it on the
-        Events page and earn {Math.round(AFFILIATE_RATE * 100)}% of every
-        sale — the host keeps {Math.round((1 - COMMISSION_RATE - AFFILIATE_RATE) * 100)}%,
-        the platform takes {Math.round(COMMISSION_RATE * 100)}%.
+        Hosts post their parties with a base price and they land in the
+        pool below. Approved affiliates repost a party with their own
+        price, put it on the Events page and keep {Math.round(AFFILIATE_MARGIN_RATE * 100)}%
+        of their margin — the host keeps 70% of their base price, the
+        platform takes {Math.round(COMMISSION_RATE * 100)}% of the sale
+        ({Math.round(COMMISSION_RATE * 100)}% of the base + {Math.round(COMMISSION_RATE * 100)}%
+        of the margin). Applying costs a one-time {GH_CD(AFFILIATE_FEE)} fee.
       </p>
     </header>
   );
@@ -171,6 +201,14 @@ export default function Host({ setTab }) {
           <i className="fa-solid fa-plus icon" /> Post a party
         </button>
       </div>
+      {isApproved && hostPartyPool.length > 0 && (
+        <p className="pool-hint">
+          <i className="fa-solid fa-upload" /> Tap <b>Post</b> on a party to
+          set your price — it goes live on the Events page and you keep{" "}
+          {Math.round(AFFILIATE_MARGIN_RATE * 100)}% of your margin on every
+          sale.
+        </p>
+      )}
       {hostPartyPool.length === 0 ? (
         <div className="empty-state">
           <i className="fa-solid fa-champagne-glasses" />
@@ -209,18 +247,22 @@ export default function Host({ setTab }) {
                       <b>{p.rsvps}</b> RSVPs
                     </span>
                   )}
+                  <span>
+                    <b>{GH_CD(Number(p.price) || 0)}</b> base price
+                  </span>
                 </div>
                 <div className="card-foot host-party-actions">
                   {isApproved && !mine && !alreadyReposted ? (
                     <button
                       className="btn btn-sm"
                       onClick={() => setTab(`parties/new?repost=${p.id}`)}
+                      title="Set your price and put this party on the Events page"
                     >
-                      <i className="fa-solid fa-retweet icon" /> Repost with your price
+                      <i className="fa-solid fa-upload icon" /> Post
                     </button>
                   ) : alreadyReposted && isApproved ? (
                     <button className="btn btn-sm" disabled>
-                      <i className="fa-solid fa-check icon" /> Reposted by you
+                      <i className="fa-solid fa-check icon" /> Posted by you
                     </button>
                   ) : (
                     <button className="btn btn-sm" onClick={() => setTab(`party/${p.id}`)}>
@@ -255,8 +297,8 @@ export default function Host({ setTab }) {
           <h2>Sign in to open the Affiliate program</h2>
           <p>
             Post your party into the pool, or apply to become an affiliate
-            and repost parties with your own price — earning 5% on every
-            sale you drive.
+            and repost parties with your own price — keeping 70% of your
+            margin on every sale you drive.
           </p>
           <button className="btn" onClick={() => openAuth("host")}>
             Sign in to continue <i className="fa-solid fa-arrow-right icon" />
@@ -280,7 +322,8 @@ export default function Host({ setTab }) {
             <p className="affiliate-pitch-lead">
               Affiliates don't host — they repost. Pick any host's party
               from the pool, attach your own price and put it on the scene.
-              Every ticket sold on your repost pays you 5%.
+              Every ticket sold on your repost pays you 70% of your margin.
+              Applying costs a one-time {GH_CD(AFFILIATE_FEE)} fee.
             </p>
             <div className="affiliate-perks">
               <div className="affiliate-perk">
@@ -295,10 +338,10 @@ export default function Host({ setTab }) {
               </div>
               <div className="affiliate-perk">
                 <i className="fa-solid fa-piggy-bank" />
-                <b>Earn {Math.round(AFFILIATE_RATE * 100)}% per sale</b>
+                <b>Keep {Math.round(AFFILIATE_MARGIN_RATE * 100)}% of your margin</b>
                 <span>
-                  The host keeps {Math.round((1 - COMMISSION_RATE - AFFILIATE_RATE) * 100)}%,
-                  you take {Math.round(AFFILIATE_RATE * 100)}% of every ticket sold.
+                  The host keeps 70% of their base price, you keep 70% of
+                  yours, the platform takes {Math.round(COMMISSION_RATE * 100)}%.
                 </span>
               </div>
             </div>
@@ -310,11 +353,12 @@ export default function Host({ setTab }) {
             >
               {busy ? (
                 <>
-                  <i className="fa-solid fa-spinner fa-spin icon" /> Applying…
+                  <i className="fa-solid fa-spinner fa-spin icon" /> Paying {GH_CD(AFFILIATE_FEE)}…
                 </>
               ) : (
                 <>
-                  Apply to become an affiliate <i className="fa-solid fa-arrow-right icon" />
+                  Apply to become an affiliate · {GH_CD(AFFILIATE_FEE)}{" "}
+                  <i className="fa-solid fa-arrow-right icon" />
                 </>
               )}
             </button>
@@ -324,9 +368,9 @@ export default function Host({ setTab }) {
               <div>
                 <b>Got a party? Post it as a host</b>
                 <p>
-                  Post your party's details — it lands in the pool for
-                  affiliates to repost with their price. You keep 65% of
-                  every sale they make.
+                  Post your party's details + base price — it lands in the
+                  pool for affiliates to repost. You keep 70% of your base
+                  price on every sale they make.
                 </p>
               </div>
               <button
@@ -356,7 +400,7 @@ export default function Host({ setTab }) {
           <p>
             Your affiliate application is with the admin. Once approved you
             can repost parties from the pool with your own price and start
-            earning your 5% commission. You can still post your own parties
+            keeping 70% of your margin. You can still post your own parties
             as a host while you wait.
           </p>
           <button className="btn btn-outline" onClick={() => refreshAffiliate()}>
@@ -411,17 +455,16 @@ export default function Host({ setTab }) {
               <i className="fa-solid fa-badge-check" /> Approved affiliate
             </span>
             <p>
-              Repost host parties with your own price — you earn{" "}
-              <b>{Math.round(AFFILIATE_RATE * 100)}%</b> of every ticket sold
-              on your reposts. The host keeps{" "}
-              {Math.round((1 - COMMISSION_RATE - AFFILIATE_RATE) * 100)}%, the
-              platform takes {Math.round(COMMISSION_RATE * 100)}%.
+              Repost host parties with your own price — you keep{" "}
+              <b>{Math.round(AFFILIATE_MARGIN_RATE * 100)}%</b> of your margin
+              on every ticket sold on your reposts. The host keeps 70% of
+              their base price, the platform takes {Math.round(COMMISSION_RATE * 100)}%.
             </p>
           </div>
           <div className="affiliate-summary-stats">
             <div>
               <b>{GH_CD(affiliateStats.commission)}</b>
-              <span>your {Math.round(AFFILIATE_RATE * 100)}% commission</span>
+              <span>your margin ({Math.round(AFFILIATE_MARGIN_RATE * 100)}%)</span>
             </div>
             <div>
               <b>{affiliateStats.sold}</b>
@@ -429,7 +472,7 @@ export default function Host({ setTab }) {
             </div>
             <div>
               <b>{GH_CD(hostStats.earnings)}</b>
-              <span>host earnings ({Math.round((1 - COMMISSION_RATE - AFFILIATE_RATE) * 100)}%)</span>
+              <span>host earnings (70% of base)</span>
             </div>
           </div>
         </div>
@@ -453,8 +496,9 @@ export default function Host({ setTab }) {
             <h3>No reposts yet</h3>
             <p>
               Pick a party from the pool above and repost it with your own
-              price — it goes live on the Events page and every sale pays
-              you 5%. Share your repost link to bring people in.
+              price — it goes live on the Events page and you keep 70% of
+              your margin on every sale. Share your repost link to bring
+              people in.
             </p>
           </div>
         ) : (
@@ -480,6 +524,11 @@ export default function Host({ setTab }) {
                     <span>
                       <b>{GH_CD(p.price)}</b> your price
                     </span>
+                    {Number(p.originalPrice) > 0 && (
+                      <span>
+                        <b>{GH_CD(Number(p.originalPrice))}</b> host base
+                      </span>
+                    )}
                     {onSale && (
                       <>
                         <span>
@@ -572,11 +621,11 @@ export default function Host({ setTab }) {
         )}
       </Reveal>
 
-      {/* Sales you drove — the 5% commission on every repost sale */}
+      {/* Sales you drove — the margin share on every repost sale */}
       <Reveal>
         <div className="host-toolbar">
           <div className="section-label" style={{ margin: 0 }}>
-            Repost sales — your {Math.round(AFFILIATE_RATE * 100)}% ({affiliateLogs.length})
+            Repost sales — your {Math.round(AFFILIATE_MARGIN_RATE * 100)}% of margin ({affiliateLogs.length})
           </div>
           <button className="btn btn-sm btn-outline" onClick={() => setTab("verify")}>
             <i className="fa-solid fa-shield-halved icon" /> Verify a ticket
@@ -587,8 +636,8 @@ export default function Host({ setTab }) {
             <i className="fa-solid fa-receipt" />
             <h3>No repost sales yet</h3>
             <p>
-              When someone buys a ticket on one of your reposts, your 5%
-              commission and the buyer's details show up here. Share your
+              When someone buys a ticket on one of your reposts, your 70%
+              margin share and the buyer's details show up here. Share your
               repost links to get the word out.
             </p>
           </div>
@@ -600,7 +649,7 @@ export default function Host({ setTab }) {
                   <th>Event</th>
                   <th>Buyer</th>
                   <th>Price</th>
-                  <th>Your {Math.round(AFFILIATE_RATE * 100)}%</th>
+                  <th>Your {Math.round(AFFILIATE_MARGIN_RATE * 100)}% of margin</th>
                   <th>Ticket hash</th>
                   <th>Date</th>
                 </tr>
@@ -608,7 +657,11 @@ export default function Host({ setTab }) {
               <tbody>
                 {affiliateLogs.map((l) => {
                   const price = Number(l.price) || 0;
-                  const aff = Number(l.affiliate_share) || Math.round(price * AFFILIATE_RATE);
+                  const base = Number(l.original_price) || 0;
+                  const margin = Math.max(0, price - base);
+                  const aff =
+                    Number(l.affiliate_share) ||
+                    Math.round(margin * AFFILIATE_MARGIN_RATE);
                   return (
                     <tr key={l.id}>
                       <td>{partyById.get(l.party_id)?.title || "Event"}</td>
@@ -646,14 +699,13 @@ export default function Host({ setTab }) {
         )}
       </Reveal>
 
-      {/* Host sales — the 65% you keep when your parties get reposted */}
+      {/* Host sales — the 70% of base you keep when your parties get reposted */}
       {hostLogs.length > 0 && (
         <Reveal>
           <div className="host-toolbar">
             <div className="section-label" style={{ margin: 0 }}>
-              Your parties' sales — your{" "}
-              {Math.round((1 - COMMISSION_RATE - AFFILIATE_RATE) * 100)}% (
-              {hostLogs.length})
+              Your parties' sales — your 70% of base ({
+              hostLogs.length})
             </div>
           </div>
           <div className="table-scroll">
@@ -664,7 +716,7 @@ export default function Host({ setTab }) {
                   <th>Buyer</th>
                   <th>Price</th>
                   <th>
-                    Your {Math.round((1 - COMMISSION_RATE - AFFILIATE_RATE) * 100)}%
+                    Your 70% of base
                   </th>
                   <th>Ticket hash</th>
                   <th>Date</th>
@@ -673,7 +725,11 @@ export default function Host({ setTab }) {
               <tbody>
                 {hostLogs.map((l) => {
                   const price = Number(l.price) || 0;
-                  const aff = Number(l.affiliate_share) || Math.round(price * AFFILIATE_RATE);
+                  const base = Number(l.original_price) || 0;
+                  const margin = Math.max(0, price - base);
+                  const aff =
+                    Number(l.affiliate_share) ||
+                    Math.round(margin * AFFILIATE_MARGIN_RATE);
                   const plat = Number(l.commission) || Math.round(price * COMMISSION_RATE);
                   const mine = Math.max(0, price - aff - plat);
                   return (

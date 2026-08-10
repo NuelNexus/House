@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { SEED_PARTIES, SEED_REVIEWS, SEED_TICKETS, SEED_BLOG } from "../data/seed";
 import { supabase } from "../lib/supabase";
 
 const StoreContext = createContext(null);
@@ -32,11 +31,15 @@ function save(key, value) {
 const genCode = () =>
   `FST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-// The platform's share of every ticket sale — the creator's income.
-// Affiliate hosts earn their own commission on top (AFFILIATE_RATE,
-// 5%) and the event host keeps the rest (65%).
+// Every ticket sale splits on the party's two prices:
+//   base price  = what the HOST set when they posted the party
+//   sale price  = the repost price the buyer actually pays
+// The platform takes 30% of the base + 30% of the affiliate's margin
+// (sale − base) — which is exactly 30% of the sale price. The host
+// keeps 70% of their base price, and the affiliate keeps 70% of their
+// margin (AFFILIATE_MARGIN_RATE).
 export const COMMISSION_RATE = 0.3;
-export const AFFILIATE_RATE = 0.05;
+export const AFFILIATE_MARGIN_RATE = 0.7;
 
 // Unique per-ticket security hash shown to the buyer and logged for
 // the host (e.g. "A1B2-C3D4-E5F6-A7B8").
@@ -82,10 +85,12 @@ function mapPartyRow(p) {
     isUser: true, // column default — ownership is checked via userId now
     userId: p.user_id ?? null,
     affiliateId: p.affiliate_id ?? null,
-    // Original host of a repost (earns 65% of every repost sale) and the
+    // Original host of a repost (keeps 70% of their base price) and the
     // party a repost copies. Null on host-posted originals.
     hostId: p.host_id ?? null,
     sourcePartyId: p.source_party_id ?? null,
+    // The host's base price a repost marked up from — the split's anchor.
+    originalPrice: p.original_price ?? null,
     // Missing status = live (legacy). Every party is 'live' — host
     // originals just have no affiliate_id, so they stay in the pool.
     status: p.status ?? "live",
@@ -113,9 +118,9 @@ export function StoreProvider({ children }) {
   // Every party on the scene (all users), so the Parties page shows the
   // whole community — not just the signed-in user's own parties.
   const [communityParties, setCommunityParties] = useState([]);
-  // Host's sales log: every pass sold on their party tickets (their 65%).
+  // Host's sales log: every pass sold on their party tickets (70% of base).
   const [hostLogs, setHostLogs] = useState([]);
-  // Affiliate's sales log: every sale they drove via a repost (their 5%).
+  // Affiliate's sales log: every sale they drove via a repost (70% of margin).
   const [affiliateLogs, setAffiliateLogs] = useState([]);
   // Affiliates — every application (pending / approved / rejected).
   const [affiliates, setAffiliates] = useState([]);
@@ -146,14 +151,14 @@ export function StoreProvider({ children }) {
   // Derived lists. Declared before the callbacks below because
   // checkout depends on cartItems (via its dependency array).
   // ----------------------------------------------------------
-  // Every party (host originals + affiliate reposts). The Events page
-  // filters to reposts (marketplaceParties); host originals surface in
-  // the Affiliate tab's pool (hostPartyPool).
+  // Every party (host originals + affiliate reposts) — real user posts
+  // only. The Events page filters to reposts (marketplaceParties); host
+  // originals surface in the Affiliate tab's pool (hostPartyPool).
   const allParties = useMemo(() => {
     // user first (their freshest copy wins on id collisions), then the
-    // whole community scene, then the editorial seed parties.
+    // whole community scene.
     const map = new Map();
-    [...userParties, ...communityParties, ...SEED_PARTIES].forEach((p) => {
+    [...userParties, ...communityParties].forEach((p) => {
       if (p && p.id && (p.status ?? "live") === "live") map.set(p.id, p);
     });
     return [...map.values()];
@@ -171,7 +176,7 @@ export function StoreProvider({ children }) {
   );
 
   // Reposts this affiliate has made — their own priced listings of host
-  // parties. Every sale on one of these pays them the 5% commission.
+  // parties. Every sale on one of these pays them 70% of their margin.
   const myReposts = useMemo(
     () =>
       cloudUid
@@ -181,10 +186,11 @@ export function StoreProvider({ children }) {
   );
 
   // Hosted parties that are selling tickets become purchasable tickets.
-  // ONLY affiliate reposts sell — a host's original party has no price of
-  // its own, it waits in the pool until an affiliate reposts it. On a
-  // repost sale the ORIGINAL host keeps 65% (hostId), the reposting
-  // affiliate earns the 5% commission (affiliateId).
+  // ONLY affiliate reposts sell — a host's original party has no sale
+  // price of its own, it waits in the pool until an affiliate reposts it.
+  // On a repost sale the ORIGINAL host keeps 70% of the base price
+  // (hostId), the reposting affiliate keeps 70% of their margin
+  // (affiliateId), and the platform takes 30% of the sale.
   const communityTickets = useMemo(
     () =>
       communityParties
@@ -202,6 +208,7 @@ export function StoreProvider({ children }) {
           hostName: p.host,
           hostId: p.hostId || p.userId,
           affiliateId: p.affiliateId || null,
+          originalPrice: Number(p.originalPrice || 0),
           date: p.date,
           location: p.location,
           price: Number(p.ticketDesign.price || p.price || 0),
@@ -219,34 +226,26 @@ export function StoreProvider({ children }) {
         })),
     [communityParties]
   );
-  const allTickets = useMemo(
-    () => [...SEED_TICKETS, ...communityTickets],
-    [communityTickets]
-  );
+  // Real user tickets only — affiliate reposts that are on sale.
+  const allTickets = useMemo(() => communityTickets, [communityTickets]);
 
   // The Events page = affiliate REPOSTS only. A host's original party is
-  // invisible here until an affiliate reposts it with a price; seeds and
-  // other un-reposted rows stay visible on profiles but not on Events.
+  // invisible here until an affiliate reposts it with a price; un-reposted
+  // rows stay visible on profiles but not on Events.
   const marketplaceParties = useMemo(
     () => allParties.filter((p) => !!p.affiliateId),
     [allParties]
   );
 
   // Tickets on sale in the marketplace — only those whose source party
-  // was claimed by an affiliate (SEED_TICKETS are editorial, not posted
-  // by affiliates, so they stay off the Events page too).
+  // was claimed by an affiliate.
   const marketplaceTickets = useMemo(
     () => communityTickets.filter((t) => t.party && !!t.party.affiliateId),
     [communityTickets]
   );
-  const allReviews = useMemo(
-    () => [...userReviews, ...SEED_REVIEWS],
-    [userReviews]
-  );
-  const allPosts = useMemo(
-    () => [...userPosts, ...SEED_BLOG],
-    [userPosts]
-  );
+  // Real user reviews + posts only.
+  const allReviews = useMemo(() => userReviews, [userReviews]);
+  const allPosts = useMemo(() => userPosts, [userPosts]);
   const cartItems = useMemo(() => {
     return cart
       .map((i) => {
@@ -449,6 +448,7 @@ export function StoreProvider({ children }) {
         affiliateId: p.affiliate_id ?? null,
         hostId: p.host_id ?? null,
         sourcePartyId: p.source_party_id ?? null,
+        originalPrice: p.original_price ?? null,
         status: p.status ?? "live",
         ticketDesign: p.ticket_design ?? null,
         ticketsSold: p.tickets_sold ?? 0,
@@ -492,7 +492,9 @@ export function StoreProvider({ children }) {
             date: t.date,
             location: t.location,
             price: Number(t.price),
+            originalPrice: Number(t.original_price ?? 0),
             commission: t.commission ?? null,
+            paymentRef: t.payment_reference ?? null,
             holder: parseHolder(t.holder),
             promoUsed: t.promo_used ?? null,
           }));
@@ -523,14 +525,15 @@ export function StoreProvider({ children }) {
 
   const addToCart = useCallback(
     (ticket, qty = 1) => {
-      // Snapshot the ticket at add time so hosted-party tickets (which
-      // aren't in SEED_TICKETS) survive checkout and the cart drawer.
+      // Snapshot the ticket at add time so hosted-party tickets survive
+      // checkout and the cart drawer.
       const snapshot = {
         id: ticket.id,
         name: ticket.name,
         date: ticket.date,
         location: ticket.location,
         price: ticket.price,
+        originalPrice: ticket.originalPrice || null,
         partyId: ticket.party?.id || (ticket.isParty ? ticket.id : null) || null,
         hostId: ticket.hostId || null,
         affiliateId: ticket.affiliateId || null,
@@ -615,21 +618,30 @@ export function StoreProvider({ children }) {
   // ----------------------------------------------------------
   // Affiliate hosts — apply, list, approve (creator's Admin panel)
   // ----------------------------------------------------------
-  const applyAffiliate = useCallback(async () => {
-    const uid = cloudUserRef.current?.id;
-    if (!uid) return false;
-    const { error } = await supabase.from("affiliates").upsert({
-      user_id: uid,
-      status: "pending",
-    });
-    if (error) {
-      console.warn("affiliate apply:", error.message);
-      notify("Couldn't apply right now — try again in a moment.");
-      return false;
-    }
-    notify("Application sent — the admin will review it soon.");
-    return true;
-  }, [notify]);
+  // Apply to become an affiliate. The 40 GHS application fee is paid
+  // via Paystack BEFORE the application is submitted — feeRef is the
+  // Paystack transaction reference proving the fee was paid.
+  const applyAffiliate = useCallback(
+    async (feeRef = null) => {
+      const uid = cloudUserRef.current?.id;
+      if (!uid) return false;
+      const { error } = await supabase.from("affiliates").upsert({
+        user_id: uid,
+        status: "pending",
+        fee_paid: !!feeRef,
+        fee_reference: feeRef || null,
+        fee_amount: 40,
+      });
+      if (error) {
+        console.warn("affiliate apply:", error.message);
+        notify("Couldn't apply right now — try again in a moment.");
+        return false;
+      }
+      notify("Fee paid — application sent, the admin will review it soon.");
+      return true;
+    },
+    [notify]
+  );
 
   const fetchAffiliates = useCallback(async () => {
     try {
@@ -709,7 +721,8 @@ export function StoreProvider({ children }) {
   }, [loadGroups, cloudUid]);
 
   // Realtime: group list + posts refresh live (needs the tables in the
-  // realtime publication, which the schema sets up).
+  // realtime publication, which the schema sets up). Also reloads when
+  // I'M added as a member (an invite) so the Join button flips to Joined.
   useEffect(() => {
     const channel = supabase
       .channel("community-groups")
@@ -717,6 +730,15 @@ export function StoreProvider({ children }) {
         "postgres_changes",
         { event: "*", schema: "public", table: "groups" },
         () => loadGroups()
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "group_members" },
+        (payload) => {
+          if (payload.new && payload.new.user_id === cloudUserRef.current?.id) {
+            loadGroups();
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -863,17 +885,198 @@ export function StoreProvider({ children }) {
   );
 
   const deleteGroupPost = useCallback(async (groupId, postId) => {
+    // A video post also created a hype row (it may be on the public feed
+    // if the group's videos_to_hype setting is on) — remove that too so
+    // nothing orphaned stays live, and clean up the storage file.
+    const { data: post } = await supabase
+      .from("group_posts")
+      .select("hype_id")
+      .eq("id", postId)
+      .maybeSingle();
     const { error } = await supabase
       .from("group_posts")
       .delete()
       .eq("id", postId);
     if (error) return false;
+    if (post?.hype_id) {
+      const { data: hype } = await supabase
+        .from("hypes")
+        .select("video_url")
+        .eq("id", post.hype_id)
+        .maybeSingle();
+      await supabase
+        .from("hypes")
+        .delete()
+        .eq("id", post.hype_id)
+        .catch((e) => console.warn("group hype delete:", e?.message));
+      if (hype?.video_url) {
+        const marker = "/object/public/hype/";
+        const idx = hype.video_url.indexOf(marker);
+        if (idx !== -1) {
+          const path = hype.video_url.slice(idx + marker.length).split("?")[0];
+          await supabase.storage.from("hype").remove([path]).catch(() => {});
+        }
+      }
+    }
     setGroupPosts((prev) => ({
       ...prev,
       [groupId]: (prev[groupId] || []).filter((p) => p.id !== postId),
     }));
     return true;
   }, []);
+
+  // Owner settings (e.g. videos_to_hype). Owner-only RLS in the schema.
+  const updateGroup = useCallback(
+    async (groupId, patch) => {
+      const { error } = await supabase
+        .from("groups")
+        .update(patch)
+        .eq("id", groupId);
+      if (error) {
+        console.warn("group update:", error.message);
+        notify("Couldn't save that setting.");
+        return false;
+      }
+      setGroups((prev) =>
+        prev.map((g) => (g.id === groupId ? { ...g, ...patch } : g))
+      );
+      return true;
+    },
+    [notify]
+  );
+
+  // Invite people into a group — any member can add their friends.
+  // Inserts membership rows directly (invited users are in). Existing
+  // members are filtered out first so the upsert never tries to update
+  // someone else's row (which RLS would reject) and the count only
+  // reflects genuinely-new invitees.
+  const inviteToGroup = useCallback(
+    async (groupId, userIds) => {
+      const already = new Set((groupMembers[groupId] || []).map((m) => m.user_id));
+      const ids = [...new Set((userIds || []).filter(Boolean))].filter(
+        (id) => !already.has(id)
+      );
+      if (!ids.length) {
+        notify("Everyone picked is already in the group.");
+        return 0;
+      }
+      const rows = ids.map((user_id) => ({ group_id: groupId, user_id, role: "member" }));
+      const { data, error } = await supabase
+        .from("group_members")
+        .insert(rows)
+        .select("*");
+      if (error) {
+        console.warn("group invite:", error.message);
+        notify("Couldn't invite right now.");
+        return 0;
+      }
+      const added = data || [];
+      setGroupMembers((prev) => {
+        const list = prev[groupId] || [];
+        const have = new Set(list.map((m) => m.user_id));
+        return { ...prev, [groupId]: [...added.filter((m) => !have.has(m.user_id)), ...list] };
+      });
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId
+            ? { ...g, member_count: (g.member_count || 0) + added.length }
+            : g
+        )
+      );
+      notify(added.length === 1 ? "1 person invited" : `${added.length} people invited`);
+      return added.length;
+    },
+    [groupMembers, notify]
+  );
+
+  // Upload a group cover photo to the groups bucket (creates the bucket
+  // if the schema hasn't run yet, mirroring the hype bucket fallback).
+  const uploadGroupCover = useCallback(async (file) => {
+    const me = cloudUserRef.current?.id;
+    if (!me) throw new Error("Sign in to upload a cover");
+    const ext = (file.name || "cover").split(".").pop().replace(/[^a-zA-Z0-9]/g, "") || "jpg";
+    const path = `groups/${me}/${Date.now()}-cover.${ext}`;
+    const bucket = supabase.storage.from("groups");
+    const upload = () => bucket.upload(path, file, { upsert: true, cacheControl: "3600" });
+    let { error } = await upload();
+    if (error) {
+      const { error: createErr } = await supabase.storage.createBucket("groups", {
+        public: true,
+      });
+      if (!createErr || /exist/i.test(createErr.message || "")) {
+        ({ error } = await upload());
+      }
+      if (error) throw new Error("Couldn't upload the cover — is the groups bucket set up?");
+    }
+    const { data } = supabase.storage.from("groups").getPublicUrl(path);
+    return data.publicUrl;
+  }, []);
+
+  // Post a VIDEO to a group. The clip also becomes a hype row: it shows
+  // on the public Hype feed when the group's videos_to_hype setting is on
+  // (default), otherwise it stays a group-only clip. Returns the post row.
+  const postGroupVideo = useCallback(
+    async (groupId, { blob, name, caption }) => {
+      const me = cloudUserRef.current?.id;
+      if (!me) throw new Error("Sign in to post");
+      const g = groups.find((x) => x.id === groupId);
+      if (!g) throw new Error("Group not found");
+      const toHype = g.videos_to_hype !== false;
+      // Upload to the hype bucket (same fallback as SocialContext).
+      const path = `hype/${me}/${Date.now()}-${(name || "clip.webm").replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+      const bucket = supabase.storage.from("hype");
+      const upload = () =>
+        bucket.upload(path, blob, { contentType: blob.type || "video/webm" });
+      let { error: upErr } = await upload();
+      if (upErr) {
+        const { error: createErr } = await supabase.storage.createBucket("hype", {
+          public: true,
+        });
+        if (!createErr || /exist/i.test(createErr.message || "")) {
+          ({ error: upErr } = await upload());
+        }
+        if (upErr) throw new Error("Couldn't upload the video.");
+      }
+      const { data: pub } = supabase.storage.from("hype").getPublicUrl(path);
+      const videoUrl = pub.publicUrl;
+      const text = (caption || "").trim();
+      const hashtags = (text.match(/#[\w]+/g) || []).slice(0, 8);
+      // The hype row: public feed when the group setting allows it.
+      const { data: hype, error: hypeErr } = await supabase
+        .from("hypes")
+        .insert({
+          user_id: me,
+          recipient_id: null,
+          video_url: videoUrl,
+          caption: text,
+          hashtags,
+          published: toHype,
+        })
+        .select("id")
+        .single();
+      if (hypeErr) throw new Error(hypeErr.message);
+      const { data: post, error: postErr } = await supabase
+        .from("group_posts")
+        .insert({
+          group_id: groupId,
+          user_id: me,
+          body: text || "Sent a video",
+          kind: "video",
+          video_url: videoUrl,
+          hype_id: hype.id,
+        })
+        .select("*")
+        .single();
+      if (postErr) throw new Error(postErr.message);
+      setGroupPosts((prev) => ({
+        ...prev,
+        [groupId]: [post, ...(prev[groupId] || [])],
+      }));
+      notify(toHype ? "Video posted to the group + Hype feed" : "Video posted to the group");
+      return post;
+    },
+    [groups, notify]
+  );
 
   const deleteGroup = useCallback(
     async (groupId) => {
@@ -981,7 +1184,7 @@ export function StoreProvider({ children }) {
   const clearCart = useCallback(() => setCart([]), []);
 
   const checkout = useCallback(
-    (holder, promoCode) => {
+    (holder, promoCode, paymentRef = null) => {
       const code = (promoCode || "").trim().toUpperCase();
       // A platform-wide code the creator runs — applies to every ticket.
       const gPromo = globalPromos.find((g) => g.code === code);
@@ -1000,6 +1203,16 @@ export function StoreProvider({ children }) {
           gPromo ? Math.max(0, Math.min(100, Number(gPromo.pct) || 0)) : 0
         );
         const unit = pct > 0 ? Math.round(t.price * (1 - pct / 100)) : t.price;
+        // The split is anchored on the host's base price (the party's
+        // original_price on a repost). Platform = 30% of the sale, host
+        // keeps 70% of their base, affiliate keeps 70% of the margin.
+        const base = Math.max(0, Number(item.originalPrice) || 0);
+        const margin = Math.max(0, unit - base);
+        const commission = Math.round(unit * COMMISSION_RATE);
+        const affiliateShare =
+          item.affiliateId && base > 0
+            ? Math.round(margin * AFFILIATE_MARGIN_RATE)
+            : 0;
         return Array.from({ length: item.qty }, () => ({
           code: genCode(),
           hash: genHash(),
@@ -1008,8 +1221,10 @@ export function StoreProvider({ children }) {
           date: t.date,
           location: t.location,
           price: unit,
-          commission: Math.round(unit * COMMISSION_RATE),
-          affiliateShare: Math.round(unit * AFFILIATE_RATE),
+          originalPrice: base,
+          commission,
+          affiliateShare,
+          paymentRef,
           holder,
           partyId: item.partyId || null,
           hostId: item.hostId || null,
@@ -1036,8 +1251,10 @@ export function StoreProvider({ children }) {
               date: t.date,
               location: t.location,
               price: t.price,
+              original_price: t.originalPrice ?? null,
               commission: t.commission ?? null,
               affiliate_share: t.affiliateShare ?? null,
+              payment_reference: t.paymentRef ?? null,
               holder: JSON.stringify(t.holder),
               design: t.design ? JSON.stringify(t.design) : null,
               promo_used: t.promoUsed ? JSON.stringify(t.promoUsed) : null,
@@ -1048,8 +1265,8 @@ export function StoreProvider({ children }) {
           });
 
         // Sale log: every pass sold on a repost lands once for the
-        // ORIGINAL host (host_id — they keep 65%) and once for the
-        // reposting affiliate (affiliate_id — they earn the 5%).
+        // ORIGINAL host (host_id — they keep 70% of the base) and once
+        // for the reposting affiliate (affiliate_id — 70% of margin).
         const logRows = purchased
           .filter((t) => t.partyId && t.hostId)
           .map((t) => ({
@@ -1063,8 +1280,10 @@ export function StoreProvider({ children }) {
             code: t.code,
             hash: t.hash,
             price: t.price,
+            original_price: t.originalPrice ?? null,
             commission: t.commission ?? null,
             affiliate_share: t.affiliateShare ?? null,
+            payment_reference: t.paymentRef ?? null,
           }));
         if (logRows.length) {
           supabase
@@ -1082,10 +1301,11 @@ export function StoreProvider({ children }) {
     [cartItems, notify, globalPromos]
   );
 
-  // Anyone signed in can post a party — they become the HOST. The party
-  // lands in the pool on the Affiliate page (status 'live' but no
-  // affiliate_id, so it never appears on the Events page) until an
-  // approved affiliate reposts it with their own price.
+  // Anyone signed in can post a party — they become the HOST and set
+  // their base price. The party lands in the pool on the Affiliate page
+  // (status 'live' but no affiliate_id, so it never appears on the
+  // Events page) until an approved affiliate reposts it with their own
+  // price. On every repost sale the host keeps 70% of this base price.
   const postParty = useCallback((party) => {
     const record = {
       ...party,
@@ -1096,6 +1316,7 @@ export function StoreProvider({ children }) {
       affiliateId: null,
       hostId: null,
       sourcePartyId: null,
+      originalPrice: Number(party.price) || 0,
       userId: cloudUserRef.current?.id ?? null,
     };
     setUserParties((prev) => [record, ...prev]);
@@ -1114,6 +1335,7 @@ export function StoreProvider({ children }) {
           date: record.date,
           location: record.location,
           price: record.price,
+          original_price: record.originalPrice,
           capacity: record.capacity,
           description: record.description,
           category: record.category,
@@ -1132,8 +1354,9 @@ export function StoreProvider({ children }) {
 
   // An approved affiliate REPOSTS a host's party: a brand-new listing — a
   // copy of the original with the affiliate's own price + ticket design.
-  // The original host keeps 65% of every sale (host_id pinned by the
-  // lifecycle trigger); the affiliate earns the 5% commission. Returns
+  // original_price stays pinned to the host's base price so every sale
+  // splits as: platform 30% of sale · host 70% of base · affiliate 70%
+  // of the margin (host_id pinned by the lifecycle trigger). Returns
   // the new repost row or null.
   const repostParty = useCallback(
     (partyId, { price, capacity, ticketDesign }) => {
@@ -1145,6 +1368,7 @@ export function StoreProvider({ children }) {
         ticketDesign && Object.keys(ticketDesign).length
           ? { ...ticketDesign, enabled: true }
           : null;
+      const base = Math.max(0, Number(original.price) || Number(original.originalPrice) || 0);
       const record = {
         id: `u${Date.now()}`,
         title: original.title,
@@ -1152,6 +1376,7 @@ export function StoreProvider({ children }) {
         date: original.date,
         location: original.location,
         price: Math.max(0, Number(price) || 0),
+        originalPrice: base,
         capacity: capacity ?? original.capacity ?? null,
         description: original.description,
         category: original.category,
@@ -1178,6 +1403,7 @@ export function StoreProvider({ children }) {
           date: record.date,
           location: record.location,
           price: record.price,
+          original_price: base,
           capacity: record.capacity,
           description: record.description,
           category: record.category,
@@ -1190,7 +1416,7 @@ export function StoreProvider({ children }) {
         .then(({ error }) => {
           if (error) console.warn("repost sync:", error.message);
         });
-      notify("Reposted with your price — it's live on the scene!");
+      notify("Posted with your price — it's live on the scene!");
       return record;
     },
     [communityParties, notify]
@@ -1248,7 +1474,7 @@ export function StoreProvider({ children }) {
     []
   );
 
-  // Load every sale logged against this host's parties (their 65% cut).
+  // Load every sale logged against this host's parties (70% of base).
   const fetchHostLogs = useCallback(async (userId) => {
     if (!userId) return;
     try {
@@ -1264,7 +1490,7 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
-  // Load every sale this affiliate drove through their reposts (5% each).
+  // Load every sale this affiliate drove through their reposts (70% of margin).
   const fetchAffiliateLogs = useCallback(async (userId) => {
     if (!userId) return;
     try {
@@ -1482,7 +1708,7 @@ export function StoreProvider({ children }) {
   }, []);
 
   const value = {
-    tickets: SEED_TICKETS,
+    tickets: allTickets,
     allTickets,
     marketplaceParties,
     marketplaceTickets,
@@ -1547,9 +1773,13 @@ export function StoreProvider({ children }) {
     loadGroups,
     loadGroupDetail,
     createGroup,
+    updateGroup,
     joinGroup,
     leaveGroup,
     postToGroup,
+    postGroupVideo,
+    inviteToGroup,
+    uploadGroupCover,
     deleteGroupPost,
     deleteGroup,
     // live

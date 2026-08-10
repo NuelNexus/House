@@ -35,6 +35,23 @@ function loadNewsKey() {
 
 const NEWS_KEY = process.env.VITE_NEWS_API_KEY || loadNewsKey();
 
+// Paystack's SECRET key — used server-side to verify charges. Read from
+// the process env first (Netlify), falling back to .env for local runs
+// (npm run proxy). Never ships to the browser: it only lives in this
+// server file and .env (gitignored).
+function loadPaystackKey() {
+  try {
+    const raw = readFileSync(join(ROOT, ".env"), "utf8");
+    const match = raw.match(/^\s*PAYSTACK_SECRET_KEY\s*=\s*(.+)\s*$/m);
+    if (match) return match[1].trim().replace(/^["']|["']$/g, "");
+  } catch {
+    /* no .env */
+  }
+  return "";
+}
+
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || loadPaystackKey();
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
@@ -111,7 +128,51 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // ---- Static build ------------------------------------------------
+  // ---- Paystack verification ------------------------------------------
+  // Confirms a charge settled before the app issues tickets. Needs the
+  // secret key server-side; without it, reports not-configured and the
+  // client trusts the popup callback.
+  if (url.pathname === "/api/paystack/verify") {
+  const reference = url.searchParams.get("reference") || "";
+  if (!reference) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ verified: false, reason: "missing reference" }));
+  }
+  if (!PAYSTACK_SECRET_KEY) {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(
+      JSON.stringify({
+        verified: false,
+        reason: "PAYSTACK_SECRET_KEY is not set — add it to your environment.",
+      })
+    );
+  }
+  try {
+    const vres = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` } }
+    );
+    const json = await vres.json();
+    const settled = json.status === true && json.data?.status === "success";
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(
+      JSON.stringify({
+        verified: settled,
+        reference,
+        // Always carry a reason so the client can distinguish "not
+        // configured" from a genuinely failed/abandoned charge.
+        reason: settled ? null : json.message || `charge status: ${json.data?.status || "unknown"}`,
+        amount: json.data?.amount ?? null,
+        currency: json.data?.currency ?? null,
+      })
+    );
+  } catch (err) {
+    res.writeHead(502, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ verified: false, reason: err.message }));
+  }
+}
+
+// ---- Static build ------------------------------------------------
   if (url.pathname === "/" || url.pathname === "/index.html") {
     return sendFile(res, join(DIST, "index.html"));
   }
@@ -125,4 +186,5 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`FesGH → http://localhost:${PORT}`);
   console.log(`News API key: ${NEWS_KEY ? "configured" : "MISSING — add VITE_NEWS_API_KEY to .env"}`);
+  console.log(`Paystack verify: ${PAYSTACK_SECRET_KEY ? "configured" : "MISSING — add PAYSTACK_SECRET_KEY to env"}`);
 });
