@@ -78,6 +78,21 @@ function parseHolder(raw) {
   }
 }
 
+// jsonb columns sometimes come back as a JSON string (older rows were
+// double-encoded) — normalise to a real object so the ticket design
+// always renders and never falls back to the default pass.
+function parseJson(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  return raw;
+}
+
 // Normalise a row from the `parties` table into the app's party shape.
 function mapPartyRow(p) {
   return {
@@ -94,7 +109,7 @@ function mapPartyRow(p) {
     // Missing status = live (legacy). Every party is 'live' — host
     // originals just have no affiliate_id, so they stay in the pool.
     status: p.status ?? "live",
-    ticketDesign: p.ticket_design ?? null,
+    ticketDesign: parseJson(p.ticket_design),
     ticketsSold: p.tickets_sold ?? 0,
   };
 }
@@ -447,7 +462,7 @@ export function StoreProvider({ children }) {
         sourcePartyId: p.source_party_id ?? null,
         originalPrice: p.original_price ?? null,
         status: p.status ?? "live",
-        ticketDesign: p.ticket_design ?? null,
+        ticketDesign: parseJson(p.ticket_design),
         ticketsSold: p.tickets_sold ?? 0,
       }));
       const cloudReviews = (reviewsRes.data ?? []).map((r) => ({
@@ -476,7 +491,7 @@ export function StoreProvider({ children }) {
             ticketId: t.ticket_id,
             partyId: t.party_id ?? null,
             hash: t.hash ?? null,
-            design: t.design ?? null,
+            design: parseJson(t.design),
             name: t.name,
             date: t.date,
             location: t.location,
@@ -485,7 +500,7 @@ export function StoreProvider({ children }) {
             commission: t.commission ?? null,
             paymentRef: t.payment_reference ?? null,
             holder: parseHolder(t.holder),
-            promoUsed: t.promo_used ?? null,
+            promoUsed: parseJson(t.promo_used),
           }))
         );
       }
@@ -1231,7 +1246,10 @@ export function StoreProvider({ children }) {
             affiliate_share: record.affiliateShare ?? null,
             payment_reference: record.paymentRef ?? null,
             holder: JSON.stringify(record.holder),
-            design: record.design ? JSON.stringify(record.design) : null,
+            // design/promo_used are jsonb columns — send the object
+            // directly (never JSON.stringify it, or it gets double-
+            // encoded as a string and other devices lose the design).
+            design: record.design ?? null,
             promo_used: null,
           })
           .then(({ error }) => {
@@ -1343,8 +1361,10 @@ export function StoreProvider({ children }) {
               affiliate_share: t.affiliateShare ?? null,
               payment_reference: t.paymentRef ?? null,
               holder: JSON.stringify(t.holder),
-              design: t.design ? JSON.stringify(t.design) : null,
-              promo_used: t.promoUsed ? JSON.stringify(t.promoUsed) : null,
+              // jsonb columns — send objects, never pre-stringified
+              // values, so the design survives across devices.
+              design: t.design ?? null,
+              promo_used: t.promoUsed ?? null,
             }))
           )
           .then(({ error }) => {
@@ -1499,7 +1519,9 @@ export function StoreProvider({ children }) {
           affiliate_id: uid,
           host_id: record.hostId,
           source_party_id: record.sourcePartyId,
-          ticket_design: design ? JSON.stringify(design) : null,
+          // jsonb column — send the design object directly so the
+          // design survives on every device.
+          ticket_design: design,
         })
         .then(({ error }) => {
           if (error) console.warn("repost sync:", error.message);
@@ -1523,7 +1545,7 @@ export function StoreProvider({ children }) {
       // The owner or the claiming affiliate can update (RLS enforces it).
       supabase
         .from("parties")
-        .update({ ticket_design: JSON.stringify(next) })
+        .update({ ticket_design: next })
         .eq("id", partyId)
         .then(({ error }) => {
           if (error) console.warn("design sync:", error.message);
@@ -1552,7 +1574,7 @@ export function StoreProvider({ children }) {
       if (nextDesign) {
         supabase
           .from("parties")
-          .update({ ticket_design: JSON.stringify(nextDesign) })
+          .update({ ticket_design: nextDesign })
           .eq("id", party.id)
           .then(({ error }) => {
             if (error) console.warn("stock sync:", error.message);
