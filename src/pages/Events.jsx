@@ -95,12 +95,7 @@ export default function Events({ setTab }) {
       {myTickets.length > 0 && (
         <Reveal>
           <div className="section-label">Your Tickets ({myTickets.length})</div>
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))",
-            }}
-          >
+          <div className="tickets-stack">
             {myTickets.map((t) =>
               t.design ? (
                 <DesignedTicket

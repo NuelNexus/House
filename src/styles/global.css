@@ -6693,6 +6693,22 @@ html[data-mode="dark"][data-bg="image"] body::before {
 /* ------------------------------------------------------------
    Designed ticket (host generator output)
    ------------------------------------------------------------ */
+/* Your Tickets — stacked full-width so the pass stretches
+   horizontally instead of being crushed into a narrow column. */
+.tickets-stack {
+  display: grid;
+  gap: 18px;
+  max-width: 820px;
+}
+
+.tickets-stack > * {
+  width: 100%;
+}
+
+.tickets-stack .ticket-stub {
+  margin-bottom: 0;
+}
+
 .designed-ticket {
   --dt-paper: #f3f1c9;
   --dt-ink: #101117;
