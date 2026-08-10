@@ -38,7 +38,7 @@ export default function Profile({ setTab }) {
     deleteReview,
     deleteTicket,
   } = useStore();
-  const { following, myFollowers, myHypes } = useSocial();
+  const { following, myFollowers, myHypes, deleteHype } = useSocial();
   const [filter, setFilter] = useState("All");
   const [detail, setDetail] = useState(null);
   const [ready, setReady] = useState(false);
@@ -125,7 +125,9 @@ export default function Profile({ setTab }) {
     if (item.kind === "saved") toggleSave(item.id);
     else if (item.kind === "party") deleteParty(item.id);
     else if (item.kind === "review") deleteReview(item.id);
-    else deleteTicket(item.id);
+    else if (item.kind === "hype") {
+      deleteHype(item.id, item.ref?.video_url).catch(() => {});
+    } else deleteTicket(item.id);
     if (detail?.id === item.id) setDetail(null);
   };
 
@@ -290,19 +292,17 @@ export default function Profile({ setTab }) {
                 ) : (
                   <CoverArt category={item.coverCat} className="gallery-image" />
                 )}
-                {item.kind !== "hype" && (
-                  <button
-                    className="gallery-item-del"
-                    aria-label={`Delete ${item.label}`}
-                    title="Delete"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeItem(item);
-                    }}
-                  >
-                    <i className="fa-solid fa-trash-can" aria-hidden="true" />
-                  </button>
-                )}
+                <button
+                  className="gallery-item-del"
+                  aria-label={`Delete ${item.label}`}
+                  title="Delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeItem(item);
+                  }}
+                >
+                  <i className="fa-solid fa-trash-can" aria-hidden="true" />
+                </button>
                 <span className="gallery-item-kind" aria-hidden="true">
                   <i className={`fa-solid ${KIND_ICON[item.kind]}`} />
                 </span>

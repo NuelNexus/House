@@ -469,6 +469,10 @@ drop policy if exists "hypes_insert" on public.hypes;
 create policy "hypes_insert" on public.hypes
   for insert with check (auth.uid() = user_id);
 
+drop policy if exists "hypes_delete" on public.hypes;
+create policy "hypes_delete" on public.hypes
+  for delete using (auth.uid() = user_id);
+
 drop policy if exists "hype_comments_select" on public.hype_comments;
 create policy "hype_comments_select" on public.hype_comments
   for select using (

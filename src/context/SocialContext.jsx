@@ -576,6 +576,34 @@ export function SocialProvider({ children }) {
     return true;
   }, []);
 
+  // Remove one of my own clips everywhere (feed, inbox, profile) and
+  // clean up the storage file too (best-effort — never fail the delete
+  // over a storage hiccup).
+  const deleteHype = useCallback(async (hypeId, videoUrl) => {
+    const me = uidRef.current;
+    if (!me) throw new Error("Sign in to delete");
+    const { error } = await supabase.from("hypes").delete().eq("id", hypeId);
+    if (error) throw new Error(error.message);
+    if (videoUrl) {
+      const marker = "/object/public/hype/";
+      const idx = videoUrl.indexOf(marker);
+      if (idx !== -1) {
+        const path = videoUrl.slice(idx + marker.length).split("?")[0];
+        await supabase.storage.from("hype").remove([path]).catch(() => {});
+      }
+    }
+    setHypeFeed((p) => p.filter((h) => h.id !== hypeId));
+    setIncomingHypes((p) => p.filter((h) => h.id !== hypeId));
+    setMyHypes((p) => p.filter((h) => h.id !== hypeId));
+    setCommentCounts((p) => {
+      const next = { ...p };
+      delete next[hypeId];
+      return next;
+    });
+    notify("Hype deleted");
+    return true;
+  }, [notify]);
+
   // ============================================================
   // CONTACT REQUESTS (hosts without Fest GH accounts)
   // ============================================================
@@ -631,6 +659,7 @@ export function SocialProvider({ children }) {
       loadComments,
       addComment,
       deleteComment,
+      deleteHype,
       extractHashtags,
       // contact
       sendContactRequest,
@@ -667,6 +696,7 @@ export function SocialProvider({ children }) {
       loadComments,
       addComment,
       deleteComment,
+      deleteHype,
       extractHashtags,
       sendContactRequest,
       fetchProfiles,
