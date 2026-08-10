@@ -3,7 +3,6 @@ import { useStore } from "../context/StoreContext";
 export default function Footer({ setTab }) {
   const { userParties } = useStore();
   const links = [
-    { id: "fyp", label: "For You" },
     { id: "events", label: "Events" },
     { id: "blog", label: "Blog" },
     { id: "hype", label: "Hype" },

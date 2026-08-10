@@ -6,6 +6,7 @@ import Avatar from "../components/Avatar";
 import VideoRecorder from "../components/VideoRecorder";
 import HypeSidebar from "../components/HypeSidebar";
 import HypeComments from "../components/HypeComments";
+import { LiveStrip, LiveHostOverlay, LiveViewerOverlay } from "../components/LiveOverlays";
 import { extractHashtags, formatCount, rankHypeFeed } from "../lib/fyp";
 
 function timeAgo(iso) {
@@ -367,6 +368,9 @@ export default function Hype({ setTab }) {
     markHypeSeen,
   } = useSocial();
   const [mode, setMode] = useState(null); // "post" | null
+  const [chooser, setChooser] = useState(false); // post chooser (video | live)
+  const [goLive, setGoLive] = useState(false); // host overlay open
+  const [watchingLive, setWatchingLive] = useState(null); // session being watched
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedTab, setFeedTab] = useState("foryou"); // "foryou" | "following"
   // Sound is ON by default (browsers only pause the first autoplay until
@@ -498,7 +502,7 @@ export default function Hype({ setTab }) {
 
   // Keyboard navigation (ignored while the recorder overlay is open).
   useEffect(() => {
-    if (mode) return undefined;
+    if (mode || chooser || goLive || watchingLive) return undefined;
     const onKey = (e) => {
       if (e.key === "ArrowDown" || e.key === "ArrowRight") next();
       if (e.key === "ArrowUp" || e.key === "ArrowLeft") prev();
@@ -511,7 +515,7 @@ export default function Hype({ setTab }) {
   // Mouse-wheel / trackpad navigation — swiping left-right (or scrolling
   // vertically with a mouse wheel) steps one slide per tick, throttled.
   useEffect(() => {
-    if (mode) return undefined;
+    if (mode || chooser || goLive || watchingLive) return undefined;
     const onWheel = (e) => {
       const delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (Math.abs(delta) < 12) return;
@@ -529,11 +533,11 @@ export default function Hype({ setTab }) {
   // Touch swipe navigation for phones — swipe LEFT for the next hype,
   // RIGHT for the previous (ignored while the overlay is open).
   const onTouchStart = (e) => {
-    if (mode) return;
+    if (mode || chooser || goLive || watchingLive) return;
     touchStartX.current = e.touches[0].clientX;
   };
   const onTouchEnd = (e) => {
-    if (mode) return;
+    if (mode || chooser || goLive || watchingLive) return;
     if (touchStartX.current == null) return;
     const dx = touchStartX.current - e.changedTouches[0].clientX;
     touchStartX.current = null;
@@ -542,9 +546,10 @@ export default function Hype({ setTab }) {
     else prev();
   };
 
+  // Post opens a chooser: go live, or snap a video.
   const startPost = () => {
     if (!ensureAuth()) return;
-    setMode("post");
+    setChooser(true);
   };
 
   const handleDone = async ({ blob, name, caption, kind, published }) => {
@@ -583,6 +588,42 @@ export default function Hype({ setTab }) {
             </button>
           )}
         </div>
+
+        {/* Live now — streams currently on air */}
+        <LiveStrip onWatch={(s) => setWatchingLive(s)} />
+
+        {/* Post chooser — go live or snap a video */}
+        {chooser && (
+          <div className="hype-feed-overlay">
+            <div className="hype-chooser">
+              <button
+                className="hype-chooser-opt live"
+                onClick={() => {
+                  setChooser(false);
+                  setGoLive(true);
+                }}
+              >
+                <i className="fa-solid fa-tower-broadcast" />
+                <b>Go Live</b>
+                <small>Stream to the scene in real time</small>
+              </button>
+              <button
+                className="hype-chooser-opt"
+                onClick={() => {
+                  setChooser(false);
+                  setMode("post");
+                }}
+              >
+                <i className="fa-solid fa-fire" />
+                <b>Post a video</b>
+                <small>Snap, edit and share a hype</small>
+              </button>
+              <button className="hype-chooser-cancel" onClick={() => setChooser(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* recorder overlay */}
         {mode && (
@@ -701,6 +742,17 @@ export default function Hype({ setTab }) {
           <span>Post</span>
         </button>
       </div>
+
+      {/* Go Live host flow */}
+      {goLive && <LiveHostOverlay onClose={() => setGoLive(false)} />}
+
+      {/* Watch a live stream */}
+      {watchingLive && (
+        <LiveViewerOverlay
+          session={watchingLive}
+          onClose={() => setWatchingLive(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useSocial } from "../context/SocialContext";
+import { useStore } from "../context/StoreContext";
 import { useTheme } from "../context/ThemeContext";
 import { goUser } from "../lib/nav";
 import Avatar from "../components/Avatar";
 import VideoRecorder from "../components/VideoRecorder";
 import HypePlayerSlide from "../components/HypePlayerSlide";
+import Modal from "../components/Modal";
+
+const COVERS = ["👥", "🎧", "🎪", "🔥", "🍹", "🎬", "🕺", "🎨", "🎤", "🏖️"];
 
 // Chat accent palette (Instagram-style "change color" swatches).
 const CHAT_COLORS = [
@@ -37,6 +41,127 @@ function formatDay(iso) {
   });
 }
 
+// A group opened inside Messages — posts + composer + members.
+function MsGroupDetail({
+  group,
+  members,
+  posts,
+  profs,
+  me,
+  myRole,
+  onBack,
+  onJoin,
+  onLeave,
+  onPost,
+  posting,
+  composer,
+  setComposer,
+  onDeletePost,
+}) {
+  return (
+    <div className="ms-group-detail">
+      <div className="ms-chat-head">
+        <button className="ms-back" aria-label="Back" onClick={onBack}>
+          <i className="fa-solid fa-arrow-left" />
+        </button>
+        <span className="ms-group-cover">{group.cover || "👥"}</span>
+        <div className="ms-chat-title">
+          <b>{group.name}</b>
+          <span>{group.member_count || 0} members</span>
+        </div>
+        {myRole === "owner" ? (
+          <span className="group-role-chip">Owner</span>
+        ) : myRole ? (
+          <button className="ms-head-icon" title="Leave group" onClick={onLeave}>
+            <i className="fa-solid fa-right-from-bracket" />
+          </button>
+        ) : (
+          <button className="btn btn-sm" onClick={onJoin}>
+            <i className="fa-solid fa-user-plus" /> Join
+          </button>
+        )}
+      </div>
+
+      {myRole && (
+        <form className="ms-group-composer" onSubmit={onPost}>
+          <input
+            className="input"
+            placeholder={`Post in ${group.name}…`}
+            value={composer}
+            onChange={(e) => setComposer(e.target.value)}
+            maxLength={400}
+          />
+          <button className="btn btn-sm" type="submit" disabled={posting || !composer.trim()}>
+            {posting ? "Posting…" : "Post"}
+          </button>
+        </form>
+      )}
+
+      <div className="ms-bubbles ms-group-posts">
+        {posts.length === 0 ? (
+          <p className="ms-none">
+            {myRole ? "Start the conversation." : "Join the group to post here."}
+          </p>
+        ) : (
+          posts.map((p) => {
+            const author = profs[p.user_id] || null;
+            return (
+              <div className="group-post" key={p.id}>
+                <div className="group-post-head">
+                  <Avatar
+                    name={author?.name || "Member"}
+                    seed={author?.avatar ?? 0}
+                    src={author?.avatar_url || null}
+                    size={34}
+                  />
+                  <div>
+                    <b>{author?.name || "Member"}</b>
+                    <small>{formatDay(p.created_at)}</small>
+                  </div>
+                  {me === p.user_id && (
+                    <button
+                      className="gallery-item-del"
+                      title="Delete"
+                      onClick={() => onDeletePost(p.id)}
+                    >
+                      <i className="fa-solid fa-trash-can" />
+                    </button>
+                  )}
+                </div>
+                <p className="group-post-body">{p.body}</p>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="ms-group-members">
+        {members.length === 0 ? (
+          <small>No members yet.</small>
+        ) : (
+          members.map((m) => {
+            const prof = profs[m.user_id] || null;
+            return (
+              <span
+                className="ms-group-member"
+                key={m.user_id}
+                title={prof?.name || "Member"}
+              >
+                <Avatar
+                  name={prof?.name || "M"}
+                  seed={prof?.avatar ?? 0}
+                  src={prof?.avatar_url || null}
+                  size={34}
+                />
+              </span>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Messages({ compose, sendHype, q, setTab }) {
   const { user, name, profile, authLoading, openAuth } = useAuth();
   const {
@@ -50,7 +175,19 @@ export default function Messages({ compose, sendHype, q, setTab }) {
     followers,
     incomingHypes,
     postHype,
+    fetchProfiles,
   } = useSocial();
+  const {
+    groups,
+    groupMembers,
+    groupPosts,
+    loadGroupDetail,
+    createGroup,
+    joinGroup,
+    leaveGroup,
+    postToGroup,
+    deleteGroupPost,
+  } = useStore();
   const { theme, setMode } = useTheme();
 
   const [recipient, setRecipient] = useState(null);
@@ -74,6 +211,42 @@ export default function Messages({ compose, sendHype, q, setTab }) {
   // Only auto-open the send-hype flow once from a deep link — a late
   // people-load must not re-open it after the user closed it.
   const sendAutoOpened = useRef(false);
+
+  // Groups live on the message side: Chats | Groups sections, a plus
+  // button to start a chat or make a group, and an in-chat group detail.
+  const [msSection, setMsSection] = useState("chats");
+  const [openGroupId, setOpenGroupId] = useState(null);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name: "", description: "", cover: null });
+  const [groupComposer, setGroupComposer] = useState("");
+  const [groupPosting, setGroupPosting] = useState(false);
+  const [groupProfs, setGroupProfs] = useState({});
+  const chatSearchRef = useRef(null);
+
+  const openGroup = openGroupId ? groups.find((g) => g.id === openGroupId) : null;
+  const groupMembersList = openGroupId ? groupMembers[openGroupId] || [] : [];
+  const groupPostList = openGroupId ? groupPosts[openGroupId] || [] : [];
+
+  useEffect(() => {
+    if (openGroupId) loadGroupDetail(openGroupId);
+  }, [openGroupId, loadGroupDetail]);
+
+  useEffect(() => {
+    if (!openGroupId) return;
+    const ids = [
+      openGroup?.owner_id,
+      ...groupMembersList.map((m) => m.user_id),
+      ...groupPostList.map((p) => p.user_id),
+    ].filter(Boolean);
+    const missing = [...new Set(ids)].filter((id) => !groupProfs[id]);
+    if (!missing.length) return;
+    (async () => {
+      const map = await fetchProfiles(missing);
+      setGroupProfs((p) => ({ ...p, ...map }));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openGroupId, openGroup, groupMembersList, groupPostList]);
 
   const messages = recipient ? threads[recipient] || [] : [];
 
@@ -214,6 +387,41 @@ export default function Messages({ compose, sendHype, q, setTab }) {
   const backToList = () => {
     setRecipient(null);
     window.location.hash = "messages";
+  };
+
+  // ---- Groups ------------------------------------------------
+  const doJoinGroup = async (id) => {
+    await joinGroup(id);
+  };
+
+  const doLeaveGroup = async (id) => {
+    if (openGroupId === id) setOpenGroupId(null);
+    await leaveGroup(id);
+  };
+
+  const submitGroupPost = async (e) => {
+    e.preventDefault();
+    if (!openGroupId || !groupComposer.trim()) return;
+    setGroupPosting(true);
+    await postToGroup(openGroupId, groupComposer);
+    setGroupPosting(false);
+    setGroupComposer("");
+  };
+
+  const createGroupNow = async (e) => {
+    e.preventDefault();
+    if (!groupForm.name.trim()) return;
+    const g = await createGroup({
+      name: groupForm.name.trim().slice(0, 60),
+      description: groupForm.description.trim().slice(0, 300),
+      cover: groupForm.cover || null,
+    });
+    if (g) {
+      setCreateOpen(false);
+      setGroupForm({ name: "", description: "", cover: null });
+      setMsSection("groups");
+      setOpenGroupId(g.id);
+    }
   };
 
   const openSendHype = () => {
@@ -450,6 +658,23 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                 </button>
               </div>
             </>
+          ) : openGroup ? (
+            <MsGroupDetail
+              group={openGroup}
+              members={groupMembersList}
+              posts={groupPostList}
+              profs={groupProfs}
+              me={user?.id}
+              myRole={openGroup?.myRole || null}
+              onBack={() => setOpenGroupId(null)}
+              onJoin={() => doJoinGroup(openGroup.id)}
+              onLeave={() => doLeaveGroup(openGroup.id)}
+              onPost={submitGroupPost}
+              posting={groupPosting}
+              composer={groupComposer}
+              setComposer={setGroupComposer}
+              onDeletePost={(postId) => deleteGroupPost(openGroup.id, postId)}
+            />
           ) : (
             <div className="ms-compose">
               {/* Hype inbox strip — shown on phones, where the side rail hides */}
@@ -479,60 +704,163 @@ export default function Messages({ compose, sendHype, q, setTab }) {
                 ))}
               </div>
 
-              <h3 className="ms-compose-title">
-                <i className="fa-solid fa-comment-dots" /> Chats
-              </h3>
-              <div className="user-search">
-                <div className="search">
-                  <i className="fa-solid fa-magnifying-glass" />
-                  <input
-                    placeholder="Search followers…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    aria-label="Search followers"
-                  />
+              {/* Chats | Groups + the add (+) chooser */}
+              <div className="ms-compose-head">
+                <div className="ms-section-switch" role="tablist" aria-label="Chats or groups">
+                  <button
+                    role="tab"
+                    aria-selected={msSection === "chats"}
+                    className={msSection === "chats" ? "active" : ""}
+                    onClick={() => setMsSection("chats")}
+                  >
+                    <i className="fa-solid fa-comment-dots" /> Chats
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={msSection === "groups"}
+                    className={msSection === "groups" ? "active" : ""}
+                    onClick={() => setMsSection("groups")}
+                  >
+                    <i className="fa-solid fa-people-group" /> Groups
+                  </button>
+                </div>
+                <div className="ms-plus-wrap">
+                  <button
+                    className="ms-plus"
+                    aria-label="Add"
+                    aria-expanded={plusOpen}
+                    onClick={() => setPlusOpen((o) => !o)}
+                  >
+                    <i className="fa-solid fa-plus" />
+                  </button>
+                  {plusOpen && (
+                    <div className="ms-plus-menu">
+                      <button
+                        onClick={() => {
+                          setPlusOpen(false);
+                          setMsSection("chats");
+                          window.setTimeout(() => chatSearchRef.current?.focus(), 50);
+                        }}
+                      >
+                        <i className="fa-solid fa-user-plus" />
+                        <span>
+                          <b>Add someone</b>
+                          <small>Start a new chat</small>
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPlusOpen(false);
+                          setCreateOpen(true);
+                        }}
+                      >
+                        <i className="fa-solid fa-people-group" />
+                        <span>
+                          <b>Make a group</b>
+                          <small>Create a community</small>
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              {filteredChats.length === 0 ? (
-                <p className="pick-empty">
-                  {followers.length === 0
-                    ? "No one follows you yet — people who follow you show up here so you can chat."
-                    : "No chats with followers found."}
-                </p>
+
+              {msSection === "chats" ? (
+                <>
+                  <div className="user-search">
+                    <div className="search">
+                      <i className="fa-solid fa-magnifying-glass" />
+                      <input
+                        ref={chatSearchRef}
+                        placeholder="Search followers…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        aria-label="Search followers"
+                      />
+                    </div>
+                  </div>
+                  {filteredChats.length === 0 ? (
+                    <p className="pick-empty">
+                      {followers.length === 0
+                        ? "No one follows you yet — people who follow you show up here so you can chat."
+                        : "No chats with followers found."}
+                    </p>
+                  ) : (
+                    filteredChats.map((c) => (
+                      <button
+                        key={c.id}
+                        className="user-row ms-follower-row"
+                        onClick={() => {
+                          setRecipient(c.id);
+                          setDraft("");
+                          setChatSearch("");
+                        }}
+                      >
+                        <Avatar
+                          name={c.name}
+                          seed={c.avatar?.avatar ?? 0}
+                          src={c.avatar?.avatar_url || null}
+                          size={40}
+                        />
+                        <span className="ms-follower-mid">
+                          <b>{c.name}</b>
+                          <span className="ms-follower-last">
+                            {c.lastMine ? "You: " : ""}
+                            {c.lastBody || "No messages yet"}
+                          </span>
+                        </span>
+                        <span className="ms-follower-side">
+                          {c.lastAt && (
+                            <span className="ms-time">{formatDay(c.lastAt)}</span>
+                          )}
+                          {c.unread > 0 && (
+                            <span className="ms-unread">{c.unread}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </>
               ) : (
-                filteredChats.map((c) => (
-                  <button
-                    key={c.id}
-                    className="user-row ms-follower-row"
-                    onClick={() => {
-                      setRecipient(c.id);
-                      setDraft("");
-                      setChatSearch("");
-                    }}
-                  >
-                    <Avatar
-                      name={c.name}
-                      seed={c.avatar?.avatar ?? 0}
-                      src={c.avatar?.avatar_url || null}
-                      size={40}
-                    />
-                    <span className="ms-follower-mid">
-                      <b>{c.name}</b>
-                      <span className="ms-follower-last">
-                        {c.lastMine ? "You: " : ""}
-                        {c.lastBody || "No messages yet"}
-                      </span>
-                    </span>
-                    <span className="ms-follower-side">
-                      {c.lastAt && (
-                        <span className="ms-time">{formatDay(c.lastAt)}</span>
-                      )}
-                      {c.unread > 0 && (
-                        <span className="ms-unread">{c.unread}</span>
-                      )}
-                    </span>
-                  </button>
-                ))
+                <div className="ms-groups">
+                  {groups.length === 0 ? (
+                    <p className="pick-empty">
+                      No groups yet — hit the + and make one for your people.
+                    </p>
+                  ) : (
+                    groups.map((g) => (
+                      <button
+                        key={g.id}
+                        className="ms-group-row"
+                        onClick={() => setOpenGroupId(g.id)}
+                      >
+                        <span className="ms-group-cover">{g.cover || "👥"}</span>
+                        <span className="ms-group-mid">
+                          <b>{g.name}</b>
+                          <small>
+                            {g.member_count || 0} members ·{" "}
+                            {g.description || "A FesGH community."}
+                          </small>
+                        </span>
+                        {g.myRole ? (
+                          <span className="group-role-chip">
+                            {g.myRole === "owner" ? "Yours" : "Joined"}
+                          </span>
+                        ) : (
+                          <em
+                            className="ms-group-join"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              doJoinGroup(g.id);
+                            }}
+                          >
+                            Join
+                          </em>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -681,6 +1009,69 @@ export default function Messages({ compose, sendHype, q, setTab }) {
             />
           )}
         </div>
+      )}
+
+      {/* Make a group */}
+      {createOpen && (
+        <Modal title="Make a group" onClose={() => setCreateOpen(false)}>
+          <form onSubmit={createGroupNow}>
+            <div className="field">
+              <label htmlFor="mg-name">Group name</label>
+              <input
+                id="mg-name"
+                className="input"
+                placeholder="e.g. Accra House Heads"
+                value={groupForm.name}
+                onChange={(e) =>
+                  setGroupForm((f) => ({ ...f, name: e.target.value }))
+                }
+                maxLength={60}
+                autoFocus
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="mg-desc">Description</label>
+              <textarea
+                id="mg-desc"
+                className="input"
+                rows={3}
+                placeholder="What's this community about?"
+                value={groupForm.description}
+                onChange={(e) =>
+                  setGroupForm((f) => ({ ...f, description: e.target.value }))
+                }
+                maxLength={300}
+              />
+            </div>
+            <div className="field">
+              <label>Cover</label>
+              <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {COVERS.map((c) => (
+                  <button
+                    type="button"
+                    key={c}
+                    className={`chip group-cover-chip ${groupForm.cover === c ? "active" : ""}`}
+                    onClick={() => setGroupForm((f) => ({ ...f, cover: c }))}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="designer-save">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setCreateOpen(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn" disabled={!groupForm.name.trim()}>
+                <i className="fa-solid fa-check icon" /> Create group
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

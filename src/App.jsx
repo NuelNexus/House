@@ -17,7 +17,6 @@ import PublicProfile from "./pages/PublicProfile";
 import Auth from "./pages/Auth";
 import PostParty from "./pages/PostParty";
 import Host from "./pages/Host";
-import ForYou from "./pages/ForYou";
 import Admin from "./pages/Admin";
 import Verify from "./pages/Verify";
 import WriteReview from "./pages/WriteReview";
@@ -28,8 +27,6 @@ import Hype from "./pages/Hype";
 import Messages from "./pages/Messages";
 import Contact from "./pages/Contact";
 import Appearance from "./pages/Appearance";
-import Groups from "./pages/Groups";
-import Live from "./pages/Live";
 
 // Safety net: a crash in any single component used to unmount the entire
 // React tree (blank page). Now the site shows a reload screen instead and
@@ -98,7 +95,6 @@ function CloudSync() {
 
 const VALID_TABS = [
   "home",
-  "fyp",
   "events",
   "tickets",
   "parties",
@@ -110,8 +106,6 @@ const VALID_TABS = [
   "host",
   "admin",
   "verify",
-  "groups",
-  "live",
 ];
 const AUTH_MODES = ["signin", "signup", "forgot"];
 
@@ -179,6 +173,11 @@ function parseHash(hash) {
   // Merged tabs: old URLs keep working.
   if (head === "reviews") return { ...base, tab: "parties" };
   if (head === "news") return { ...base, tab: "blog" };
+  // Merged tabs: For You is part of Events, Groups lives in Messages,
+  // and Live lives on the Hype page — old URLs land on their new homes.
+  if (head === "fyp") return { ...base, tab: "events" };
+  if (head === "groups") return { ...base, tab: "messages" };
+  if (head === "live") return { ...base, tab: "hype" };
   if (VALID_TABS.includes(head)) return { ...base, tab: head };
   return base;
 }
@@ -238,7 +237,6 @@ function Shell() {
         {tab === "profile" && <Profile setTab={setTab} />}
         {tab === "user" && <PublicProfile userId={userId} />}
         {tab === "auth" && <Auth authMode={authMode} />}
-        {tab === "fyp" && <ForYou />}
         {tab === "post-party" && <PostParty setTab={setTab} />}
         {tab === "host" && <Host setTab={setTab} />}
         {tab === "admin" && <Admin setTab={setTab} />}
@@ -258,8 +256,6 @@ function Shell() {
         )}
         {tab === "contact" && <Contact contactId={contactId} q={q} />}
         {tab === "appearance" && <Appearance />}
-        {tab === "groups" && <Groups />}
-        {tab === "live" && <Live />}
       </main>
 
       {tab !== "messages" && tab !== "hype" && <Footer setTab={setTab} />}

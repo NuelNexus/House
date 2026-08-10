@@ -5,12 +5,9 @@ import { useSocial } from "../context/SocialContext";
 
 const LINKS = [
   { id: "home", label: "Home", idx: "00" },
-  { id: "fyp", label: "For You", idx: "01" },
-  { id: "events", label: "Events", idx: "02" },
-  { id: "live", label: "Live", idx: "03" },
-  { id: "groups", label: "Groups", idx: "04" },
-  { id: "hype", label: "Hype", idx: "05" },
-  { id: "blog", label: "Blog", idx: "06" },
+  { id: "events", label: "Events", idx: "01" },
+  { id: "hype", label: "Hype", idx: "02" },
+  { id: "blog", label: "Blog", idx: "03" },
 ];
 
 // Bottom tab bar shown on phones — the essentials, one thumb away.
@@ -28,13 +25,13 @@ export default function Navbar({ tab, setTab, hidden }) {
   // Host Events is exclusive to approved affiliates.
   const isAffiliate = affiliate?.status === "approved";
   const links = isAffiliate
-    ? [...LINKS, { id: "host", label: "Host Events", idx: "07" }]
+    ? [...LINKS, { id: "host", label: "Host Events", idx: "04" }]
     : LINKS;
   const mobileExtras = [
-    ...(isAffiliate ? [{ id: "host", label: "Host Events", idx: "07" }] : []),
-    { id: "appearance", label: "Appearance", idx: isAffiliate ? "08" : "05" },
-    { id: "admin", label: "Admin", idx: isAffiliate ? "09" : "06" },
-    { id: "verify", label: "Verify", idx: isAffiliate ? "10" : "07" },
+    ...(isAffiliate ? [{ id: "host", label: "Host Events", idx: "04" }] : []),
+    { id: "appearance", label: "Appearance", idx: isAffiliate ? "05" : "04" },
+    { id: "admin", label: "Admin", idx: isAffiliate ? "06" : "05" },
+    { id: "verify", label: "Verify", idx: isAffiliate ? "07" : "06" },
   ];
   // Events tab is active for its merged aliases too.
   const eventsActive = tab === "events" || tab === "tickets" || tab === "parties";
@@ -166,19 +163,13 @@ export default function Navbar({ tab, setTab, hidden }) {
                     <button className="user-menu-item" onClick={() => go("hype")}>
                       <i className="fa-solid fa-fire" /> Hype
                     </button>
-                    <button className="user-menu-item" onClick={() => go("groups")}>
-                      <i className="fa-solid fa-people-group" /> Groups
-                    </button>
-                    <button className="user-menu-item" onClick={() => go("live")}>
-                      <i className="fa-solid fa-tower-broadcast" /> Live
-                    </button>
                     {isAffiliate && (
                       <button className="user-menu-item" onClick={() => go("host")}>
                         <i className="fa-solid fa-wand-magic-sparkles" /> Host Events
                       </button>
                     )}
-                    <button className="user-menu-item" onClick={() => go("fyp")}>
-                      <i className="fa-solid fa-wand-magic-sparkles" /> For You
+                    <button className="user-menu-item" onClick={() => go("events")}>
+                      <i className="fa-solid fa-champagne-glasses" /> Events
                     </button>
                     <button className="user-menu-item" onClick={() => go("appearance")}>
                       <i className="fa-solid fa-palette" /> Appearance
