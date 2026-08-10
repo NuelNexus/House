@@ -5,13 +5,15 @@ import { useSocial } from "../context/SocialContext";
 import Avatar from "../components/Avatar";
 import CoverArt from "../components/CoverArt";
 import ProfileItemModal from "../components/ProfileItemModal";
+import { formatCount } from "../lib/fyp";
 
-const FILTERS = ["All", "Saved", "Parties", "Reviews", "Tickets"];
+const FILTERS = ["All", "Saved", "Hypes", "Parties", "Reviews", "Tickets"];
 
 const KIND_ICON = {
   party: "fa-people-group",
   review: "fa-star",
   ticket: "fa-ticket",
+  hype: "fa-fire",
 };
 
 function categoryFor(name, tickets, allParties) {
@@ -36,7 +38,7 @@ export default function Profile({ setTab }) {
     deleteReview,
     deleteTicket,
   } = useStore();
-  const { following, myFollowers } = useSocial();
+  const { following, myFollowers, myHypes } = useSocial();
   const [filter, setFilter] = useState("All");
   const [detail, setDetail] = useState(null);
   const [ready, setReady] = useState(false);
@@ -98,8 +100,18 @@ export default function Profile({ setTab }) {
         sub: `${p.rsvps} going`,
         coverCat: p.category,
       }));
-    return [...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
-  }, [userParties, userReviews, myTickets, tickets, allParties, saved]);
+    // My own posted clips — with the view count they've earned.
+    const hypeItems = myHypes.map((h) => ({
+      kind: "hype",
+      id: h.id,
+      ref: h,
+      label: h.caption || "Hype",
+      sub: `${formatCount(h.views || 0)} views`,
+      coverCat: null,
+      videoUrl: h.video_url,
+    }));
+    return [...hypeItems, ...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
+  }, [userParties, userReviews, myTickets, tickets, allParties, saved, myHypes]);
 
   const visible = useMemo(
     () =>
@@ -120,6 +132,10 @@ export default function Profile({ setTab }) {
   const openItem = (item) => {
     if (item.kind === "saved") {
       window.location.hash = `party/${item.id}`;
+      return;
+    }
+    if (item.kind === "hype") {
+      window.location.hash = "hype";
       return;
     }
     setDetail(item);
@@ -233,6 +249,8 @@ export default function Profile({ setTab }) {
             <p>
               {filter === "Saved"
                 ? "Tap the heart on any party to keep it here."
+                : filter === "Hypes"
+                ? "Post a hype from the Hype tab and your clips will appear here with their view counts."
                 : filter === "Parties"
                 ? "Post your first party from the Parties tab."
                 : filter === "Reviews"
@@ -260,18 +278,31 @@ export default function Profile({ setTab }) {
                   }
                 }}
               >
-                <CoverArt category={item.coverCat} className="gallery-image" />
-                <button
-                  className="gallery-item-del"
-                  aria-label={`Delete ${item.label}`}
-                  title="Delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeItem(item);
-                  }}
-                >
-                  <i className="fa-solid fa-trash-can" aria-hidden="true" />
-                </button>
+                {item.kind === "hype" ? (
+                  <video
+                    className="gallery-image"
+                    src={item.videoUrl}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                  />
+                ) : (
+                  <CoverArt category={item.coverCat} className="gallery-image" />
+                )}
+                {item.kind !== "hype" && (
+                  <button
+                    className="gallery-item-del"
+                    aria-label={`Delete ${item.label}`}
+                    title="Delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeItem(item);
+                    }}
+                  >
+                    <i className="fa-solid fa-trash-can" aria-hidden="true" />
+                  </button>
+                )}
                 <span className="gallery-item-kind" aria-hidden="true">
                   <i className={`fa-solid ${KIND_ICON[item.kind]}`} />
                 </span>
@@ -294,8 +325,8 @@ export default function Profile({ setTab }) {
         )}
 
         <p className="gallery-hint">
-          Tap any tile to open it · your parties, reviews and passes sync across
-          devices when you're signed in.
+          Tap any tile to open it · your parties, reviews, hypes and passes sync
+          across devices when you're signed in.
         </p>
       </div>
 

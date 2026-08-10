@@ -5,6 +5,8 @@ import { useStore } from "../context/StoreContext";
 import Avatar from "../components/Avatar";
 import VideoRecorder from "../components/VideoRecorder";
 import HypeSidebar from "../components/HypeSidebar";
+import HypeComments from "../components/HypeComments";
+import { extractHashtags, formatCount, rankHypeFeed } from "../lib/fyp";
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -23,7 +25,7 @@ function timeAgo(iso) {
 }
 
 // One TikTok-style slide: letterboxed video, bottom-left info,
-// right action rail (avatar + follow, like, share, spinning disc).
+// right action rail (avatar + follow, like, comment, share, spinning disc).
 // Photos and videos both live in the hype feed — a snap posted from the
 // camera is an image, everything else is a clip. Storage URLs end in the
 // file extension, so that's all we need to tell them apart.
@@ -31,8 +33,20 @@ function isImageHype(hype) {
   return /\.(jpe?g|png|gif|webp)(\?|$)/i.test(hype.video_url || "");
 }
 
-function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
+function HypeSlide({
+  hype,
+  isActive,
+  openProfile,
+  soundOn,
+  onToggleSound,
+  onView,
+  commentsOpen,
+  onToggleComments,
+  onTagClick,
+  commentCount,
+}) {
   const videoRef = useRef(null);
+  const lastViewAt = useRef(0);
   const [paused, setPaused] = useState(true);
   const image = isImageHype(hype);
   const [liked, setLiked] = useState(() => {
@@ -46,6 +60,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
   const { isFollowing, toggleFollow, followCounts, loadFollowCounts } = useSocial();
   const { notify } = useStore();
   const authorId = hype.user_id;
+  const tags = hype.hashtags && hype.hashtags.length ? hype.hashtags : extractHashtags(hype.caption);
 
   useEffect(() => {
     if (authorId) loadFollowCounts(authorId);
@@ -70,6 +85,35 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
       setPaused(true);
     }
   }, [isActive, image, soundOn]);
+
+  // Views: every play counts, and every replay counts too. We bump on
+  // the `play` event and on loop wrap-around (currentTime snapping back
+  // to ~0 mid-watch), throttled to one view per ~1.2s so a rapid
+  // play/pause or very short clip can't farm hundreds of views.
+  useEffect(() => {
+    if (image || !isActive) return undefined;
+    const v = videoRef.current;
+    if (!v) return undefined;
+    let prev = v.currentTime || 0;
+    const maybeView = () => {
+      const now = Date.now();
+      if (now - lastViewAt.current < 1200) return;
+      lastViewAt.current = now;
+      onView(hype.id);
+    };
+    const onPlay = () => maybeView();
+    const onTime = () => {
+      const t = v.currentTime || 0;
+      if (t < prev - 0.5) maybeView(); // looped back to the start = rewatch
+      prev = t;
+    };
+    v.addEventListener("play", onPlay);
+    v.addEventListener("timeupdate", onTime);
+    return () => {
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("timeupdate", onTime);
+    };
+  }, [image, isActive, hype.id, onView]);
 
   const togglePlay = () => {
     if (image) return;
@@ -180,8 +224,33 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
             @{authorName}
           </button>
           <span className="time">{timeAgo(hype.created_at)}</span>
+          {!hype.recipient_id && (hype.views ?? 0) > 0 && (
+            <span className="hype-slide-views" title={`${hype.views} views`}>
+              <i className="fa-solid fa-eye" aria-hidden="true" /> {formatCount(hype.views)}
+            </span>
+          )}
         </div>
-        {hype.caption && <div className="hype-slide-caption">{hype.caption}</div>}
+        {hype.caption && (
+          <div className="hype-slide-caption">
+            {hype.caption}
+            {tags.length > 0 && (
+              <span className="hype-slide-tags" onClick={(e) => e.stopPropagation()}>
+                {tags.map((t) => (
+                  <button
+                    key={t}
+                    className="hype-tag-chip"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTagClick(t);
+                    }}
+                  >
+                    #{t}
+                  </button>
+                ))}
+              </span>
+            )}
+          </div>
+        )}
         <div className="hype-slide-song">
           <i className="fa-solid fa-music" /> {authorName} · original hype
         </div>
@@ -230,7 +299,7 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
         </div>
       </div>
 
-      {/* Right action rail — like / share / sound / disc only */}
+      {/* Right action rail — like / comment / share / sound / disc only */}
       <div className="hype-rail" onClick={(e) => e.stopPropagation()}>
         <div className="hype-rail-actions">
           <button
@@ -240,6 +309,16 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
           >
             <i className="fa-solid fa-fire" />
             <span className="hype-rail-label">Hype</span>
+          </button>
+          <button
+            className={`hype-rail-btn${commentsOpen ? " active" : ""}`}
+            aria-label={commentsOpen ? "Close comments" : "Comments"}
+            onClick={onToggleComments}
+          >
+            <i className="fa-solid fa-comment" />
+            <span className="hype-rail-label">
+              {commentsOpen ? "Close" : commentCount > 0 ? `${formatCount(commentCount)}` : "Comment"}
+            </span>
           </button>
           <button className="hype-rail-btn" aria-label="Share" onClick={doShare}>
             <i className="fa-solid fa-share" />
@@ -260,6 +339,11 @@ function HypeSlide({ hype, isActive, openProfile, soundOn, onToggleSound }) {
           </div>
         </div>
       </div>
+
+      {/* Comments drawer overlays the slide */}
+      {commentsOpen && (
+        <HypeComments hype={hype} onClose={onToggleComments} />
+      )}
     </div>
   );
 }
@@ -268,9 +352,11 @@ export default function Hype({ setTab }) {
   const { ensureAuth } = useAuth();
   const {
     hypeFeed,
+    commentCounts,
     hypeLoading,
     postHype,
     following,
+    bumpHypeViews,
   } = useSocial();
   const [mode, setMode] = useState(null); // "post" | null
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -278,33 +364,70 @@ export default function Hype({ setTab }) {
   // Sound is ON by default (browsers only pause the first autoplay until
   // the first tap — the kick effect above handles that). Users can mute.
   const [soundOn, setSoundOn] = useState(true); // shared across slides
+  const [activeTag, setActiveTag] = useState(null);
+  const [commentsFor, setCommentsFor] = useState(null); // hype id with open drawer
   const wheelLock = useRef(0);
   const touchStartX = useRef(null);
+  const watchIdRef = useRef(null); // the clip currently on screen
 
-  // The feed is purely public — hypes friends send you live in Messages
-  // (incoming hype tray), not on the Hype page.
-  const visibleFeed = useMemo(() => {
-    const base = hypeFeed;
-    return feedTab === "following"
-      ? base.filter((h) => following.includes(h.user_id))
-      : base;
-  }, [hypeFeed, following, feedTab]);
-
-  // Reset to the top when the tab changes or the feed's content actually
-  // changes (e.g. a new hype lands at the top) — NOT on every background
-  // refresh, or a viewer mid-feed would be bounced to slide 1 every 12s.
-  useEffect(() => {
+  // Jump back to the top of the feed and remember the new first clip.
+  const snapToTop = () => {
     setCurrentIndex(0);
+    if (visibleFeed[0]) watchIdRef.current = visibleFeed[0].id;
+  };
+
+  const onView = useMemo(
+    () => (id) => bumpHypeViews(id),
+    [bumpHypeViews]
+  );
+
+  // For You is ranked by the SEO-style score (hashtags + views + recency);
+  // Following stays chronological. An active #tag filters the whole feed.
+  const visibleFeed = useMemo(() => {
+    let base = hypeFeed;
+    if (activeTag) {
+      base = hypeFeed.filter(
+        (h) =>
+          (h.hashtags && h.hashtags.length
+            ? h.hashtags
+            : extractHashtags(h.caption)
+          ).includes(activeTag)
+      );
+    }
+    if (feedTab === "following") {
+      return base.filter((h) => following.includes(h.user_id));
+    }
+    return rankHypeFeed(base);
+  }, [hypeFeed, following, feedTab, activeTag]);
+
+  // Reset to the top when the tab/tag or the first clip itself changes
+  // (a brand-new hype landing at #1) — NOT on every background refresh.
+  useEffect(() => {
+    snapToTop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedTab, visibleFeed[0]?.id, visibleFeed.length]);
+  }, [feedTab, activeTag, visibleFeed[0]?.id]);
+
+  // Background re-ranks (view bumps, 12s refresh) re-sort the feed but
+  // must never shuffle a different clip under the viewer or yank them
+  // back to slide 1 — follow the watched clip to its new index instead.
+  useEffect(() => {
+    const idx = visibleFeed.findIndex((h) => h.id === watchIdRef.current);
+    if (idx === -1) snapToTop();
+    else if (idx !== currentIndex) setCurrentIndex(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleFeed]);
 
   const next = () => {
     if (!visibleFeed.length) return;
-    setCurrentIndex((i) => Math.min(i + 1, visibleFeed.length - 1));
+    const i = Math.min(currentIndex + 1, visibleFeed.length - 1);
+    setCurrentIndex(i);
+    if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
   };
   const prev = () => {
     if (!visibleFeed.length) return;
-    setCurrentIndex((i) => Math.max(i - 1, 0));
+    const i = Math.max(currentIndex - 1, 0);
+    setCurrentIndex(i);
+    if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
   };
 
   // Keyboard navigation (ignored while the recorder overlay is open).
@@ -388,6 +511,11 @@ export default function Hype({ setTab }) {
           >
             For You
           </button>
+          {activeTag && (
+            <button className="hype-tag-filter" onClick={() => setActiveTag(null)}>
+              <i className="fa-solid fa-hashtag" /> {activeTag} <i className="fa-solid fa-xmark" />
+            </button>
+          )}
         </div>
 
         {/* recorder overlay */}
@@ -407,14 +535,24 @@ export default function Hype({ setTab }) {
           <div className="hype-feed-empty">
             <i className="fa-solid fa-fire" />
             <h3>
-              {feedTab === "following" ? "Nothing here yet" : "No hypes yet"}
+              {activeTag
+                ? `No hypes tagged #${activeTag}`
+                : feedTab === "following"
+                ? "Nothing here yet"
+                : "No hypes yet"}
             </h3>
             <p>
-              {feedTab === "following"
+              {activeTag
+                ? "Try another tag, or clear the filter."
+                : feedTab === "following"
                 ? "Follow creators to fill this feed with their hypes."
                 : "Be the first to post a clip."}
             </p>
-            {feedTab === "following" ? (
+            {activeTag ? (
+              <button className="btn btn-sm" onClick={() => setActiveTag(null)}>
+                <i className="fa-solid fa-xmark" /> Clear tag
+              </button>
+            ) : feedTab === "following" ? (
               <button className="btn btn-sm" onClick={() => setFeedTab("foryou")}>
                 <i className="fa-solid fa-arrow-left" /> Browse For You
               </button>
@@ -438,6 +576,13 @@ export default function Hype({ setTab }) {
                   openProfile={(id) => setTab(`user/${id}`)}
                   soundOn={soundOn}
                   onToggleSound={() => setSoundOn((s) => !s)}
+                  onView={onView}
+                  commentsOpen={commentsFor === h.id}
+                  onToggleComments={() =>
+                    setCommentsFor((c) => (c === h.id ? null : h.id))
+                  }
+                  onTagClick={(t) => setActiveTag(t)}
+                  commentCount={commentCounts[h.id] || 0}
                 />
               ))}
             </div>

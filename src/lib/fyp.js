@@ -136,6 +136,46 @@ export function scoreFeed(items, signals) {
   return mixed;
 }
 
+// ============================================================
+// Hype feed helpers — hashtag SEO + compact counts.
+// ============================================================
+
+// Pull #hashtags out of a caption: [#tag1 #tag2] deduped + lowercased.
+export function extractHashtags(caption = "") {
+  const tags = (caption.match(/#([\w]+)/g) || []).map((t) => t.slice(1).toLowerCase());
+  return [...new Set(tags)];
+}
+
+// 1234 -> "1.2K", 1_250_000 -> "1.3M", 900 -> "900".
+export function formatCount(n) {
+  const num = Number(n) || 0;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(num);
+}
+
+// SEO-style ranking for the For You hype feed. A clip's score rewards
+// the things that make it discoverable: hashtags (up to 3), view count
+// (log-ish curve so 1M views doesn't dwarf everything), and freshness.
+// Keeps each hashtag worth roughly ~6% of the max possible score, and
+// views cap out around a third — so a hashtagged, viewed clip floats
+// above an equal-age clip that has neither.
+export function hypeRankScore(h) {
+  const tags = h.hashtags && h.hashtags.length ? h.hashtags : extractHashtags(h.caption);
+  const tagBoost = Math.min(tags.length, 3) * 0.06;
+  const viewBoost = Math.min(0.34, Math.log10(1 + (h.views || 0)) * 0.06);
+  const ageHours = Math.max(
+    0,
+    (Date.now() - new Date(h.created_at || Date.now()).getTime()) / 3.6e6
+  );
+  const recency = Math.max(0, 1 - ageHours / 168); // fade over a week
+  return tagBoost + viewBoost + recency * 0.5;
+}
+
+export function rankHypeFeed(list) {
+  return [...list].sort((a, b) => hypeRankScore(b) - hypeRankScore(a));
+}
+
 // A few evergreen picks for signed-out users (trending, no profile).
 export function trendingFeed(items) {
   const scored = items.map((item) => ({

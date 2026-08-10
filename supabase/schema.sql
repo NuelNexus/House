@@ -336,9 +336,38 @@ create table if not exists public.hypes (
   recipient_id uuid references auth.users (id) on delete cascade,
   video_url text not null,
   caption text not null default '',
+  views integer not null default 0,
   created_at timestamptz not null default now()
 );
 create index if not exists hypes_feed on public.hypes (created_at desc);
+
+-- Views counter: bump atomically via RPC so rewatching a clip (loops
+-- included) keeps counting up without read-modify-write races.
+create or replace function public.bump_hype_views(p_hype_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.hypes set views = views + 1 where id = p_hype_id;
+$$;
+
+grant execute on function public.bump_hype_views(uuid) to anon, authenticated;
+
+-- Comments on a hype clip (public + private hypes can both be commented).
+create table if not exists public.hype_comments (
+  id uuid primary key default gen_random_uuid(),
+  hype_id uuid not null references public.hypes (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists hype_comments_hype on public.hype_comments (hype_id, created_at);
+create index if not exists hype_comments_user on public.hype_comments (user_id);
+
+-- Hashtags are stored as a text array parsed from the caption at post
+-- time, so the feed can rank / filter by them without re-parsing.
+alter table public.hypes add column if not exists hashtags text[] not null default '{}';
 
 -- Hype streaks between a pair of users (Snapchat-style flame)
 create table if not exists public.hype_streaks (
@@ -404,6 +433,7 @@ create policy "hype_owner_delete" on storage.objects
 alter table public.follows enable row level security;
 alter table public.messages enable row level security;
 alter table public.hypes enable row level security;
+alter table public.hype_comments enable row level security;
 alter table public.hype_streaks enable row level security;
 alter table public.contact_requests enable row level security;
 
@@ -438,6 +468,24 @@ create policy "hypes_select" on public.hypes
 drop policy if exists "hypes_insert" on public.hypes;
 create policy "hypes_insert" on public.hypes
   for insert with check (auth.uid() = user_id);
+
+drop policy if exists "hype_comments_select" on public.hype_comments;
+create policy "hype_comments_select" on public.hype_comments
+  for select using (
+    exists (
+      select 1 from public.hypes h
+      where h.id = hype_id
+        and (h.recipient_id is null or auth.uid() = h.recipient_id or auth.uid() = h.user_id)
+    )
+  );
+
+drop policy if exists "hype_comments_insert" on public.hype_comments;
+create policy "hype_comments_insert" on public.hype_comments
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "hype_comments_delete" on public.hype_comments;
+create policy "hype_comments_delete" on public.hype_comments
+  for delete using (auth.uid() = user_id);
 
 drop policy if exists "streaks_select" on public.hype_streaks;
 create policy "streaks_select" on public.hype_streaks
@@ -510,7 +558,7 @@ grant all on table public.promo_codes to authenticated;
 do $$
 declare t text;
 begin
-  foreach t in array array['messages', 'hypes', 'follows', 'parties', 'ticket_purchases'] loop
+  foreach t in array array['messages', 'hypes', 'hype_comments', 'follows', 'parties', 'ticket_purchases'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

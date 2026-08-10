@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { supabase } from "../lib/supabase";
+import { extractHashtags } from "../lib/fyp";
 import { useAuth } from "./AuthContext";
 import { useStore } from "./StoreContext";
 
@@ -275,6 +276,8 @@ export function SocialProvider({ children }) {
   // ============================================================
   const [hypeFeed, setHypeFeed] = useState([]);
   const [incomingHypes, setIncomingHypes] = useState([]);
+  const [myHypes, setMyHypes] = useState([]);
+  const [commentCounts, setCommentCounts] = useState({}); // hype_id -> count
   const [streaks, setStreaks] = useState([]);
   const [hypeLoading, setHypeLoading] = useState(false);
 
@@ -297,13 +300,8 @@ export function SocialProvider({ children }) {
             .limit(40)
         : Promise.resolve({ data: [] }),
     ]);
-    const authorIds = [
-      ...new Set(
-        [...(feedRes.data || []), ...(inboxRes.data || [])]
-          .map((h) => h.user_id)
-          .filter(Boolean)
-      ),
-    ];
+    const all = [...(feedRes.data || []), ...(inboxRes.data || [])];
+    const authorIds = [...new Set(all.map((h) => h.user_id).filter(Boolean))];
     const profs = await fetchProfiles(authorIds);
     setHypeFeed(
       (feedRes.data || []).map((h) => ({ ...h, author: profs[h.user_id] || null }))
@@ -311,6 +309,19 @@ export function SocialProvider({ children }) {
     setIncomingHypes(
       (inboxRes.data || []).map((h) => ({ ...h, author: profs[h.user_id] || null }))
     );
+    // Live comment counts for every clip in view — one grouped query.
+    const hypeIds = all.map((h) => h.id).filter(Boolean);
+    if (hypeIds.length) {
+      const { data: cc } = await supabase
+        .from("hype_comments")
+        .select("hype_id")
+        .in("hype_id", hypeIds);
+      const map = {};
+      (cc || []).forEach((c) => {
+        map[c.hype_id] = (map[c.hype_id] || 0) + 1;
+      });
+      setCommentCounts(map);
+    }
     if (me) {
       const { data: st } = await supabase
         .from("hype_streaks")
@@ -337,6 +348,29 @@ export function SocialProvider({ children }) {
   useEffect(() => {
     loadHype();
   }, [loadHype]);
+
+  // My own public clips — the "Hypes" tab on my profile, with view counts.
+  const loadMyHypes = useCallback(async () => {
+    const me = uidRef.current;
+    if (!me) {
+      setMyHypes([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("hypes")
+      .select("*")
+      .eq("user_id", me)
+      .is("recipient_id", null)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (!data) return;
+    const profs = await fetchProfiles([me]);
+    setMyHypes(data.map((h) => ({ ...h, author: profs[me] || null })));
+  }, [fetchProfiles]);
+
+  useEffect(() => {
+    if (uid) loadMyHypes();
+  }, [uid, loadMyHypes]);
 
   // Realtime (if the tables are in the realtime publication) plus a light
   // polling fallback so the inbox, follows and hype feed always refresh.
@@ -387,6 +421,7 @@ export function SocialProvider({ children }) {
       if (active) {
         refreshSocial();
         loadHype();
+        loadMyHypes();
       }
     }, 12000);
     return () => {
@@ -394,7 +429,7 @@ export function SocialProvider({ children }) {
       supabase.removeChannel(channel);
       window.clearInterval(poll);
     };
-  }, [uid, refreshSocial, loadFollows, loadHype]);
+  }, [uid, refreshSocial, loadFollows, loadHype, loadMyHypes]);
 
   const uploadVideo = useCallback(async (blob, name) => {
     const me = uidRef.current;
@@ -453,20 +488,93 @@ export function SocialProvider({ children }) {
       const me = uidRef.current;
       if (!me) throw new Error("Sign in to post hype");
       const videoUrl = await uploadVideo(blob, name);
-      const { error } = await supabase.from("hypes").insert({
+      const row = {
         user_id: me,
         recipient_id: recipientId || null,
         video_url: videoUrl,
         caption: (caption || "").trim(),
+      };
+      // The hashtags column arrives with the updated schema — if it's not
+      // there yet, post without it rather than failing the whole upload.
+      let { error } = await supabase.from("hypes").insert({
+        ...row,
+        hashtags: extractHashtags(caption),
       });
+      if (error && /hashtags/i.test(error.message || "")) {
+        ({ error } = await supabase.from("hypes").insert(row));
+      }
       if (error) throw new Error(error.message);
       if (recipientId) await bumpStreak(recipientId);
       notify(recipientId ? "Hype sent!" : "Your hype is live!");
       loadHype();
+      loadMyHypes();
       return true;
     },
-    [uploadVideo, bumpStreak, notify, loadHype]
+    [uploadVideo, extractHashtags, bumpStreak, notify, loadHype, loadMyHypes]
   );
+
+  // Views: one atomic bump per play/rewatch (throttled client-side).
+  const bumpHypeViews = useCallback(async (hypeId) => {
+    if (!hypeId) return;
+    setHypeFeed((p) =>
+      p.map((h) => (h.id === hypeId ? { ...h, views: (h.views || 0) + 1 } : h))
+    );
+    setIncomingHypes((p) =>
+      p.map((h) => (h.id === hypeId ? { ...h, views: (h.views || 0) + 1 } : h))
+    );
+    setMyHypes((p) =>
+      p.map((h) => (h.id === hypeId ? { ...h, views: (h.views || 0) + 1 } : h))
+    );
+    const { error } = await supabase.rpc("bump_hype_views", {
+      p_hype_id: hypeId,
+    });
+    if (error) console.warn("view bump:", error.message);
+  }, []);
+
+  // Comments: load one clip's thread with author profiles attached.
+  const loadComments = useCallback(
+    async (hypeId) => {
+      if (!hypeId) return [];
+      const { data } = await supabase
+        .from("hype_comments")
+        .select("*")
+        .eq("hype_id", hypeId)
+        .order("created_at", { ascending: true });
+      const authorIds = [...new Set((data || []).map((c) => c.user_id).filter(Boolean))];
+      const profs = await fetchProfiles(authorIds);
+      return (data || []).map((c) => ({ ...c, author: profs[c.user_id] || null }));
+    },
+    [fetchProfiles]
+  );
+
+  const addComment = useCallback(async (hypeId, body) => {
+    const me = uidRef.current;
+    if (!me) throw new Error("Sign in to comment");
+    const text = (body || "").trim();
+    if (!text) throw new Error("Say something first");
+    const { data, error } = await supabase
+      .from("hype_comments")
+      .insert({ hype_id: hypeId, user_id: me, body: text })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    const profs = await fetchProfiles([me]);
+    setCommentCounts((p) => ({ ...p, [hypeId]: (p[hypeId] || 0) + 1 }));
+    return { ...data, author: profs[me] || null };
+  }, [fetchProfiles]);
+
+  const deleteComment = useCallback(async (commentId, hypeId) => {
+    const { error } = await supabase
+      .from("hype_comments")
+      .delete()
+      .eq("id", commentId);
+    if (error) throw new Error(error.message);
+    setCommentCounts((p) => ({
+      ...p,
+      [hypeId]: Math.max(0, (p[hypeId] || 1) - 1),
+    }));
+    return true;
+  }, []);
 
   // ============================================================
   // CONTACT REQUESTS (hosts without Fest GH accounts)
@@ -512,10 +620,18 @@ export function SocialProvider({ children }) {
       // hype
       hypeFeed,
       incomingHypes,
+      myHypes,
+      commentCounts,
       streaks,
       hypeLoading,
       loadHype,
       postHype,
+      loadMyHypes,
+      bumpHypeViews,
+      loadComments,
+      addComment,
+      deleteComment,
+      extractHashtags,
       // contact
       sendContactRequest,
       fetchProfiles,
@@ -540,10 +656,18 @@ export function SocialProvider({ children }) {
       loadPeople,
       hypeFeed,
       incomingHypes,
+      myHypes,
+      commentCounts,
       streaks,
       hypeLoading,
       loadHype,
       postHype,
+      loadMyHypes,
+      bumpHypeViews,
+      loadComments,
+      addComment,
+      deleteComment,
+      extractHashtags,
       sendContactRequest,
       fetchProfiles,
     ]

@@ -570,8 +570,12 @@ export default function VideoRecorder({
             )}
             <input
               className="snap-caption"
-              maxLength={140}
-              placeholder={isImage ? "Add a caption…" : "Add a caption…"}
+              maxLength={220}
+              placeholder={
+                isImage
+                  ? "Add a caption… #hashtags boost your hype"
+                  : "Add a caption… #hashtags boost your hype"
+              }
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               aria-label="Caption"

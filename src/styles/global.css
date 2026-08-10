@@ -5927,6 +5927,289 @@ html[data-mode="dark"][data-bg="image"] body::before {
   margin-bottom: 24px;
 }
 
+/* Views count next to the timestamp */
+.hype-slide-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 400;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0;
+}
+
+.hype-slide-views i {
+  color: #4da3ff;
+}
+
+/* Hashtag chips inside the caption — click to filter the feed */
+.hype-slide-tags {
+  display: inline;
+  pointer-events: auto;
+}
+
+.hype-tag-chip {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-left: 6px;
+  color: #4da3ff;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.hype-tag-chip:hover {
+  opacity: 0.65;
+}
+
+/* Active tag pill in the For You bar */
+.hype-tag-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.hype-tag-filter:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.hype-tag-filter .fa-xmark {
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+/* Comment button active state */
+.hype-rail-btn.active i {
+  color: #4da3ff;
+}
+
+/* Comments drawer — slides over the clip, dark glass */
+.hype-comments {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 6;
+  max-height: 62%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 12, 16, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  animation: hypeCommentsUp 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes hypeCommentsUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.hype-comments-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hype-comments-head h4 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.hype-comments-head h4 span {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 400;
+}
+
+.hype-comments-close {
+  border: 0;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.hype-comments-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.hype-comments-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+  min-height: 60px;
+}
+
+.hype-comments-empty {
+  text-align: center;
+  padding: 26px 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+}
+
+.hype-comments-empty i {
+  font-size: 26px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.hype-comment {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hype-comment:last-child {
+  border-bottom: 0;
+}
+
+.hype-comment .avatar-svg {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hype-comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.hype-comment-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.hype-comment-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.hype-comment-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hype-comment-text {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+  word-break: break-word;
+}
+
+.hype-comment-del {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 2px 4px;
+  transition: color 0.2s ease;
+}
+
+.hype-comment-del:hover {
+  color: #ff5d5d;
+}
+
+.hype-comment-form {
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hype-comment-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #ff9d9d;
+}
+
+.hype-comment-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 6px 8px 6px 10px;
+}
+
+.hype-comment-input .avatar-svg {
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hype-comment-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+}
+
+.hype-comment-input input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hype-comment-send {
+  border: 0;
+  background: transparent;
+  color: #4da3ff;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: opacity 0.2s ease;
+}
+
+.hype-comment-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.hype-comment-send:not(:disabled):hover {
+  opacity: 0.7;
+}
+
+/* Hype video tiles in the profile gallery */
+.gallery-item video.gallery-image {
+  object-fit: cover;
+  background: #0c0c10;
+}
+
 /* Overlay for recorder / send flow */
 .hype-feed-overlay {
   position: absolute;

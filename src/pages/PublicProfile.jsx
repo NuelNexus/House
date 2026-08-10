@@ -6,12 +6,14 @@ import { useSocial } from "../context/SocialContext";
 import Avatar from "../components/Avatar";
 import CoverArt from "../components/CoverArt";
 import ProfileItemModal from "../components/ProfileItemModal";
+import { formatCount } from "../lib/fyp";
 
-const FILTERS = ["All", "Parties", "Reviews"];
+const FILTERS = ["All", "Hypes", "Parties", "Reviews"];
 
 const KIND_ICON = {
   party: "fa-people-group",
   review: "fa-star",
+  hype: "fa-fire",
 };
 
 function categoryFor(name, tickets, allParties) {
@@ -31,6 +33,7 @@ export default function PublicProfile({ userId }) {
     profile: null,
     parties: [],
     reviews: [],
+    hypes: [],
   });
   const [filter, setFilter] = useState("All");
   const [detail, setDetail] = useState(null);
@@ -57,7 +60,7 @@ export default function PublicProfile({ userId }) {
     let active = true;
     setState((s) => ({ ...s, loading: true }));
     (async () => {
-      const [profRes, partiesRes, reviewsRes] = await Promise.all([
+      const [profRes, partiesRes, reviewsRes, hypesRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("name, bio, avatar, avatar_url")
@@ -73,6 +76,13 @@ export default function PublicProfile({ userId }) {
           .select("*")
           .eq("user_id", userId)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("hypes")
+          .select("*")
+          .eq("user_id", userId)
+          .is("recipient_id", null)
+          .order("created_at", { ascending: false })
+          .limit(50),
       ]);
       if (!active) return;
       const parties = (partiesRes.data ?? []).map((p) => ({
@@ -90,6 +100,7 @@ export default function PublicProfile({ userId }) {
         profile: profRes.data || null,
         parties,
         reviews,
+        hypes: hypesRes.data ?? [],
       });
     })().catch(() => {
       if (active) setState((s) => ({ ...s, loading: false }));
@@ -101,12 +112,13 @@ export default function PublicProfile({ userId }) {
 
   const stats = useMemo(
     () => [
+      { label: "Hypes", count: state.hypes.length },
       { label: "Parties", count: state.parties.length },
       { label: "Reviews", count: state.reviews.length },
       { label: "Followers", count: counts.followers },
       { label: "Following", count: counts.following },
     ],
-    [state.parties, state.reviews, counts]
+    [state.parties, state.reviews, state.hypes, counts]
   );
 
   const items = useMemo(() => {
@@ -126,8 +138,17 @@ export default function PublicProfile({ userId }) {
       sub: `${r.rating}/5`,
       coverCat: categoryFor(r.partyName, tickets, allParties),
     }));
-    return [...partyItems, ...reviewItems];
-  }, [state.parties, state.reviews, tickets, allParties]);
+    const hypeItems = state.hypes.map((h) => ({
+      kind: "hype",
+      id: h.id,
+      ref: h,
+      label: h.caption || "Hype",
+      sub: `${formatCount(h.views || 0)} views`,
+      coverCat: null,
+      videoUrl: h.video_url,
+    }));
+    return [...hypeItems, ...partyItems, ...reviewItems];
+  }, [state.parties, state.reviews, state.hypes, tickets, allParties]);
 
   const visible = useMemo(
     () =>
@@ -149,11 +170,13 @@ export default function PublicProfile({ userId }) {
   }
 
   const empty =
-    !state.profile && state.parties.length === 0 && state.reviews.length === 0;
+    !state.profile &&
+    state.parties.length === 0 &&
+    state.reviews.length === 0 &&
+    state.hypes.length === 0;
 
   return (
-    <div className="page profile-page">
-      <div className="profile-kicker">Public profile</div>
+    <div className="page profile-page">            <div className="profile-kicker">Public profile</div>
 
       <div className="profile-wrap">
         {empty ? (
@@ -252,7 +275,11 @@ export default function PublicProfile({ userId }) {
               <div className="empty-state">
                 <i className="fa-solid fa-images" />
                 <h3>Nothing here yet</h3>
-                <p>Nothing to show in this section.</p>
+                <p>
+                  {filter === "Hypes"
+                    ? "This creator hasn't posted any hype clips yet."
+                    : "Nothing to show in this section."}
+                </p>
               </div>
             ) : (
               <div className="gallery">
@@ -272,7 +299,18 @@ export default function PublicProfile({ userId }) {
                       }
                     }}
                   >
-                    <CoverArt category={item.coverCat} className="gallery-image" />
+                    {item.kind === "hype" ? (
+                      <video
+                        className="gallery-image"
+                        src={item.videoUrl}
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <CoverArt category={item.coverCat} className="gallery-image" />
+                    )}
                     <span className="gallery-item-kind" aria-hidden="true">
                       <i className={`fa-solid ${KIND_ICON[item.kind]}`} />
                     </span>
