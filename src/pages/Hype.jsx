@@ -44,6 +44,7 @@ function HypeSlide({
   onToggleComments,
   onTagClick,
   commentCount,
+  preload,
 }) {
   const videoRef = useRef(null);
   const lastViewAt = useRef(0);
@@ -193,14 +194,19 @@ function HypeSlide({
   return (
     <div className={`hype-feed-slide${paused && !image ? " paused" : ""}`} onClick={togglePlay}>
       {image ? (
-        <img className="hype-slide-img" src={hype.video_url} alt={hype.caption || "Hype"} />
+        <img
+          className="hype-slide-img"
+          src={hype.video_url}
+          alt={hype.caption || "Hype"}
+          loading={preload === "auto" ? "eager" : "lazy"}
+        />
       ) : (
         <video
           ref={videoRef}
           src={hype.video_url}
           loop
           playsInline
-          preload="metadata"
+          preload={preload || "metadata"}
         />
       )}
       {!image && (
@@ -311,7 +317,7 @@ function HypeSlide({
             <span className="hype-rail-label">Hype</span>
           </button>
           <button
-            className={`hype-rail-btn${commentsOpen ? " active" : ""}`}
+            className={`hype-rail-btn${commentsOpen ? " active" : ""}${commentCount > 0 ? " has-count" : ""}`}
             aria-label={commentsOpen ? "Close comments" : "Comments"}
             onClick={onToggleComments}
           >
@@ -372,23 +378,15 @@ export default function Hype({ setTab }) {
   const touchStartX = useRef(null);
   const watchIdRef = useRef(null); // the clip currently on screen
 
-  // Jump back to the top of the feed and remember the new first clip.
-  const snapToTop = () => {
-    setCurrentIndex(0);
-    if (visibleFeed[0]) watchIdRef.current = visibleFeed[0].id;
-  };
-
   const onView = useMemo(
     () => (id) => bumpHypeViews(id),
     [bumpHypeViews]
   );
 
-  // For You is ranked by the SEO-style score (hashtags + views + recency);
-  // Following stays chronological. An active #tag filters the whole feed.
-  // Clips the signed-in user has already watched are hidden from the feed
-  // (they live on in the profile's "Hyped" tab) so the feed always feels
-  // fresh — unless the user asks for them via a tag filter.
-  const visibleFeed = useMemo(() => {
+  // Ranked + filtered candidates straight from the live feed (tab, tag and
+  // seen-clips are applied here). This recomputes on every refresh and view
+  // bump, so it is NOT what we render — see the locked visibleFeed below.
+  const ranked = useMemo(() => {
     let base = hypeFeed.filter((h) => !seenHypeIds.has(h.id));
     if (activeTag) {
       base = hypeFeed.filter(
@@ -405,23 +403,52 @@ export default function Hype({ setTab }) {
     return rankHypeFeed(base);
   }, [hypeFeed, following, feedTab, activeTag, seenHypeIds]);
 
-  // Reset to the top when the tab/tag or the first clip itself changes
-  // (a brand-new hype landing at #1) — NOT on every background refresh.
-  useEffect(() => {
-    snapToTop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedTab, activeTag, visibleFeed[0]?.id]);
+  // The LOCKED playlist — the order you actually swipe through. Once the
+  // feed loads (or you switch tab/tag), the order is frozen: background
+  // refreshes, view bumps and new hypes can never reshuffle clips mid-watch
+  // or yank you back to slide 1. Clips that appear while you're watching
+  // are appended to the END, so the current clip and the next few are
+  // always already determined. Fresh data (views) is merged in place.
+  const [visibleFeed, setVisibleFeed] = useState([]);
+  const playlistKeyRef = useRef(null);
 
-  // Background re-ranks (view bumps, 12s refresh) re-sort the feed but
-  // must never shuffle a different clip under the viewer or yank them
-  // back to slide 1 — follow the watched clip to its new index instead.
-  // If the clip truly vanished (deleted, or marked seen after the viewer
-  // swiped past it), clamp to the nearest remaining clip rather than
-  // jumping to the top of the feed.
+  useEffect(() => {
+    const key = `${feedTab}|${activeTag || ""}`;
+    if (key !== playlistKeyRef.current) {
+      // Tab/tag switched (or first load): re-lock from the ranked feed
+      // and start from the top.
+      playlistKeyRef.current = key;
+      setVisibleFeed(ranked);
+      setCurrentIndex(0);
+      if (ranked[0]) watchIdRef.current = ranked[0].id;
+      return;
+    }
+    // Background refresh: keep every existing clip in its locked position
+    // (swapping in the freshest data), drop deleted ones, append new ones.
+    // Returns the SAME array when nothing changed, so view-bump re-renders
+    // don't reshuffle or re-render every slide.
+    setVisibleFeed((prev) => {
+      const byId = new Map(ranked.map((r) => [r.id, r]));
+      const keep = prev
+        .filter((h) => byId.has(h.id))
+        .map((h) => byId.get(h.id));
+      const fresh = ranked.filter((r) => !prev.some((h) => h.id === r.id));
+      const next = fresh.length ? [...keep, ...fresh] : keep;
+      if (next.length === prev.length && next.every((h, i) => h.id === prev[i].id)) {
+        return prev;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ranked, feedTab, activeTag]);
+
+  // Safety net: whenever the playlist shifts, keep the current clip
+  // pinned. If it truly vanished (watched + dropped, or deleted), clamp to
+  // the nearest remaining clip — never switch to a different video under
+  // the viewer.
   useEffect(() => {
     const idx = visibleFeed.findIndex((h) => h.id === watchIdRef.current);
     if (idx === -1) {
-      // Clamp to a valid index (0 when the feed empties entirely).
       const i = Math.max(0, Math.min(currentIndex, visibleFeed.length - 1));
       setCurrentIndex(i);
       if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
@@ -434,23 +461,37 @@ export default function Hype({ setTab }) {
   // Moving off a clip counts as having watched it — it leaves the feed
   // (the profile's Hyped tab keeps it for rewatching). Marking it here,
   // on navigation, means the clip you're mid-way through never vanishes
-  // from under you; only the one you've left does.
-  const next = () => {
+  // from under you; only the one you've left does. The left clip is also
+  // dropped from the locked playlist so the next clip fills its slot in
+  // the same frame (no flicker, no mid-switch skips).
+  const moveTo = (dir) => {
     if (!visibleFeed.length) return;
     const cur = visibleFeed[currentIndex];
-    if (cur) markHypeSeen(cur.id);
-    const i = Math.min(currentIndex + 1, visibleFeed.length - 1);
-    setCurrentIndex(i);
-    if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
+    if (!cur) return;
+    const targetIdx =
+      dir === 1
+        ? Math.min(currentIndex + 1, visibleFeed.length - 1)
+        : Math.max(currentIndex - 1, 0);
+    const target = visibleFeed[targetIdx];
+    if (target && target.id !== cur.id) {
+      markHypeSeen(cur.id);
+      setVisibleFeed((p) => p.filter((h) => h.id !== cur.id));
+      // Once the current clip is removed, the target slides one slot left
+      // — so it lands exactly where the current clip was.
+      watchIdRef.current = target.id;
+      setCurrentIndex(Math.max(0, targetIdx - 1));
+    } else if (dir === 1) {
+      // Already at the last clip — step back instead of dropping the
+      // current clip into the void.
+      markHypeSeen(cur.id);
+      setVisibleFeed((p) => p.filter((h) => h.id !== cur.id));
+      watchIdRef.current = visibleFeed[Math.max(0, currentIndex - 1)]?.id;
+      setCurrentIndex(Math.max(0, currentIndex - 1));
+    }
+    // dir === -1 with nothing before the current clip: stay put.
   };
-  const prev = () => {
-    if (!visibleFeed.length) return;
-    const cur = visibleFeed[currentIndex];
-    if (cur) markHypeSeen(cur.id);
-    const i = Math.max(currentIndex - 1, 0);
-    setCurrentIndex(i);
-    if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
-  };
+  const next = () => moveTo(1);
+  const prev = () => moveTo(-1);
 
   // Keyboard navigation (ignored while the recorder overlay is open).
   useEffect(() => {
@@ -462,7 +503,7 @@ export default function Hype({ setTab }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, visibleFeed.length]);
+  }, [mode, visibleFeed.length, currentIndex]);
 
   // Mouse-wheel / trackpad navigation — swiping left-right (or scrolling
   // vertically with a mouse wheel) steps one slide per tick, throttled.
@@ -480,7 +521,7 @@ export default function Hype({ setTab }) {
     window.addEventListener("wheel", onWheel, { passive: true });
     return () => window.removeEventListener("wheel", onWheel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, visibleFeed.length]);
+  }, [mode, visibleFeed.length, currentIndex]);
 
   // Touch swipe navigation for phones — swipe LEFT for the next hype,
   // RIGHT for the previous (ignored while the overlay is open).
@@ -615,6 +656,10 @@ export default function Hype({ setTab }) {
                   }
                   onTagClick={(t) => setActiveTag(t)}
                   commentCount={commentCounts[h.id] || 0}
+                  // Preload the current clip and the next two so the
+                  // upcoming videos are already buffered and the order is
+                  // fixed before you swipe.
+                  preload={i >= currentIndex && i - currentIndex <= 2 ? "auto" : "metadata"}
                 />
               ))}
             </div>

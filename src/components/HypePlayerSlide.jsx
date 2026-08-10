@@ -174,7 +174,7 @@ export default function HypePlayerSlide({ hype, author, onClose }) {
       <div className="hype-rail" onClick={(e) => e.stopPropagation()}>
         <div className="hype-rail-actions">
           <button
-            className={`hype-rail-btn${commentsOpen ? " active" : ""}`}
+            className={`hype-rail-btn${commentsOpen ? " active" : ""}${count > 0 ? " has-count" : ""}`}
             aria-label={commentsOpen ? "Close comments" : "Comments"}
             onClick={() => setCommentsOpen((o) => !o)}
           >
