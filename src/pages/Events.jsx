@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import PartyCard from "../components/PartyCard";
-import TicketStub from "../components/TicketStub";
-import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
 
 // ------------------------------------------------------------------
@@ -16,7 +14,7 @@ import Reveal from "../components/Reveal";
 export default function Events({ setTab }) {
   // Only affiliate reposts show here — host originals wait in the pool
   // on the Affiliate tab until someone reposts them with a price.
-  const { marketplaceParties, myTickets } = useStore();
+  const { marketplaceParties } = useStore();
   const { ensureAuth } = useAuth();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
@@ -91,31 +89,6 @@ export default function Events({ setTab }) {
           </button>
         </div>
       </Reveal>
-
-      {myTickets.length > 0 && (
-        <Reveal>
-          <div className="section-label">Your Tickets ({myTickets.length})</div>
-          <div className="tickets-stack">
-            {myTickets.map((t) =>
-              t.design ? (
-                <DesignedTicket
-                  key={t.code}
-                  design={t.design}
-                  passenger={
-                    typeof t.holder === "object" ? t.holder.name : t.holder
-                  }
-                  code={t.code}
-                  hash={t.hash}
-                  price={t.price}
-                  promo={t.promoUsed}
-                />
-              ) : (
-                <TicketStub key={t.code} ticket={t} />
-              )
-            )}
-          </div>
-        </Reveal>
-      )}
 
       {nothing ? (
         <div className="empty-state">

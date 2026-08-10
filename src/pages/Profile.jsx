@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { useSocial } from "../context/SocialContext";
@@ -6,6 +6,7 @@ import Avatar from "../components/Avatar";
 import CoverArt from "../components/CoverArt";
 import ProfileItemModal from "../components/ProfileItemModal";
 import HypePlayerSlide from "../components/HypePlayerSlide";
+import TicketWall from "../components/TicketWall";
 import { formatCount } from "../lib/fyp";
 
 const FILTERS = ["All", "Saved", "Hypes", "Hyped", "Parties", "Reviews", "Tickets"];
@@ -66,6 +67,20 @@ export default function Profile({ setTab }) {
     [userParties, userReviews, myTickets, myFollowers, following]
   );
 
+  // A ticket's gallery-tile shape — reused by the wall's open action
+  // so the pass modal gets the exact same item.
+  const ticketItem = useCallback(
+    (t) => ({
+      kind: "ticket",
+      id: t.code,
+      ref: t,
+      label: t.name,
+      sub: `GH₵ ${t.price}`,
+      coverCat: categoryFor(t.name, tickets, allParties),
+    }),
+    [tickets, allParties]
+  );
+
   const items = useMemo(() => {
     const partyItems = userParties.map((p) => ({
       kind: "party",
@@ -88,14 +103,7 @@ export default function Profile({ setTab }) {
       sub: `${r.rating}/5`,
       coverCat: categoryFor(r.partyName, tickets, allParties),
     }));
-    const ticketItems = myTickets.map((t) => ({
-      kind: "ticket",
-      id: t.code,
-      ref: t,
-      label: t.name,
-      sub: `GH₵ ${t.price}`,
-      coverCat: categoryFor(t.name, tickets, allParties),
-    }));
+    const ticketItems = myTickets.map(ticketItem);
     // Saved parties (wishlist) from anywhere on the scene.
     const savedItems = saved
       .map((id) => allParties.find((p) => p.id === id))
@@ -129,7 +137,7 @@ export default function Profile({ setTab }) {
       videoUrl: h.video_url,
     }));
     return [...hypeItems, ...hypedItems, ...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
-  }, [userParties, userReviews, myTickets, tickets, allParties, saved, myHypes, hypedHypes]);
+  }, [userParties, userReviews, myTickets, tickets, allParties, saved, myHypes, hypedHypes, ticketItem]);
 
   // The default "All" view shows only YOUR content. Other people's
   // videos you've watched (the rewatch history) stay on the dedicated
@@ -256,6 +264,13 @@ export default function Profile({ setTab }) {
           </div>
         </header>
 
+        {/* Your Tickets — the pass wall. Full grid on desktop, one big
+            swipeable pass at a time on mobile. The gallery's Tickets
+            chip below still shows the compact tiles. */}
+        {filter !== "Tickets" && (
+          <TicketWall tickets={myTickets} onOpen={(t) => setDetail(ticketItem(t))} />
+        )}
+
         {/* Gallery */}
         <div className="gallery-filter" role="tablist" aria-label="Filter your moments">
           {FILTERS.map((f) => (
@@ -287,7 +302,7 @@ export default function Profile({ setTab }) {
                 : filter === "Reviews"
                 ? "Write a review after your next party."
                 : filter === "Tickets"
-                ? "Buy a ticket and your passes will appear here."
+                ? "Buy a ticket and your pass will appear in the ticket wall above — and here in the gallery."
                 : "Your posts, reviews and tickets will show up here."}
             </p>
           </div>

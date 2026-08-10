@@ -6709,6 +6709,178 @@ html[data-mode="dark"][data-bg="image"] body::before {
   margin-bottom: 0;
 }
 
+/* ------------------------------------------------------------
+   Profile ticket wall — passes live here now (Events is listings
+   only). Desktop: dense horizontal grid. Mobile: one big pass at
+   a time, swiped with scroll-snap + dot navigation.
+   ------------------------------------------------------------ */
+.ticket-wall {
+  margin: 30px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ticket-wall-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.ticket-wall-label {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.ticket-wall-label b {
+  color: var(--rose-deep);
+}
+
+.ticket-wall-hint {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Desktop grid — wide horizontal passes */
+.ticket-wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.ticket-wall-grid .designed-ticket {
+  max-width: none;
+}
+
+.ticket-wall-grid .ticket-stub {
+  margin-bottom: 0;
+}
+
+.profile-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.profile-ticket-wrap {
+  min-width: 0;
+}
+
+.profile-ticket-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.profile-ticket-meta span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-ticket-meta span:first-child i {
+  color: var(--ink);
+  margin-right: 6px;
+}
+
+.profile-ticket-open {
+  background: transparent;
+  border: 1px solid var(--line);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--ink);
+  transition: all 0.25s ease;
+}
+
+.profile-ticket-open:hover {
+  background: var(--ink);
+  color: var(--paper);
+  transform: translateY(-2px);
+}
+
+/* Mobile — one big pass at a time, swipe between them */
+.ticket-wall-rail {
+  display: none;
+}
+
+.ticket-wall-dots {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .ticket-wall-grid {
+    display: none;
+  }
+
+  .ticket-wall-rail {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 4px 2px 10px;
+  }
+
+  .ticket-wall-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ticket-wall-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    cursor: pointer;
+  }
+
+  .ticket-wall-slide .profile-ticket {
+    gap: 8px;
+  }
+
+  .ticket-wall-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .ticket-wall-dots button {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--ink);
+    background: transparent;
+    padding: 0;
+    transition: all 0.25s ease;
+  }
+
+  .ticket-wall-dots button.active {
+    background: var(--ink);
+    transform: scale(1.25);
+  }
+
+  .ticket-wall-hint {
+    display: none;
+  }
+}
+
 .designed-ticket {
   --dt-paper: #f3f1c9;
   --dt-ink: #101117;
