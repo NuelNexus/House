@@ -1183,6 +1183,101 @@ export function StoreProvider({ children }) {
 
   const clearCart = useCallback(() => setCart([]), []);
 
+  // Buy ONE ticket for an event directly from the listing — no cart, no
+  // checkout page. Mirrors checkout()'s split exactly: platform 30% of
+  // the sale, host 70% of base, affiliate 70% of margin — so a quick
+  // purchase logs the same money trail as a cart order. Returns the
+  // issued ticket record (or null).
+  const buyNow = useCallback(
+    (ticket, holder, paymentRef = null) => {
+      if (!ticket) return null;
+      const unit = Math.max(0, Number(ticket.price) || 0);
+      const base = Math.max(0, Number(ticket.originalPrice) || 0);
+      const margin = Math.max(0, unit - base);
+      const commission = Math.round(unit * COMMISSION_RATE);
+      const affiliateShare =
+        ticket.affiliateId && base > 0
+          ? Math.round(margin * AFFILIATE_MARGIN_RATE)
+          : 0;
+      const record = {
+        code: genCode(),
+        hash: genHash(),
+        ticketId: ticket.id,
+        name: ticket.name,
+        date: ticket.date,
+        location: ticket.location,
+        price: unit,
+        originalPrice: base,
+        commission,
+        affiliateShare,
+        paymentRef,
+        holder,
+        partyId: ticket.partyId || (ticket.isParty ? ticket.id : null) || null,
+        hostId: ticket.hostId || null,
+        affiliateId: ticket.affiliateId || null,
+        design: ticket.design || ticket.ticketDesign || null,
+        promoUsed: null,
+      };
+      setMyTickets((prev) => [record, ...prev]);
+
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        supabase
+          .from("tickets")
+          .insert({
+            code: record.code,
+            user_id: uid,
+            ticket_id: record.ticketId,
+            party_id: record.partyId,
+            hash: record.hash,
+            name: record.name,
+            date: record.date,
+            location: record.location,
+            price: record.price,
+            original_price: record.originalPrice ?? null,
+            commission: record.commission ?? null,
+            affiliate_share: record.affiliateShare ?? null,
+            payment_reference: record.paymentRef ?? null,
+            holder: JSON.stringify(record.holder),
+            design: record.design ? JSON.stringify(record.design) : null,
+            promo_used: null,
+          })
+          .then(({ error }) => {
+            if (error) console.warn("ticket sync:", error.message);
+          });
+
+        // Sale log: one row for the ORIGINAL host (70% of base) and the
+        // reposting affiliate (70% of margin) — same as a cart checkout.
+        if (record.partyId && record.hostId) {
+          supabase
+            .from("ticket_purchases")
+            .insert({
+              party_id: record.partyId,
+              host_id: record.hostId,
+              affiliate_id: record.affiliateId ?? null,
+              buyer_id: uid,
+              buyer_name: record.holder.name,
+              buyer_email: record.holder.email,
+              buyer_phone: record.holder.phone,
+              code: record.code,
+              hash: record.hash,
+              price: record.price,
+              original_price: record.originalPrice ?? null,
+              commission: record.commission ?? null,
+              affiliate_share: record.affiliateShare ?? null,
+              payment_reference: record.paymentRef ?? null,
+            })
+            .then(({ error }) => {
+              if (error) console.warn("host log sync:", error.message);
+            });
+        }
+      }
+
+      return record;
+    },
+    []
+  );
+
   const checkout = useCallback(
     (holder, promoCode, paymentRef = null) => {
       const code = (promoCode || "").trim().toUpperCase();
@@ -1722,6 +1817,7 @@ export function StoreProvider({ children }) {
     removeFromCart,
     clearCart,
     checkout,
+    buyNow,
     myTickets,
     userParties,
     userReviews,

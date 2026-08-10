@@ -2,12 +2,14 @@ import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { goUser, contactHostHref } from "../lib/nav";
+import { useBuyNow } from "../hooks/useBuyNow";
 import CoverArt from "./CoverArt";
 
 export default function PartyCard({ party }) {
-  const { going, toggleGoing, displayRsvps, isSaved, toggleSave, addToCart, cart } =
+  const { going, toggleGoing, displayRsvps, isSaved, toggleSave } =
     useStore();
   const { user } = useAuth();
+  const { buy, buyingId } = useBuyNow();
   // "Hosted by you" is based on the signed-in user's id, not a flag —
   // so it's correct now that everyone's parties share one list.
   const isMine =
@@ -28,10 +30,10 @@ export default function PartyCard({ party }) {
   const onSale = !!design;
   const soldOut = onSale && capacity > 0 && ticketsLeft === 0;
   const low = onSale && capacity > 0 && ticketsLeft > 0 && ticketsLeft <= 20;
-  const inCart = cart.find((i) => i.id === party.id);
+  const buying = buyingId === party.id;
 
-  // Shape the add-to-cart ticket from the party itself, matching the
-  // snapshot the store expects (id, price, design, splits…).
+  // Shape the ticket from the party itself, matching the shape the
+  // store expects (id, price, design, splits…).
   const ticket = {
     id: party.id,
     name: design?.name || party.title,
@@ -139,21 +141,25 @@ export default function PartyCard({ party }) {
         {onSale ? (
           <button
             className="btn btn-sm"
-            disabled={soldOut}
+            disabled={soldOut || buying}
             onClick={(e) => {
               e.stopPropagation();
-              addToCart(ticket);
+              buy(ticket);
             }}
           >
-            {soldOut ? (
-              "Sold out"
-            ) : inCart ? (
+            {buying ? (
               <>
-                <i className="fa-solid fa-check" /> In cart
+                <i className="fa-solid fa-spinner fa-spin" /> Paying…
+              </>
+            ) : soldOut ? (
+              "Sold out"
+            ) : price === 0 ? (
+              <>
+                Get free ticket <i className="fa-solid fa-ticket icon" />
               </>
             ) : (
               <>
-                Get ticket <i className="fa-solid fa-plus icon" />
+                Get ticket <i className="fa-solid fa-lock icon" />
               </>
             )}
           </button>

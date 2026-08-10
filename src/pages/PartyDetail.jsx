@@ -3,6 +3,7 @@ import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { contactHostHref } from "../lib/nav";
+import { useBuyNow } from "../hooks/useBuyNow";
 import CoverArt from "../components/CoverArt";
 import ReviewCard from "../components/ReviewCard";
 import Reveal from "../components/Reveal";
@@ -27,12 +28,12 @@ export default function PartyDetail({ partyId, setTab }) {
     going,
     toggleGoing,
     displayRsvps,
-    addToCart,
     isSaved,
     toggleSave,
     notify,
   } = useStore();
   const { ensureAuth } = useAuth();
+  const { buy, buyingId } = useBuyNow();
 
   const party = useMemo(() => {
     const base = allParties.find((p) => p.id === partyId);
@@ -155,8 +156,24 @@ export default function PartyDetail({ partyId, setTab }) {
                 {isSaved(party.id) ? "Saved" : "Save"}
               </button>
               {isTicket ? (
-                <button className="btn" onClick={() => addToCart(party)}>
-                  <i className="fa-solid fa-ticket icon" /> Add to cart
+                <button
+                  className="btn"
+                  disabled={buyingId === party.id}
+                  onClick={() => buy(party)}
+                >
+                  {buyingId === party.id ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin icon" /> Paying…
+                    </>
+                  ) : party.price === 0 ? (
+                    <>
+                      <i className="fa-solid fa-ticket icon" /> Get free ticket
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-lock icon" /> Get ticket · {GH_CD(party.price)}
+                    </>
+                  )}
                 </button>
               ) : (
                 <button
