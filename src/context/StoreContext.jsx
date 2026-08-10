@@ -457,26 +457,18 @@ export function StoreProvider({ children }) {
       // (and everyone else's) are in the community list.
       fetchSceneParties();
 
-      if (cloudParties.length) {
-        setUserParties((prev) => {
-          const have = new Set(prev.map((p) => p.id));
-          return [...cloudParties, ...prev.filter((p) => !have.has(p.id))];
-        });
-      }
-      if (cloudReviews.length) {
-        setUserReviews((prev) => {
-          const have = new Set(prev.map((r) => r.id));
-          return [...cloudReviews, ...prev.filter((r) => !have.has(r.id))];
-        });
-      }
+      // REPLACE (never merge) each list with THIS account's cloud rows.
+      // The queries above are already scoped to userId, and replacing
+      // stops one account's local cache from bleeding into another
+      // account's session on the same device (the old merge kept stale
+      // rows from a previous sign-in in the mix).
+      if (!partiesRes.error) setUserParties(cloudParties);
+      if (!reviewsRes.error) setUserReviews(cloudReviews);
       const cloudGoing = (goingRes.data ?? []).map((g) => g.party_id);
-      if (cloudGoing.length) {
-        setGoing((prev) => [...new Set([...prev, ...cloudGoing])]);
-      }
-      if (cloudTickets.length) {
-        setMyTickets((prev) => {
-          const have = new Set(prev.map((t) => t.code));
-          const mapped = cloudTickets.map((t) => ({
+      if (!goingRes.error) setGoing(cloudGoing);
+      if (!ticketsRes.error) {
+        setMyTickets(
+          cloudTickets.map((t) => ({
             code: t.code,
             ticketId: t.ticket_id,
             partyId: t.party_id ?? null,
@@ -491,9 +483,8 @@ export function StoreProvider({ children }) {
             paymentRef: t.payment_reference ?? null,
             holder: parseHolder(t.holder),
             promoUsed: t.promo_used ?? null,
-          }));
-          return [...mapped, ...prev.filter((t) => !have.has(t.code))];
-        });
+          }))
+        );
       }
       const cloudPosts = (postsRes.data ?? []).map((p) => ({
         ...p,
@@ -506,12 +497,7 @@ export function StoreProvider({ children }) {
         )} min read`,
         excerpt: (p.body || "").replace(/\s+/g, " ").trim().slice(0, 180),
       }));
-      if (cloudPosts.length) {
-        setUserPosts((prev) => {
-          const have = new Set(prev.map((p) => p.id));
-          return [...cloudPosts, ...prev.filter((p) => !have.has(p.id))];
-        });
-      }
+      if (!postsRes.error) setUserPosts(cloudPosts);
     } catch {
       /* offline — keep local */
     }
@@ -1790,6 +1776,7 @@ export function StoreProvider({ children }) {
     setUserPosts([]);
     setMyTickets([]);
     setGoing([]);
+    setSaved([]);
     setRsvpPatches({});
     try {
       localStorage.removeItem("festivity.parties");
@@ -1797,6 +1784,7 @@ export function StoreProvider({ children }) {
       localStorage.removeItem("festivity.posts");
       localStorage.removeItem("festivity.tickets");
       localStorage.removeItem("festivity.going");
+      localStorage.removeItem("festivity.saved");
     } catch {
       /* ignore */
     }

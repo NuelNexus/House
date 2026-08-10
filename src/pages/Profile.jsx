@@ -131,10 +131,14 @@ export default function Profile({ setTab }) {
     return [...hypeItems, ...hypedItems, ...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
   }, [userParties, userReviews, myTickets, tickets, allParties, saved, myHypes, hypedHypes]);
 
+  // The default "All" view shows only YOUR content. Other people's
+  // videos you've watched (the rewatch history) stay on the dedicated
+  // "Hyped" tab so the profile never looks like it's showing videos
+  // you didn't post.
   const visible = useMemo(
     () =>
       filter === "All"
-        ? items
+        ? items.filter((i) => i.kind !== "hyped")
         : items.filter((i) => i.kind === filter.toLowerCase()),
     [items, filter]
   );

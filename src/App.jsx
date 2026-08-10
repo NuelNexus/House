@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState } from "react";
 import { StoreProvider, useStore } from "./context/StoreContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -79,17 +79,32 @@ class ErrorBoundary extends Component {
 // tickets sync to Supabase (and back) when the user is signed in.
 function CloudSync() {
   const { user } = useAuth();
-  const { attachCloud, importCloud, fetchHostLogs, fetchAffiliateLogs } = useStore();
+  const {
+    attachCloud,
+    importCloud,
+    resetUserContent,
+    fetchHostLogs,
+    fetchAffiliateLogs,
+  } = useStore();
+  // Tracks the account this session started with so switching users (a
+  // different account signs in on this device) wipes the previous
+  // account's local cache before the new one imports — accounts can
+  // never bleed into each other.
+  const uidRef = useRef(null);
 
   useEffect(() => {
     attachCloud(user);
     if (user) {
+      if (uidRef.current && uidRef.current !== user.id) {
+        resetUserContent();
+      }
+      uidRef.current = user.id;
       importCloud(user.id);
       fetchHostLogs(user.id);
       fetchAffiliateLogs(user.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, attachCloud, importCloud, fetchHostLogs, fetchAffiliateLogs]);
+  }, [user?.id, attachCloud, importCloud, resetUserContent, fetchHostLogs, fetchAffiliateLogs]);
 
   return null;
 }

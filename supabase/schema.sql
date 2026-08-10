@@ -302,11 +302,26 @@ begin
 
   if not is_affiliate then
     -- Hosts (and anyone else) can't mark a party as a repost — strip the
-    -- repost fields so it stays a host original in the pool.
-    new.affiliate_id := null;
-    new.source_party_id := null;
-    new.host_id := null;
-    new.original_price := 0;
+    -- repost fields so it stays a host original in the pool. But ONLY
+    -- when the row is being created, or the repost fields are actually
+    -- being (re)assigned on an UPDATE. Background counter bumps
+    -- (tickets_sold from a sale, rsvps from an RSVP — both fired by
+    -- security-definer triggers running under the *buyer/RSVP-er's*
+    -- auth context) touch none of those fields, so an existing repost
+    -- keeps its attribution. Otherwise one ticket sale would strip the
+    -- affiliate_id and the listing would vanish from Events for everyone.
+    if (tg_op = 'INSERT') then
+      new.affiliate_id := null;
+      new.source_party_id := null;
+      new.host_id := null;
+      new.original_price := 0;
+    elsif (new.affiliate_id is distinct from old.affiliate_id
+           or new.source_party_id is distinct from old.source_party_id) then
+      new.affiliate_id := null;
+      new.source_party_id := null;
+      new.host_id := null;
+      new.original_price := 0;
+    end if;
   elsif (new.source_party_id is not null and new.affiliate_id is not null) then
     -- Approved affiliate reposting: resolve the host + base price from
     -- the original party on insert, freeze both on every update.
