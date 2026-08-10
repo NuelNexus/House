@@ -280,6 +280,18 @@ export function SocialProvider({ children }) {
   const [commentCounts, setCommentCounts] = useState({}); // hype_id -> count
   const [streaks, setStreaks] = useState([]);
   const [hypeLoading, setHypeLoading] = useState(false);
+  // Watch history: every clip the signed-in user has viewed. The feed
+  // hides these ("seen") and the profile's "Hyped" tab lists them.
+  const [seenHypeIds, setSeenHypeIds] = useState(() => new Set());
+  const [hypedHypes, setHypedHypes] = useState([]);
+  // Mirror of every loaded hype by id, so a view bump can optimistically
+  // add the clip to the Hyped tab without a DB round-trip.
+  const hypesByIdRef = useRef(new Map());
+  const syncHypeRef = useCallback((list) => {
+    (list || []).forEach((h) => {
+      if (h?.id) hypesByIdRef.current.set(h.id, h);
+    });
+  }, []);
 
   const loadHype = useCallback(async () => {
     const me = uidRef.current;
@@ -303,12 +315,18 @@ export function SocialProvider({ children }) {
     const all = [...(feedRes.data || []), ...(inboxRes.data || [])];
     const authorIds = [...new Set(all.map((h) => h.user_id).filter(Boolean))];
     const profs = await fetchProfiles(authorIds);
-    setHypeFeed(
-      (feedRes.data || []).map((h) => ({ ...h, author: profs[h.user_id] || null }))
-    );
-    setIncomingHypes(
-      (inboxRes.data || []).map((h) => ({ ...h, author: profs[h.user_id] || null }))
-    );
+    const feedWithAuthors = (feedRes.data || []).map((h) => ({
+      ...h,
+      author: profs[h.user_id] || null,
+    }));
+    const inboxWithAuthors = (inboxRes.data || []).map((h) => ({
+      ...h,
+      author: profs[h.user_id] || null,
+    }));
+    syncHypeRef(feedWithAuthors);
+    syncHypeRef(inboxWithAuthors);
+    setHypeFeed(feedWithAuthors);
+    setIncomingHypes(inboxWithAuthors);
     // Live comment counts for every clip in view — one grouped query.
     const hypeIds = all.map((h) => h.id).filter(Boolean);
     if (hypeIds.length) {
@@ -365,8 +383,58 @@ export function SocialProvider({ children }) {
       .limit(50);
     if (!data) return;
     const profs = await fetchProfiles([me]);
-    setMyHypes(data.map((h) => ({ ...h, author: profs[me] || null })));
-  }, [fetchProfiles]);
+    const mine = data.map((h) => ({ ...h, author: profs[me] || null }));
+    syncHypeRef(mine);
+    setMyHypes(mine);
+  }, [fetchProfiles, syncHypeRef]);
+
+  // The "Hyped" watch history: hype_views rows -> full clips (with
+  // authors) in most-recently-watched order. Called on sign-in, on the
+  // polling heartbeat, and lazily by pages that need it.
+  const seenSchemaMissing = useRef(false);
+  const loadSeenHypes = useCallback(async () => {
+    const me = uidRef.current;
+    if (!me) {
+      setSeenHypeIds(new Set());
+      setHypedHypes([]);
+      return;
+    }
+    const { data: rows, error } = await supabase
+      .from("hype_views")
+      .select("hype_id")
+      .eq("user_id", me)
+      .order("viewed_at", { ascending: false })
+      .limit(100);
+    if (error) {
+      // Table not in the DB yet (schema not applied) — degrade quietly.
+      // Only log the first failure; the 12s poll must not flood the console.
+      if (!seenSchemaMissing.current) {
+        seenSchemaMissing.current = true;
+        console.warn("seen hypes:", error.message);
+      }
+      return;
+    }
+    seenSchemaMissing.current = false;
+    const ids = (rows || []).map((r) => r.hype_id).filter(Boolean);
+    setSeenHypeIds(new Set(ids));
+    if (!ids.length) {
+      setHypedHypes([]);
+      return;
+    }
+    const { data: hypes } = await supabase
+      .from("hypes")
+      .select("*")
+      .in("id", ids);
+    if (!hypes || !hypes.length) return;
+    const orderMap = new Map(ids.map((id, i) => [id, i]));
+    const aIds = [...new Set(hypes.map((h) => h.user_id).filter(Boolean))];
+    const profs = await fetchProfiles(aIds);
+    const withAuthors = hypes
+      .map((h) => ({ ...h, author: profs[h.user_id] || null }))
+      .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
+    syncHypeRef(withAuthors);
+    setHypedHypes(withAuthors);
+  }, [fetchProfiles, syncHypeRef]);
 
   useEffect(() => {
     if (uid) loadMyHypes();
@@ -384,6 +452,7 @@ export function SocialProvider({ children }) {
     // while signed out, so this catches the state after sign-in.
     loadFollows();
     loadHype();
+    loadSeenHypes();
     const channel = supabase
       .channel("festivity-social")
       .on(
@@ -422,6 +491,7 @@ export function SocialProvider({ children }) {
         refreshSocial();
         loadHype();
         loadMyHypes();
+        loadSeenHypes();
       }
     }, 12000);
     return () => {
@@ -429,7 +499,7 @@ export function SocialProvider({ children }) {
       supabase.removeChannel(channel);
       window.clearInterval(poll);
     };
-  }, [uid, refreshSocial, loadFollows, loadHype, loadMyHypes]);
+  }, [uid, refreshSocial, loadFollows, loadHype, loadMyHypes, loadSeenHypes]);
 
   const uploadVideo = useCallback(async (blob, name) => {
     const me = uidRef.current;
@@ -514,6 +584,8 @@ export function SocialProvider({ children }) {
   );
 
   // Views: one atomic bump per play/rewatch (throttled client-side).
+  // For signed-in viewers this also records watch history — the clip
+  // leaves their feed and shows up on their profile's "Hyped" tab.
   const bumpHypeViews = useCallback(async (hypeId) => {
     if (!hypeId) return;
     setHypeFeed((p) =>
@@ -525,10 +597,34 @@ export function SocialProvider({ children }) {
     setMyHypes((p) =>
       p.map((h) => (h.id === hypeId ? { ...h, views: (h.views || 0) + 1 } : h))
     );
+    // Optimistically surface it on the Hyped tab now, without waiting
+    // for the 12s heartbeat. (It is NOT marked "seen" for the feed here
+    // — that happens in markHypeSeen when the viewer navigates away, so
+    // the clip stays mounted while they're actually watching it.)
+    const hyp = hypesByIdRef.current.get(hypeId);
+    if (hyp) {
+      setHypedHypes((p) =>
+        p.some((x) => x.id === hypeId) ? p : [hyp, ...p]
+      );
+    }
     const { error } = await supabase.rpc("bump_hype_views", {
       p_hype_id: hypeId,
+      p_viewer: uidRef.current,
     });
     if (error) console.warn("view bump:", error.message);
+  }, []);
+
+  // The feed-side "seen" flag. Called when the viewer navigates off a
+  // clip (never while it's on screen), so a watched clip disappears from
+  // the feed once they move on — and stays hidden until they rewatch it
+  // from the profile's Hyped tab.
+  const markHypeSeen = useCallback((hypeId) => {
+    if (!hypeId) return;
+    setSeenHypeIds((p) => {
+      const n = new Set(p);
+      n.add(hypeId);
+      return n;
+    });
   }, []);
 
   // Comments: load one clip's thread with author profiles attached.
@@ -595,6 +691,8 @@ export function SocialProvider({ children }) {
     setHypeFeed((p) => p.filter((h) => h.id !== hypeId));
     setIncomingHypes((p) => p.filter((h) => h.id !== hypeId));
     setMyHypes((p) => p.filter((h) => h.id !== hypeId));
+    setHypedHypes((p) => p.filter((h) => h.id !== hypeId));
+    hypesByIdRef.current.delete(hypeId);
     setCommentCounts((p) => {
       const next = { ...p };
       delete next[hypeId];
@@ -652,10 +750,14 @@ export function SocialProvider({ children }) {
       commentCounts,
       streaks,
       hypeLoading,
+      seenHypeIds,
+      hypedHypes,
       loadHype,
       postHype,
       loadMyHypes,
+      loadSeenHypes,
       bumpHypeViews,
+      markHypeSeen,
       loadComments,
       addComment,
       deleteComment,
@@ -689,10 +791,14 @@ export function SocialProvider({ children }) {
       commentCounts,
       streaks,
       hypeLoading,
+      seenHypeIds,
+      hypedHypes,
       loadHype,
       postHype,
       loadMyHypes,
+      loadSeenHypes,
       bumpHypeViews,
+      markHypeSeen,
       loadComments,
       addComment,
       deleteComment,

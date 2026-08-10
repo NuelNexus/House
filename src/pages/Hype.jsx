@@ -349,7 +349,7 @@ function HypeSlide({
 }
 
 export default function Hype({ setTab }) {
-  const { ensureAuth } = useAuth();
+  const { ensureAuth, user } = useAuth();
   const {
     hypeFeed,
     commentCounts,
@@ -357,6 +357,8 @@ export default function Hype({ setTab }) {
     postHype,
     following,
     bumpHypeViews,
+    seenHypeIds,
+    markHypeSeen,
   } = useSocial();
   const [mode, setMode] = useState(null); // "post" | null
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -383,8 +385,11 @@ export default function Hype({ setTab }) {
 
   // For You is ranked by the SEO-style score (hashtags + views + recency);
   // Following stays chronological. An active #tag filters the whole feed.
+  // Clips the signed-in user has already watched are hidden from the feed
+  // (they live on in the profile's "Hyped" tab) so the feed always feels
+  // fresh — unless the user asks for them via a tag filter.
   const visibleFeed = useMemo(() => {
-    let base = hypeFeed;
+    let base = hypeFeed.filter((h) => !seenHypeIds.has(h.id));
     if (activeTag) {
       base = hypeFeed.filter(
         (h) =>
@@ -398,7 +403,7 @@ export default function Hype({ setTab }) {
       return base.filter((h) => following.includes(h.user_id));
     }
     return rankHypeFeed(base);
-  }, [hypeFeed, following, feedTab, activeTag]);
+  }, [hypeFeed, following, feedTab, activeTag, seenHypeIds]);
 
   // Reset to the top when the tab/tag or the first clip itself changes
   // (a brand-new hype landing at #1) — NOT on every background refresh.
@@ -410,21 +415,38 @@ export default function Hype({ setTab }) {
   // Background re-ranks (view bumps, 12s refresh) re-sort the feed but
   // must never shuffle a different clip under the viewer or yank them
   // back to slide 1 — follow the watched clip to its new index instead.
+  // If the clip truly vanished (deleted, or marked seen after the viewer
+  // swiped past it), clamp to the nearest remaining clip rather than
+  // jumping to the top of the feed.
   useEffect(() => {
     const idx = visibleFeed.findIndex((h) => h.id === watchIdRef.current);
-    if (idx === -1) snapToTop();
-    else if (idx !== currentIndex) setCurrentIndex(idx);
+    if (idx === -1) {
+      // Clamp to a valid index (0 when the feed empties entirely).
+      const i = Math.max(0, Math.min(currentIndex, visibleFeed.length - 1));
+      setCurrentIndex(i);
+      if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
+    } else if (idx !== currentIndex) {
+      setCurrentIndex(idx);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleFeed]);
 
+  // Moving off a clip counts as having watched it — it leaves the feed
+  // (the profile's Hyped tab keeps it for rewatching). Marking it here,
+  // on navigation, means the clip you're mid-way through never vanishes
+  // from under you; only the one you've left does.
   const next = () => {
     if (!visibleFeed.length) return;
+    const cur = visibleFeed[currentIndex];
+    if (cur) markHypeSeen(cur.id);
     const i = Math.min(currentIndex + 1, visibleFeed.length - 1);
     setCurrentIndex(i);
     if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
   };
   const prev = () => {
     if (!visibleFeed.length) return;
+    const cur = visibleFeed[currentIndex];
+    if (cur) markHypeSeen(cur.id);
     const i = Math.max(currentIndex - 1, 0);
     setCurrentIndex(i);
     if (visibleFeed[i]) watchIdRef.current = visibleFeed[i].id;
@@ -539,6 +561,10 @@ export default function Hype({ setTab }) {
                 ? `No hypes tagged #${activeTag}`
                 : feedTab === "following"
                 ? "Nothing here yet"
+                : hypeFeed.length && !user
+                ? "Sign in to keep watching"
+                : hypeFeed.length
+                ? "You're all caught up"
                 : "No hypes yet"}
             </h3>
             <p>
@@ -546,6 +572,8 @@ export default function Hype({ setTab }) {
                 ? "Try another tag, or clear the filter."
                 : feedTab === "following"
                 ? "Follow creators to fill this feed with their hypes."
+                : hypeFeed.length
+                ? "Watched hypes move to your profile's Hyped tab — rewatch them there anytime."
                 : "Be the first to post a clip."}
             </p>
             {activeTag ? (
@@ -555,6 +583,10 @@ export default function Hype({ setTab }) {
             ) : feedTab === "following" ? (
               <button className="btn btn-sm" onClick={() => setFeedTab("foryou")}>
                 <i className="fa-solid fa-arrow-left" /> Browse For You
+              </button>
+            ) : hypeFeed.length ? (
+              <button className="btn btn-sm" onClick={() => setTab("profile")}>
+                <i className="fa-solid fa-clock-rotate-left" /> Rewatch on your profile
               </button>
             ) : (
               <button className="btn btn-sm" onClick={startPost}>

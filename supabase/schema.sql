@@ -341,18 +341,35 @@ create table if not exists public.hypes (
 );
 create index if not exists hypes_feed on public.hypes (created_at desc);
 
--- Views counter: bump atomically via RPC so rewatching a clip (loops
--- included) keeps counting up without read-modify-write races.
-create or replace function public.bump_hype_views(p_hype_id uuid)
+-- Watch history: one row per (viewer, hype) so the feed can hide clips
+-- you've already seen, and the profile's "Hyped" tab can list them.
+create table if not exists public.hype_views (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  hype_id uuid not null references public.hypes (id) on delete cascade,
+  viewed_at timestamptz not null default now(),
+  primary key (user_id, hype_id)
+);
+create index if not exists hype_views_user on public.hype_views (user_id, viewed_at desc);
+
+-- Views counter + watch history: bump atomically via RPC so rewatching a
+-- clip (loops included) keeps counting up without read-modify-write
+-- races, and records the viewer so the feed can hide what they've seen.
+drop function if exists public.bump_hype_views(uuid); -- old 1-arg version, replaced below
+drop function if exists public.bump_hype_views(uuid, uuid);
+create or replace function public.bump_hype_views(p_hype_id uuid, p_viewer uuid default null)
 returns void
 language sql
 security definer
 set search_path = public
 as $$
   update public.hypes set views = views + 1 where id = p_hype_id;
+  insert into public.hype_views (user_id, hype_id)
+    select p_viewer, p_hype_id
+    where p_viewer is not null
+    on conflict (user_id, hype_id) do nothing;
 $$;
 
-grant execute on function public.bump_hype_views(uuid) to anon, authenticated;
+grant execute on function public.bump_hype_views(uuid, uuid) to anon, authenticated;
 
 -- Comments on a hype clip (public + private hypes can both be commented).
 create table if not exists public.hype_comments (
@@ -434,6 +451,7 @@ alter table public.follows enable row level security;
 alter table public.messages enable row level security;
 alter table public.hypes enable row level security;
 alter table public.hype_comments enable row level security;
+alter table public.hype_views enable row level security;
 alter table public.hype_streaks enable row level security;
 alter table public.contact_requests enable row level security;
 
@@ -490,6 +508,14 @@ create policy "hype_comments_insert" on public.hype_comments
 drop policy if exists "hype_comments_delete" on public.hype_comments;
 create policy "hype_comments_delete" on public.hype_comments
   for delete using (auth.uid() = user_id);
+
+drop policy if exists "hype_views_select" on public.hype_views;
+create policy "hype_views_select" on public.hype_views
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "hype_views_insert" on public.hype_views;
+create policy "hype_views_insert" on public.hype_views
+  for insert with check (auth.uid() = user_id);
 
 drop policy if exists "streaks_select" on public.hype_streaks;
 create policy "streaks_select" on public.hype_streaks

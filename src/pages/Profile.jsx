@@ -5,15 +5,17 @@ import { useSocial } from "../context/SocialContext";
 import Avatar from "../components/Avatar";
 import CoverArt from "../components/CoverArt";
 import ProfileItemModal from "../components/ProfileItemModal";
+import HypePlayerSlide from "../components/HypePlayerSlide";
 import { formatCount } from "../lib/fyp";
 
-const FILTERS = ["All", "Saved", "Hypes", "Parties", "Reviews", "Tickets"];
+const FILTERS = ["All", "Saved", "Hypes", "Hyped", "Parties", "Reviews", "Tickets"];
 
 const KIND_ICON = {
   party: "fa-people-group",
   review: "fa-star",
   ticket: "fa-ticket",
   hype: "fa-fire",
+  hyped: "fa-fire",
 };
 
 function categoryFor(name, tickets, allParties) {
@@ -38,9 +40,10 @@ export default function Profile({ setTab }) {
     deleteReview,
     deleteTicket,
   } = useStore();
-  const { following, myFollowers, myHypes, deleteHype } = useSocial();
+  const { following, myFollowers, myHypes, hypedHypes, deleteHype } = useSocial();
   const [filter, setFilter] = useState("All");
   const [detail, setDetail] = useState(null);
+  const [rewatch, setRewatch] = useState(null); // hype to replay full-screen
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -110,8 +113,18 @@ export default function Profile({ setTab }) {
       coverCat: null,
       videoUrl: h.video_url,
     }));
-    return [...hypeItems, ...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
-  }, [userParties, userReviews, myTickets, tickets, allParties, saved, myHypes]);
+    // Clips I've watched — they leave the feed and land here to rewatch.
+    const hypedItems = hypedHypes.map((h) => ({
+      kind: "hyped",
+      id: h.id,
+      ref: h,
+      label: h.caption || `@${h.author?.name || "Hype"}`,
+      sub: `${formatCount(h.views || 0)} views`, // total views across everyone
+      coverCat: null,
+      videoUrl: h.video_url,
+    }));
+    return [...hypeItems, ...hypedItems, ...savedItems, ...partyItems, ...reviewItems, ...ticketItems];
+  }, [userParties, userReviews, myTickets, tickets, allParties, saved, myHypes, hypedHypes]);
 
   const visible = useMemo(
     () =>
@@ -127,7 +140,8 @@ export default function Profile({ setTab }) {
     else if (item.kind === "review") deleteReview(item.id);
     else if (item.kind === "hype") {
       deleteHype(item.id, item.ref?.video_url).catch(() => {});
-    } else deleteTicket(item.id);
+    } else if (item.kind === "ticket") deleteTicket(item.id);
+    // "hyped" rows are other people's clips — nothing to delete.
     if (detail?.id === item.id) setDetail(null);
   };
 
@@ -138,6 +152,10 @@ export default function Profile({ setTab }) {
     }
     if (item.kind === "hype") {
       window.location.hash = "hype";
+      return;
+    }
+    if (item.kind === "hyped") {
+      setRewatch(item.ref);
       return;
     }
     setDetail(item);
@@ -253,6 +271,8 @@ export default function Profile({ setTab }) {
                 ? "Tap the heart on any party to keep it here."
                 : filter === "Hypes"
                 ? "Post a hype from the Hype tab and your clips will appear here with their view counts."
+                : filter === "Hyped"
+                ? "Videos you watch on the Hype tab move here so you can rewatch them anytime."
                 : filter === "Parties"
                 ? "Post your first party from the Parties tab."
                 : filter === "Reviews"
@@ -276,11 +296,11 @@ export default function Profile({ setTab }) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setDetail(item);
+                    openItem(item);
                   }
                 }}
               >
-                {item.kind === "hype" ? (
+                {item.kind === "hype" || item.kind === "hyped" ? (
                   <video
                     className="gallery-image"
                     src={item.videoUrl}
@@ -292,17 +312,19 @@ export default function Profile({ setTab }) {
                 ) : (
                   <CoverArt category={item.coverCat} className="gallery-image" />
                 )}
-                <button
-                  className="gallery-item-del"
-                  aria-label={`Delete ${item.label}`}
-                  title="Delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeItem(item);
-                  }}
-                >
-                  <i className="fa-solid fa-trash-can" aria-hidden="true" />
-                </button>
+                {item.kind !== "hyped" && (
+                  <button
+                    className="gallery-item-del"
+                    aria-label={`Delete ${item.label}`}
+                    title="Delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeItem(item);
+                    }}
+                  >
+                    <i className="fa-solid fa-trash-can" aria-hidden="true" />
+                  </button>
+                )}
                 <span className="gallery-item-kind" aria-hidden="true">
                   <i className={`fa-solid ${KIND_ICON[item.kind]}`} />
                 </span>
@@ -336,6 +358,17 @@ export default function Profile({ setTab }) {
           deletable
           onClose={() => setDetail(null)}
         />
+      )}
+
+      {/* Full-screen rewatch player for the Hyped tab */}
+      {rewatch && (
+        <div className="ms-hype-player" onClick={() => setRewatch(null)}>
+          <HypePlayerSlide
+            hype={rewatch}
+            author={rewatch.author}
+            onClose={() => setRewatch(null)}
+          />
+        </div>
       )}
     </div>
   );
