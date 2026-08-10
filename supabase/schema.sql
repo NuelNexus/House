@@ -237,18 +237,60 @@ create policy "parties_select" on public.parties
     )
   );
 
+-- Party lifecycle is enforced by a BEFORE trigger rather than `new`
+-- references inside policies (stricter, and runs everywhere). Anyone may
+-- post an idea, but only approved affiliates can publish it 'live' or
+-- claim a row (set affiliate_id + price).
+create or replace function public.enforce_party_lifecycle()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  is_affiliate boolean;
+begin
+  is_affiliate := exists (
+    select 1 from public.affiliates a
+    where a.user_id = auth.uid() and a.status = 'approved'
+  );
+
+  if (new.status is null) then
+    new.status := 'proposed';
+  end if;
+
+  if not is_affiliate then
+    -- Non-affiliates may only edit their own *unclaimed* ideas. If the
+    -- party has been picked up and published, revert the whole update so
+    -- the original poster can't unpublish or re-price a host's listing.
+    if (tg_op = 'UPDATE' and (old.status = 'live' or old.affiliate_id is not null)) then
+      new := old;
+      return new;
+    end if;
+    new.status := 'proposed';
+    new.affiliate_id := null;
+  else
+    -- Once a party is claimed, only the claiming affiliate may change or
+    -- release the claim (prevents other affiliates from stealing it).
+    if (tg_op = 'UPDATE' and old.affiliate_id is not null
+        and new.affiliate_id is distinct from old.affiliate_id
+        and auth.uid() <> old.affiliate_id) then
+      new.affiliate_id := old.affiliate_id;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists parties_lifecycle on public.parties;
+create trigger parties_lifecycle
+  before insert or update on public.parties
+  for each row execute function public.enforce_party_lifecycle();
+
 drop policy if exists "parties_insert" on public.parties;
 create policy "parties_insert" on public.parties
-  for insert with check (
-    auth.uid() = user_id
-    and (
-      new.status = 'proposed'
-      or exists (
-        select 1 from public.affiliates a
-        where a.user_id = auth.uid() and a.status = 'approved'
-      )
-    )
-  );
+  for insert with check (auth.uid() = user_id);
 
 drop policy if exists "parties_update" on public.parties;
 create policy "parties_update" on public.parties
@@ -263,19 +305,7 @@ create policy "parties_update" on public.parties
       )
     )
   )
-  with check (
-    auth.uid() = affiliate_id
-    or (
-      auth.uid() = user_id
-      and (
-        new.status = 'proposed'
-        or exists (
-          select 1 from public.affiliates a
-          where a.user_id = auth.uid() and a.status = 'approved'
-        )
-      )
-    )
-  );
+  with check (auth.uid() = user_id or auth.uid() = affiliate_id);
 
 drop policy if exists "reviews_select" on public.reviews;
 create policy "reviews_select" on public.reviews
@@ -303,7 +333,10 @@ create policy "tickets_delete" on public.tickets
 
 drop policy if exists "parties_delete" on public.parties;
 create policy "parties_delete" on public.parties
-  for delete using (auth.uid() = user_id);
+  for delete using (
+    (auth.uid() = user_id and status = 'proposed')
+    or auth.uid() = affiliate_id
+  );
 
 drop policy if exists "reviews_delete" on public.reviews;
 create policy "reviews_delete" on public.reviews
@@ -410,6 +443,12 @@ create table if not exists public.hype_views (
 );
 create index if not exists hype_views_user on public.hype_views (user_id, viewed_at desc);
 
+-- Pre-existing databases already have a hypes table (the CREATE TABLE above
+-- is skipped by `if not exists`), so add the views/hashtags columns here to
+-- keep the bump RPC and feed ranking working on older projects.
+alter table public.hypes add column if not exists views integer not null default 0;
+alter table public.hypes add column if not exists hashtags text[] not null default '{}';
+
 -- Views counter + watch history: bump atomically via RPC so rewatching a
 -- clip (loops included) keeps counting up without read-modify-write
 -- races, and records the viewer so the feed can hide what they've seen.
@@ -440,10 +479,6 @@ create table if not exists public.hype_comments (
 );
 create index if not exists hype_comments_hype on public.hype_comments (hype_id, created_at);
 create index if not exists hype_comments_user on public.hype_comments (user_id);
-
--- Hashtags are stored as a text array parsed from the caption at post
--- time, so the feed can rank / filter by them without re-parsing.
-alter table public.hypes add column if not exists hashtags text[] not null default '{}';
 
 -- Hype streaks between a pair of users (Snapchat-style flame)
 create table if not exists public.hype_streaks (
