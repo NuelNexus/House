@@ -7,24 +7,46 @@ import Reveal from "../components/Reveal";
 
 // ------------------------------------------------------------------
 // Verify — the host's door tool. Paste a ticket's hash (or scan its
-// QR with the camera) and it's checked against this account's sales
-// log. Fully client-side, no setup: hashes come from ticket_purchases
-// the host already owns, so the check is private and instant.
+// QR with the camera) and it's checked against every sale tied to
+// this account — both the parties you originally hosted (hostLogs)
+// and the parties you reposted as an affiliate (affiliateLogs), so a
+// reposted event's passes verify for the affiliate too. Fully
+// client-side: hashes never leave the browser.
 // ------------------------------------------------------------------
 
 export default function Verify() {
-  const { hostLogs, allParties } = useStore();
+  const { hostLogs, affiliateLogs, allParties, userParties } = useStore();
   const { user, authLoading, openAuth } = useAuth();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null); // { status, row }
+  const [checking, setChecking] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [camError, setCamError] = useState("");
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(0);
+  const debounceRef = useRef(null);
+
+  // Every sale this account can verify — deduped by hash so a pass you
+  // both hosted and reposted counts once.
+  const salesLog = useMemo(() => {
+    const seen = new Set();
+    const merged = [];
+    [...hostLogs, ...affiliateLogs].forEach((l) => {
+      if (!l?.hash) return;
+      const key = l.hash.toUpperCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(l);
+    });
+    return merged;
+  }, [hostLogs, affiliateLogs]);
 
   const partyName = (id) => {
-    const p = allParties.find((x) => x.id === id);
+    if (!id) return "Your party";
+    const p =
+      allParties.find((x) => x.id === id) ||
+      userParties.find((x) => x.id === id);
     return p ? p.title : "Your party";
   };
 
@@ -33,16 +55,50 @@ export default function Verify() {
   const checkHash = (raw) => {
     const q = normalize(raw);
     if (!q) return;
-    const row = hostLogs.find(
+    // A manual check cancels any pending live-check debounce so the two
+    // never race over the result.
+    clearTimeout(debounceRef.current);
+    setChecking(true);
+    setResult(null);
+    const row = salesLog.find(
       (l) => normalize(l.hash) === q || normalize(l.code) === q
     );
     setResult(row ? { status: "valid", row } : { status: "invalid", row: null });
+    setChecking(false);
+  };
+
+  // Live check as the host types — only once the input looks like a
+  // complete hash/code, then a short debounce so it never fires mid-keystroke.
+  const onQueryChange = (v) => {
+    setQuery(v);
+    setResult(null);
+    clearTimeout(debounceRef.current);
+    const clean = normalize(v);
+    if (clean.length >= 8) {
+      setChecking(true);
+      debounceRef.current = setTimeout(() => {
+        const row = salesLog.find(
+          (l) => normalize(l.hash) === clean || normalize(l.code) === clean
+        );
+        setResult(row ? { status: "valid", row } : { status: "invalid", row: null });
+        setChecking(false);
+      }, 420);
+    } else {
+      setChecking(false);
+    }
+  };
+
+  const reset = () => {
+    setQuery("");
+    setResult(null);
+    setChecking(false);
   };
 
   const stopCamera = () => {
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     setScanning(false);
   };
 
@@ -61,8 +117,10 @@ export default function Verify() {
       // One shared canvas — recreated only if the video size changes.
       let canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      let hit = false; // guard: one decode per scan session
       const tick = () => {
         const video = videoRef.current;
+        if (hit) return;
         if (!video || video.readyState < 2) {
           rafRef.current = requestAnimationFrame(tick);
           return;
@@ -80,6 +138,7 @@ export default function Verify() {
           inversionAttempts: "dontInvert",
         });
         if (code && code.data) {
+          hit = true;
           stopCamera();
           setQuery(code.data);
           checkHash(code.data);
@@ -96,7 +155,13 @@ export default function Verify() {
     }
   };
 
-  useEffect(() => () => stopCamera(), []);
+  useEffect(
+    () => () => {
+      clearTimeout(debounceRef.current);
+      stopCamera();
+    },
+    []
+  );
 
   const head = (
     <header className="page-head reveal in">
@@ -106,18 +171,20 @@ export default function Verify() {
       </h1>
       <p className="lede">
         Paste a buyer's ticket hash or scan their QR — it's checked against
-        your sales log in an instant. Only your party's sales can be verified.
+        your sales log in an instant. Covers the parties you host and the
+        reposts you sell as an affiliate.
       </p>
     </header>
   );
 
   const stats = useMemo(() => {
     const byParty = {};
-    hostLogs.forEach((l) => {
-      byParty[l.party_id] = (byParty[l.party_id] || 0) + 1;
+    salesLog.forEach((l) => {
+      const pid = l.party_id || "unlisted";
+      byParty[pid] = (byParty[pid] || 0) + 1;
     });
     return byParty;
-  }, [hostLogs]);
+  }, [salesLog]);
 
   if (authLoading) {
     return (
@@ -157,16 +224,15 @@ export default function Verify() {
               <input
                 id="verify-hash"
                 className="input"
-                placeholder="e.g. A1B2-C3D4-E5F6-A7B8"
+                placeholder="e.g. 6D68-D31B-2442-7EB8"
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setResult(null);
-                }}
+                onChange={(e) => onQueryChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") checkHash(query);
                 }}
                 autoFocus
+                autoComplete="off"
+                spellCheck={false}
               />
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -174,6 +240,7 @@ export default function Verify() {
                 className="btn"
                 style={{ flex: 1, justifyContent: "center" }}
                 onClick={() => checkHash(query)}
+                disabled={checking || !normalize(query)}
               >
                 <i className="fa-solid fa-magnifying-glass icon" /> Check ticket
               </button>
@@ -200,6 +267,13 @@ export default function Verify() {
               </div>
             )}
 
+            {checking && (
+              <p className="verify-hint" style={{ marginTop: 14 }}>
+                <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />{" "}
+                Checking…
+              </p>
+            )}
+
             {result && (
               <div
                 className={`verify-result ${
@@ -224,6 +298,10 @@ export default function Verify() {
                           { day: "numeric", month: "short" }
                         )}
                       </span>
+                      <span className="verify-hash">
+                        <i className="fa-solid fa-qrcode" aria-hidden="true" />{" "}
+                        {result.row.hash}
+                      </span>
                     </div>
                   </>
                 ) : (
@@ -240,6 +318,9 @@ export default function Verify() {
                     </div>
                   </>
                 )}
+                <button className="btn btn-sm btn-outline" onClick={reset}>
+                  <i className="fa-solid fa-rotate icon" /> Check another
+                </button>
               </div>
             )}
           </div>
@@ -248,7 +329,7 @@ export default function Verify() {
             <div className="section-label" style={{ marginTop: 0 }}>
               Your sales at a glance
             </div>
-            {hostLogs.length === 0 ? (
+            {salesLog.length === 0 ? (
               <div className="empty-state" style={{ padding: 36 }}>
                 <i className="fa-solid fa-receipt" />
                 <h3>No sales yet</h3>
@@ -258,7 +339,7 @@ export default function Verify() {
               <div className="verify-party-stats">
                 {Object.entries(stats).map(([pid, n]) => (
                   <div className="verify-party-row" key={pid}>
-                    <span>{partyName(pid)}</span>
+                    <span>{pid === "unlisted" ? "Unlisted party" : partyName(pid)}</span>
                     <b>{n} sold</b>
                   </div>
                 ))}

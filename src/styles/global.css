@@ -8178,10 +8178,27 @@ html[data-mode="dark"][data-bg="image"] body::before {
 .verify-result {
   margin-top: 18px;
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   align-items: flex-start;
   border: 2px solid;
   padding: 16px;
+}
+
+.verify-result .btn {
+  flex-basis: 100%;
+  justify-content: center;
+}
+
+.verify-hash {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  font-family: "Jura", monospace;
+  font-size: 13px !important;
+  letter-spacing: 2px !important;
+  font-weight: 700;
 }
 
 .verify-result.ok {
