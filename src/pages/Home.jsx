@@ -65,7 +65,7 @@ export default function Home({ setTab, onIntroDone }) {
                   Get tickets <i className="fa-solid fa-arrow-right icon" />
                 </button>
                 <button className="btn btn-outline" onClick={() => setTab("parties/new")}>
-                  Host an event
+                  Host a party
                 </button>
               </div>
             </div>

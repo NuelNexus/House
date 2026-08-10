@@ -88,6 +88,16 @@ function HypeSlide({
     }
   }, [isActive, image, soundOn]);
 
+  // Photos can't fire a `play` event — count a view once the snap has
+  // been on screen for a short dwell (so fast swipes don't farm counts).
+  // This also records watch history, so image hypes leave the feed on
+  // every device just like videos do.
+  useEffect(() => {
+    if (!image || !isActive) return undefined;
+    const t = window.setTimeout(() => onView(hype.id), 600);
+    return () => window.clearTimeout(t);
+  }, [image, isActive, hype.id, onView]);
+
   // Views: every play counts, and every replay counts too. We bump on
   // the `play` event and on loop wrap-around (currentTime snapping back
   // to ~0 mid-watch), throttled to one view per ~1.2s so a rapid

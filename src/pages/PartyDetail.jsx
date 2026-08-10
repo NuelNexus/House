@@ -93,7 +93,9 @@ export default function PartyDetail({ partyId, setTab }) {
   const rsvpCount = displayRsvps(party);
 
   const hostName = party.hostName || party.host;
-  const hostId = party.userId || party.hostId;
+  // For a repost the party organizer is the ORIGINAL host (hostId);
+  // otherwise the poster (userId) is the host.
+  const hostId = party.hostId || party.userId;
 
   return (
     <div className="page">

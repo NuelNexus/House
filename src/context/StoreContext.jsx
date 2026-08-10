@@ -82,8 +82,12 @@ function mapPartyRow(p) {
     isUser: true, // column default — ownership is checked via userId now
     userId: p.user_id ?? null,
     affiliateId: p.affiliate_id ?? null,
-    // 'proposed' = an idea only approved hosts can see; 'live' = on the
-    // public scene with a host's price. Missing status = live (legacy).
+    // Original host of a repost (earns 65% of every repost sale) and the
+    // party a repost copies. Null on host-posted originals.
+    hostId: p.host_id ?? null,
+    sourcePartyId: p.source_party_id ?? null,
+    // Missing status = live (legacy). Every party is 'live' — host
+    // originals just have no affiliate_id, so they stay in the pool.
     status: p.status ?? "live",
     ticketDesign: p.ticket_design ?? null,
     ticketsSold: p.tickets_sold ?? 0,
@@ -109,9 +113,11 @@ export function StoreProvider({ children }) {
   // Every party on the scene (all users), so the Parties page shows the
   // whole community — not just the signed-in user's own parties.
   const [communityParties, setCommunityParties] = useState([]);
-  // Host's sales log: every pass sold on their party tickets.
+  // Host's sales log: every pass sold on their party tickets (their 65%).
   const [hostLogs, setHostLogs] = useState([]);
-  // Affiliate hosts — every application (pending / approved / rejected).
+  // Affiliate's sales log: every sale they drove via a repost (their 5%).
+  const [affiliateLogs, setAffiliateLogs] = useState([]);
+  // Affiliates — every application (pending / approved / rejected).
   const [affiliates, setAffiliates] = useState([]);
   const [cloudUid, setCloudUid] = useState(null);
   // In-session RSVP adjustments so the "X going" number responds the
@@ -140,9 +146,9 @@ export function StoreProvider({ children }) {
   // Derived lists. Declared before the callbacks below because
   // checkout depends on cartItems (via its dependency array).
   // ----------------------------------------------------------
-  // Public scene = live parties only. Proposed ideas are invisible here —
-  // they surface in the Host Events tab (proposedParties) for approved
-  // hosts to pick up and price.
+  // Every party (host originals + affiliate reposts). The Events page
+  // filters to reposts (marketplaceParties); host originals surface in
+  // the Affiliate tab's pool (hostPartyPool).
   const allParties = useMemo(() => {
     // user first (their freshest copy wins on id collisions), then the
     // whole community scene, then the editorial seed parties.
@@ -153,19 +159,20 @@ export function StoreProvider({ children }) {
     return [...map.values()];
   }, [userParties, communityParties]);
 
-  // Party ideas waiting for an approved host to pick up + price. Only
-  // approved affiliates can see these (RLS + the Host Events tab gate).
-  const proposedParties = useMemo(
+  // Host-posted parties waiting for an affiliate to repost them. These
+  // are the originals (no affiliate_id) — they show in the pool on the
+  // Affiliate page until someone reposts one with their own price.
+  const hostPartyPool = useMemo(
     () =>
       communityParties.filter(
-        (p) => p.status === "proposed" && !p.affiliateId
+        (p) => (p.status ?? "live") === "live" && !p.affiliateId
       ),
     [communityParties]
   );
 
-  // Events this user's affiliate has claimed (picked up + priced) —
-  // they host the sales even though someone else posted the idea.
-  const affiliateEvents = useMemo(
+  // Reposts this affiliate has made — their own priced listings of host
+  // parties. Every sale on one of these pays them the 5% commission.
+  const myReposts = useMemo(
     () =>
       cloudUid
         ? communityParties.filter((p) => p.affiliateId === cloudUid)
@@ -174,15 +181,17 @@ export function StoreProvider({ children }) {
   );
 
   // Hosted parties that are selling tickets become purchasable tickets.
-  // Only live parties sell — proposed ideas have no ticket yet. The host
-  // of record for sales is the claiming affiliate (they earn the split);
-  // if nobody claimed it, the poster is the host.
+  // ONLY affiliate reposts sell — a host's original party has no price of
+  // its own, it waits in the pool until an affiliate reposts it. On a
+  // repost sale the ORIGINAL host keeps 65% (hostId), the reposting
+  // affiliate earns the 5% commission (affiliateId).
   const communityTickets = useMemo(
     () =>
       communityParties
         .filter(
           (p) =>
             (p.status ?? "live") === "live" &&
+            !!p.affiliateId &&
             p.ticketDesign &&
             p.ticketDesign.enabled
         )
@@ -191,7 +200,8 @@ export function StoreProvider({ children }) {
           name: p.ticketDesign.name || p.title,
           category: p.category,
           hostName: p.host,
-          hostId: p.affiliateId || p.userId,
+          hostId: p.hostId || p.userId,
+          affiliateId: p.affiliateId || null,
           date: p.date,
           location: p.location,
           price: Number(p.ticketDesign.price || p.price || 0),
@@ -211,6 +221,22 @@ export function StoreProvider({ children }) {
   );
   const allTickets = useMemo(
     () => [...SEED_TICKETS, ...communityTickets],
+    [communityTickets]
+  );
+
+  // The Events page = affiliate REPOSTS only. A host's original party is
+  // invisible here until an affiliate reposts it with a price; seeds and
+  // other un-reposted rows stay visible on profiles but not on Events.
+  const marketplaceParties = useMemo(
+    () => allParties.filter((p) => !!p.affiliateId),
+    [allParties]
+  );
+
+  // Tickets on sale in the marketplace — only those whose source party
+  // was claimed by an affiliate (SEED_TICKETS are editorial, not posted
+  // by affiliates, so they stay off the Events page too).
+  const marketplaceTickets = useMemo(
+    () => communityTickets.filter((t) => t.party && !!t.party.affiliateId),
     [communityTickets]
   );
   const allReviews = useMemo(
@@ -367,6 +393,9 @@ export function StoreProvider({ children }) {
           if (payload.new && payload.new.host_id === cloudUid) {
             setHostLogs((prev) => [payload.new, ...prev]);
           }
+          if (payload.new && payload.new.affiliate_id === cloudUid) {
+            setAffiliateLogs((prev) => [payload.new, ...prev]);
+          }
         }
       )
       .subscribe();
@@ -417,6 +446,12 @@ export function StoreProvider({ children }) {
         ...p,
         isUser: p.is_user ?? true,
         userId: p.user_id ?? null,
+        affiliateId: p.affiliate_id ?? null,
+        hostId: p.host_id ?? null,
+        sourcePartyId: p.source_party_id ?? null,
+        status: p.status ?? "live",
+        ticketDesign: p.ticket_design ?? null,
+        ticketsSold: p.tickets_sold ?? 0,
       }));
       const cloudReviews = (reviewsRes.data ?? []).map((r) => ({
         ...r,
@@ -498,6 +533,7 @@ export function StoreProvider({ children }) {
         price: ticket.price,
         partyId: ticket.party?.id || (ticket.isParty ? ticket.id : null) || null,
         hostId: ticket.hostId || null,
+        affiliateId: ticket.affiliateId || null,
         design: ticket.party?.ticketDesign || ticket.ticketDesign || null,
       };
       setCart((prev) => {
@@ -977,6 +1013,7 @@ export function StoreProvider({ children }) {
           holder,
           partyId: item.partyId || null,
           hostId: item.hostId || null,
+          affiliateId: item.affiliateId || null,
           design: item.design || null,
           promoUsed: pct > 0 ? { code, pct } : null,
         }));
@@ -1010,13 +1047,15 @@ export function StoreProvider({ children }) {
             if (error) console.warn("tickets sync:", error.message);
           });
 
-        // Host log: every pass sold on a hosted party's ticket lands in
-        // the host's dashboard with the buyer's details + unique hash.
+        // Sale log: every pass sold on a repost lands once for the
+        // ORIGINAL host (host_id — they keep 65%) and once for the
+        // reposting affiliate (affiliate_id — they earn the 5%).
         const logRows = purchased
           .filter((t) => t.partyId && t.hostId)
           .map((t) => ({
             party_id: t.partyId,
             host_id: t.hostId,
+            affiliate_id: t.affiliateId ?? null,
             buyer_id: uid,
             buyer_name: t.holder.name,
             buyer_email: t.holder.email,
@@ -1043,106 +1082,118 @@ export function StoreProvider({ children }) {
     [cartItems, notify, globalPromos]
   );
 
-  // Anyone can post a party idea. It starts as 'proposed' — visible only
-  // to the poster and to approved affiliate hosts, who pick it up, set a
-  // price and publish it (claimParty → 'live' on the public scene).
-  // Approved affiliates posting straight from the designer go live
-  // immediately (publishNow), so their own priced event shows instantly.
-  const postParty = useCallback(
-    (party, publishNow = false) => {
-      const status = publishNow ? "live" : "proposed";
-      const record = {
-        ...party,
-        id: `u${Date.now()}`,
-        isUser: true,
-        rsvps: 0,
-        status,
-        affiliateId: publishNow ? (cloudUserRef.current?.id ?? null) : null,
-        userId: cloudUserRef.current?.id ?? null,
-      };
-      setUserParties((prev) => [record, ...prev]);
-      setCommunityParties((prev) => [record, ...prev]);
+  // Anyone signed in can post a party — they become the HOST. The party
+  // lands in the pool on the Affiliate page (status 'live' but no
+  // affiliate_id, so it never appears on the Events page) until an
+  // approved affiliate reposts it with their own price.
+  const postParty = useCallback((party) => {
+    const record = {
+      ...party,
+      id: `u${Date.now()}`,
+      isUser: true,
+      rsvps: 0,
+      status: "live",
+      affiliateId: null,
+      hostId: null,
+      sourcePartyId: null,
+      userId: cloudUserRef.current?.id ?? null,
+    };
+    setUserParties((prev) => [record, ...prev]);
+    setCommunityParties((prev) => [record, ...prev]);
 
-      const uid = cloudUserRef.current?.id;
-      if (uid) {
-        // Send snake_case column names — `is_user` and `rsvps` default.
-        // ticket_design is the host's designer output (JSONB).
-        supabase
-          .from("parties")
-          .upsert({
-            id: record.id,
-            user_id: uid,
-            title: record.title,
-            host: record.host,
-            date: record.date,
-            location: record.location,
-            price: record.price,
-            capacity: record.capacity,
-            description: record.description,
-            category: record.category,
-            status,
-            affiliate_id: record.affiliateId,
-            ticket_design: record.ticketDesign
-              ? JSON.stringify(record.ticketDesign)
-              : null,
-          })
-          .then(({ error }) => {
-            if (error) console.warn("parties sync:", error.message);
-          });
-      }
+    const uid = cloudUserRef.current?.id;
+    if (uid) {
+      // Send snake_case column names — `is_user` and `rsvps` default.
+      supabase
+        .from("parties")
+        .upsert({
+          id: record.id,
+          user_id: uid,
+          title: record.title,
+          host: record.host,
+          date: record.date,
+          location: record.location,
+          price: record.price,
+          capacity: record.capacity,
+          description: record.description,
+          category: record.category,
+          status: "live",
+          affiliate_id: null,
+          host_id: null,
+          source_party_id: null,
+        })
+        .then(({ error }) => {
+          if (error) console.warn("parties sync:", error.message);
+        });
+    }
 
-      notify(
-        publishNow
-          ? "Your event is live on the scene!"
-          : "Party idea posted — approved hosts can pick it up"
-      );
-    },
-    [notify]
-  );
+    notify("Party posted — it's in the pool for affiliates to repost");
+  }, [notify]);
 
-  // An approved affiliate picks up a proposed party idea: sets the price
-  // (+ optional ticket design), claims it as the selling host and
-  // publishes it to the public scene. Returns the claimed party or null.
-  const claimParty = useCallback(
-    (partyId, { price, capacity, ticketDesign, description }) => {
+  // An approved affiliate REPOSTS a host's party: a brand-new listing — a
+  // copy of the original with the affiliate's own price + ticket design.
+  // The original host keeps 65% of every sale (host_id pinned by the
+  // lifecycle trigger); the affiliate earns the 5% commission. Returns
+  // the new repost row or null.
+  const repostParty = useCallback(
+    (partyId, { price, capacity, ticketDesign }) => {
       const uid = cloudUserRef.current?.id;
       if (!uid) return null;
+      const original = communityParties.find((p) => p.id === partyId);
+      if (!original) return null;
       const design =
         ticketDesign && Object.keys(ticketDesign).length
           ? { ...ticketDesign, enabled: true }
           : null;
-      const patch = {
-        status: "live",
-        affiliate_id: uid,
+      const record = {
+        id: `u${Date.now()}`,
+        title: original.title,
+        host: original.host || "Host",
+        date: original.date,
+        location: original.location,
         price: Math.max(0, Number(price) || 0),
-        capacity: capacity ?? null,
-        ...(description ? { description } : {}),
-        ticket_design: design ? JSON.stringify(design) : null,
+        capacity: capacity ?? original.capacity ?? null,
+        description: original.description,
+        category: original.category,
+        // A fresh repost starts at zero — RSVPs are per-listing.
+        rsvps: 0,
+        isUser: true,
+        status: "live",
+        userId: uid,
+        affiliateId: uid,
+        hostId: original.userId ?? null,
+        sourcePartyId: original.id,
+        ticketDesign: design,
+        ticketsSold: 0,
       };
-      // Optimistic local update so the scene feels instant.
-      const claimLocal = (p) =>
-        p.id === partyId
-          ? {
-              ...p,
-              ...patch,
-              ticketDesign: design,
-              affiliateId: uid,
-            }
-          : p;
-      setCommunityParties((prev) => prev.map(claimLocal));
-      setUserParties((prev) => prev.map(claimLocal));
+      setUserParties((prev) => [record, ...prev]);
+      setCommunityParties((prev) => [record, ...prev]);
       supabase
         .from("parties")
-        .update(patch)
-        .eq("id", partyId)
+        .upsert({
+          id: record.id,
+          user_id: uid,
+          title: record.title,
+          host: record.host,
+          date: record.date,
+          location: record.location,
+          price: record.price,
+          capacity: record.capacity,
+          description: record.description,
+          category: record.category,
+          status: "live",
+          affiliate_id: uid,
+          host_id: record.hostId,
+          source_party_id: record.sourcePartyId,
+          ticket_design: design ? JSON.stringify(design) : null,
+        })
         .then(({ error }) => {
-          if (error) console.warn("claim party sync:", error.message);
+          if (error) console.warn("repost sync:", error.message);
         });
-      const claimed = { ...patch, id: partyId, ticketDesign: design };
-      notify("You picked up the party — it's live with your price!");
-      return claimed;
+      notify("Reposted with your price — it's live on the scene!");
+      return record;
     },
-    [notify]
+    [communityParties, notify]
   );
 
   // Update just the ticket design on an existing party (Host dashboard).
@@ -1197,7 +1248,7 @@ export function StoreProvider({ children }) {
     []
   );
 
-  // Load every sale logged against this host's parties.
+  // Load every sale logged against this host's parties (their 65% cut).
   const fetchHostLogs = useCallback(async (userId) => {
     if (!userId) return;
     try {
@@ -1208,6 +1259,22 @@ export function StoreProvider({ children }) {
         .order("created_at", { ascending: false });
       if (error) return;
       if (data && data.length) setHostLogs(data);
+    } catch {
+      /* offline — keep what we have */
+    }
+  }, []);
+
+  // Load every sale this affiliate drove through their reposts (5% each).
+  const fetchAffiliateLogs = useCallback(async (userId) => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from("ticket_purchases")
+        .select("*")
+        .eq("affiliate_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) return;
+      if (data && data.length) setAffiliateLogs(data);
     } catch {
       /* offline — keep what we have */
     }
@@ -1417,6 +1484,8 @@ export function StoreProvider({ children }) {
   const value = {
     tickets: SEED_TICKETS,
     allTickets,
+    marketplaceParties,
+    marketplaceTickets,
     cart,
     cartItems,
     cartCount,
@@ -1433,10 +1502,10 @@ export function StoreProvider({ children }) {
     userReviews,
     userPosts,
     allParties,
-    proposedParties,
-    affiliateEvents,
+    hostPartyPool,
+    myReposts,
     postParty,
-    claimParty,
+    repostParty,
     going,
     toggleGoing,
     displayRsvps,
@@ -1454,7 +1523,9 @@ export function StoreProvider({ children }) {
     deleteReview,
     deleteTicket,
     hostLogs,
+    affiliateLogs,
     fetchHostLogs,
+    fetchAffiliateLogs,
     saveTicketDesign,
     updateTicketStock,
     saved,

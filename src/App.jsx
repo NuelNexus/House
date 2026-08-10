@@ -79,16 +79,17 @@ class ErrorBoundary extends Component {
 // tickets sync to Supabase (and back) when the user is signed in.
 function CloudSync() {
   const { user } = useAuth();
-  const { attachCloud, importCloud, fetchHostLogs } = useStore();
+  const { attachCloud, importCloud, fetchHostLogs, fetchAffiliateLogs } = useStore();
 
   useEffect(() => {
     attachCloud(user);
     if (user) {
       importCloud(user.id);
       fetchHostLogs(user.id);
+      fetchAffiliateLogs(user.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, attachCloud, importCloud, fetchHostLogs]);
+  }, [user?.id, attachCloud, importCloud, fetchHostLogs, fetchAffiliateLogs]);
 
   return null;
 }
@@ -178,6 +179,9 @@ function parseHash(hash) {
   if (head === "fyp") return { ...base, tab: "events" };
   if (head === "groups") return { ...base, tab: "messages" };
   if (head === "live") return { ...base, tab: "hype" };
+  // The Affiliate tab (registration + host dashboard) lives on the host
+  // page internally — #affiliate and #host both land there.
+  if (head === "affiliate") return { ...base, tab: "host" };
   if (VALID_TABS.includes(head)) return { ...base, tab: head };
   return base;
 }

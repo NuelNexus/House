@@ -282,7 +282,10 @@ export function SocialProvider({ children }) {
   const [hypeLoading, setHypeLoading] = useState(false);
   // Watch history: every clip the signed-in user has viewed. The feed
   // hides these ("seen") and the profile's "Hyped" tab lists them.
+  // The ref mirrors the Set so markHypeSeen can cheaply skip DB writes
+  // for clips that are already known seen (synced from the cloud).
   const [seenHypeIds, setSeenHypeIds] = useState(() => new Set());
+  const seenHypeIdsRef = useRef(new Set());
   const [hypedHypes, setHypedHypes] = useState([]);
   // Mirror of every loaded hype by id, so a view bump can optimistically
   // add the clip to the Hyped tab without a DB round-trip.
@@ -406,7 +409,9 @@ export function SocialProvider({ children }) {
   const loadSeenHypes = useCallback(async () => {
     const me = uidRef.current;
     if (!me) {
-      setSeenHypeIds(new Set());
+      const empty = new Set();
+      seenHypeIdsRef.current = empty;
+      setSeenHypeIds(empty);
       setHypedHypes([]);
       return;
     }
@@ -427,7 +432,9 @@ export function SocialProvider({ children }) {
     }
     seenSchemaMissing.current = false;
     const ids = (rows || []).map((r) => r.hype_id).filter(Boolean);
-    setSeenHypeIds(new Set(ids));
+    const seen = new Set(ids);
+    seenHypeIdsRef.current = seen;
+    setSeenHypeIds(seen);
     if (!ids.length) {
       setHypedHypes([]);
       return;
@@ -494,6 +501,19 @@ export function SocialProvider({ children }) {
         () => {
           // Keep the sidebar flame counts fresh too.
           if (active) loadHype();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hype_views" },
+        (payload) => {
+          // Watch history written on ANOTHER device lands instantly, so
+          // clips watched there disappear from this feed right away
+          // (the 12s poll is the fallback). Ignore our own writes — they
+          // are already reflected locally, and every signed-in viewer
+          // writes a row, so reacting to all of them would be chatty.
+          const rowUser = payload.new?.user_id || payload.old?.user_id;
+          if (active && rowUser && rowUser !== uidRef.current) loadSeenHypes();
         }
       )
       .subscribe();
@@ -635,14 +655,26 @@ export function SocialProvider({ children }) {
   // The feed-side "seen" flag. Called when the viewer navigates off a
   // clip (never while it's on screen), so a watched clip disappears from
   // the feed once they move on — and stays hidden until they rewatch it
-  // from the profile's Hyped tab.
-  const markHypeSeen = useCallback((hypeId) => {
+  // from the profile's Hyped tab. Signed-in viewers also persist the row
+  // to the DB, so a skip counts as watched on EVERY device even when the
+  // video never got a chance to fire its play/view event.
+  const markHypeSeen = useCallback(async (hypeId) => {
     if (!hypeId) return;
-    setSeenHypeIds((p) => {
-      const n = new Set(p);
-      n.add(hypeId);
-      return n;
-    });
+    // Already known seen (this session or synced from another device)?
+    // Its hype_views row already exists — nothing to persist.
+    if (seenHypeIdsRef.current.has(hypeId)) return;
+    const n = new Set(seenHypeIdsRef.current);
+    n.add(hypeId);
+    seenHypeIdsRef.current = n;
+    setSeenHypeIds(n);
+    const me = uidRef.current;
+    if (!me) return;
+    // Silent on failure: if the hype_views table isn't in the DB yet this
+    // just degrades to session-only seen tracking (same as loadSeenHypes).
+    await supabase
+      .from("hype_views")
+      .upsert({ user_id: me, hype_id: hypeId }, { onConflict: "user_id,hype_id" })
+      .catch(() => {});
   }, []);
 
   // Comments: load one clip's thread with author profiles attached.

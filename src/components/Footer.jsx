@@ -1,14 +1,9 @@
-import { useAuth } from "../context/AuthContext";
-
 export default function Footer({ setTab }) {
-  const { affiliate } = useAuth();
-  // Host Events is exclusive to approved affiliate hosts.
-  const isAffiliate = affiliate?.status === "approved";
   const links = [
     { id: "events", label: "Events" },
     { id: "blog", label: "Blog" },
     { id: "hype", label: "Hype" },
-    ...(isAffiliate ? [{ id: "host", label: "Host Events" }] : []),
+    { id: "affiliate", label: "Affiliate" },
     { id: "admin", label: "Admin" },
     { id: "verify", label: "Verify" },
     { id: "profile", label: "Profile" },

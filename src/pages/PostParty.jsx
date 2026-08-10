@@ -8,58 +8,70 @@ import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 const CATEGORIES = ["Kickback", "Rave", "Rooftop", "Pool", "Villa", "Birthday", "Games night"];
 
 // ------------------------------------------------------------------
-// Post a party.
-//   · Anyone signed in can post a party IDEA — it's marked 'proposed'
-//     and only approved affiliate hosts can see it (Host Events tab).
-//   · An approved affiliate posting straight here can set their own
-//     price + ticket design and publish live immediately.
-//   · #parties/new?claim=<id> = an affiliate picking up someone else's
-//     proposed idea: details prefill, they set the price + ticket, and
-//     the party goes live on the scene with their price.
+// Post a party — two roles, never mixed:
+//   · HOST (anyone signed in): posts a party's details. It lands in the
+//     pool on the Affiliate page — NOT the Events page — until an
+//     approved affiliate reposts it. Hosts keep 65% of every repost sale.
+//   · AFFILIATE: #parties/new?repost=<id> copies a host's party from the
+//     pool, sets their own price + ticket design, and puts it live on
+//     the scene. They earn 5% on every ticket sold through their repost.
 // ------------------------------------------------------------------
 
 export default function PostParty({ setTab, q }) {
-  const { postParty, claimParty, proposedParties } = useStore();
+  const { postParty, repostParty, hostPartyPool } = useStore();
   const { user, authLoading, name: authName, openAuth, affiliate } = useAuth();
   const isAffiliate = affiliate?.status === "approved";
-  const claimId = q?.claim || null;
+  const repostId = q?.repost || null;
 
-  // The proposed idea being picked up (affiliate claim flow).
-  const claimTarget = useMemo(
-    () => (claimId ? proposedParties.find((p) => p.id === claimId) || null : null),
-    [claimId, proposedParties]
+  // The host party being reposted (affiliate flow).
+  const repostTarget = useMemo(
+    () => (repostId ? hostPartyPool.find((p) => p.id === repostId) || null : null),
+    [repostId, hostPartyPool]
   );
 
   const [form, setForm] = useState(() => ({
-    title: claimTarget?.title || "",
-    host: authName || claimTarget?.host || "",
-    date: claimTarget?.date || "",
-    location: claimTarget?.location || "",
+    title: repostTarget?.title || "",
+    host: authName || repostTarget?.host || "",
+    date: repostTarget?.date || "",
+    location: repostTarget?.location || "",
     price: "0",
     capacity: "",
-    description: claimTarget?.description || "",
-    category: claimTarget?.category || CATEGORIES[0],
+    description: repostTarget?.description || "",
+    category: repostTarget?.category || CATEGORIES[0],
   }));
   const [sellTickets, setSellTickets] = useState(false);
   const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
 
-  // The claim target loads from the cloud (proposedParties arrives async),
-  // so prefill the form once the idea appears — e.g. on a deep link or
-  // after a refresh the pool may not be loaded yet.
+  // The repost target loads from the cloud (hostPartyPool arrives async),
+  // so prefill the form once the party appears — e.g. on a deep link or
+  // after a refresh the pool may not be loaded yet. Repost mode defaults
+  // to selling tickets with a ready design, so a repost is never posted
+  // without a priceable ticket by accident.
   useEffect(() => {
-    if (!claimTarget) return;
+    if (!repostTarget) return;
     setForm((f) => ({
       ...f,
-      title: f.title || claimTarget.title || "",
-      host: f.host || claimTarget.host || authName || "",
-      date: f.date || claimTarget.date || "",
-      location: f.location || claimTarget.location || "",
-      description: f.description || claimTarget.description || "",
-      category: f.category || claimTarget.category || CATEGORIES[0],
+      title: f.title || repostTarget.title || "",
+      host: f.host || repostTarget.host || authName || "",
+      date: f.date || repostTarget.date || "",
+      location: f.location || repostTarget.location || "",
+      description: f.description || repostTarget.description || "",
+      category: f.category || repostTarget.category || CATEGORIES[0],
     }));
+    setSellTickets(true);
+    setDesign((d) =>
+      d || {
+        ...DEFAULT_DESIGN,
+        name: repostTarget.title || "",
+        depart: repostTarget.location || "",
+        date: repostTarget.date || "",
+        price: "0",
+        stock: 100,
+      }
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claimTarget?.id]);
+  }, [repostTarget?.id]);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -86,23 +98,16 @@ export default function PostParty({ setTab, q }) {
     }
     setError("");
 
-    const base = {
-      title: form.title.trim(),
-      host: form.host.trim() || authName || "Anonymous Host",
-      date: form.date.trim(),
-      location: form.location.trim(),
-      price: Math.max(0, Number(form.price) || 0),
-      capacity: form.capacity.trim(),
-      description: form.description.trim(),
-      category: form.category,
-    };
-
-    if (claimTarget) {
-      // Affiliate picking up a proposed idea — price + ticket go live now.
-      claimParty(claimTarget.id, {
-        price: base.price,
-        capacity: base.capacity,
-        description: base.description,
+    if (repostTarget) {
+      // Affiliate reposting a host's party — their price + ticket go
+      // live on the scene as their own listing.
+      if (!isAffiliate) {
+        setError("Reposting parties is exclusive to approved affiliates.");
+        return;
+      }
+      repostParty(repostTarget.id, {
+        price: Math.max(0, Number(form.price) || 0),
+        capacity: form.capacity.trim(),
         ticketDesign:
           sellTickets && design && Object.keys(design).length
             ? { ...design, enabled: true }
@@ -112,42 +117,41 @@ export default function PostParty({ setTab, q }) {
       return;
     }
 
-    postParty(
-      {
-        ...base,
-        ticketDesign:
-          sellTickets && design && Object.keys(design).length
-            ? { ...design, enabled: true }
-            : null,
-      },
-      isAffiliate // approved hosts publish live with their price
-    );
-    setTab("parties");
+    // Host role: post the party's details into the affiliate pool.
+    postParty({
+      title: form.title.trim(),
+      host: form.host.trim() || authName || "Anonymous Host",
+      date: form.date.trim(),
+      location: form.location.trim(),
+      price: 0,
+      capacity: "",
+      description: form.description.trim(),
+      category: form.category,
+    });
+    setTab("affiliate");
   };
 
-  const backTarget = claimTarget ? "host" : "parties";
+  const backTarget = repostTarget ? "host" : "affiliate";
   const back = (
     <button className="back-link" onClick={() => setTab(backTarget)}>
       <i className="fa-solid fa-arrow-left" />{" "}
-      {claimTarget ? "Back to Host Events" : "Back to parties"}
+      Back to the Affiliate program
     </button>
   );
 
   const head = (
     <header className="page-head reveal in">
       <div className="kicker">
-        {claimTarget ? "Affiliate pick-up · Host Events" : "Post on the scene"}
+        {repostTarget ? "Affiliate repost" : "Post a party"}
       </div>
       <h1>
-        {claimTarget ? "Price this party" : "Post a party"}
+        {repostTarget ? "Repost with your price" : "Post a party"}
         <span className="outline">.</span>
       </h1>
       <p className="lede">
-        {claimTarget
-          ? `Someone posted “${claimTarget.title}” as an idea. Set your price and ticket, claim it as the host, and it goes live on the scene.`
-          : isAffiliate
-          ? "Post an event, set your own price and sell tickets — it goes live on the scene immediately."
-          : "Anyone can post a party idea. Approved hosts on FesGH pick it up, set a price and put it on the scene for everyone."}
+        {repostTarget
+          ? `${repostTarget.host || "Someone"} posted “${repostTarget.title}” on the scene. Repost it with your own price and ticket — it goes live on the Events page and you earn 5% on every sale.`
+          : "You're the host — post your party's details and it lands in the pool on the Affiliate page. An approved affiliate reposts it with their price and puts it on the scene; you keep 65% of every sale."}
       </p>
     </header>
   );
@@ -171,8 +175,8 @@ export default function PostParty({ setTab, q }) {
           </div>
           <h2>Sign in to post a party</h2>
           <p>
-            Post a party idea for the whole city, or pick one up as an
-            approved host — it all starts with your account.
+            Post your party and it lands in the affiliate pool — approved
+            affiliates repost it with their price and sell the tickets.
           </p>
           <button className="btn" onClick={() => openAuth("parties/new")}>
             Sign in to continue <i className="fa-solid fa-arrow-right icon" />
@@ -182,10 +186,10 @@ export default function PostParty({ setTab, q }) {
     );
   }
 
-  // Picking up + pricing an idea is exclusive to approved hosts — a
-  // non-affiliate hitting a claim link sees this gate instead of a
-  // confusing "already gone" screen (they can't see the pool at all).
-  if (!isAffiliate && claimId) {
+  // Reposting + pricing is exclusive to approved affiliates — a
+  // non-affiliate hitting a repost link sees this gate instead of a
+  // confusing "already gone" screen (they can't see the pool either).
+  if (!isAffiliate && repostId) {
     return (
       <div className="page">
         {back}
@@ -194,21 +198,22 @@ export default function PostParty({ setTab, q }) {
           <div className="gate-icon">
             <i className="fa-solid fa-handshake" />
           </div>
-          <h2>Picking up parties is for approved hosts</h2>
+          <h2>Reposting is for approved affiliates</h2>
           <p>
-            You can post your own party ideas anytime — but claiming and
-            pricing a party is exclusive to approved affiliate hosts.
+            You can post your own parties anytime — but reposting one with
+            your own price and selling tickets is exclusive to approved
+            affiliates.
           </p>
           <button className="btn" onClick={() => setTab("host")}>
-            Go to Host Events <i className="fa-solid fa-arrow-right icon" />
+            Go to the Affiliate program <i className="fa-solid fa-arrow-right icon" />
           </button>
         </div>
       </div>
     );
   }
 
-  // An approved affiliate trying to claim an idea that no longer exists.
-  if (claimId && !claimTarget) {
+  // An approved affiliate trying to repost a party that no longer exists.
+  if (repostId && !repostTarget) {
     return (
       <div className="page">
         {back}
@@ -217,21 +222,20 @@ export default function PostParty({ setTab, q }) {
           <div className="gate-icon">
             <i className="fa-solid fa-hourglass-half" />
           </div>
-          <h2>That idea's already gone</h2>
+          <h2>That party's gone</h2>
           <p>
-            Another host may have picked this party up first. Head back to
-            Host Events to see the ideas still waiting.
+            The host may have removed it. Head back to the Affiliate
+            program to see the parties still waiting in the pool.
           </p>
           <button className="btn" onClick={() => setTab("host")}>
-            Back to Host Events <i className="fa-solid fa-arrow-right icon" />
+            Back to the Affiliate program <i className="fa-solid fa-arrow-right icon" />
           </button>
         </div>
       </div>
     );
   }
 
-  // Non-affiliates can only post ideas — no pricing/ticket controls here.
-  const showCommerce = isAffiliate || claimTarget;
+  const showCommerce = !!repostTarget;
 
   return (
     <div className="page">
@@ -249,7 +253,7 @@ export default function PostParty({ setTab, q }) {
                 placeholder="e.g. The Mansion Rave"
                 value={form.title}
                 onChange={set("title")}
-                disabled={!!claimTarget}
+                disabled={!!repostTarget}
               />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -261,7 +265,7 @@ export default function PostParty({ setTab, q }) {
                   placeholder="Host"
                   value={form.host}
                   onChange={set("host")}
-                  disabled={!!claimTarget}
+                  disabled={!!repostTarget}
                 />
               </div>
               <div className="field">
@@ -272,7 +276,7 @@ export default function PostParty({ setTab, q }) {
                   placeholder="Sat, Dec 20 · 7 PM"
                   value={form.date}
                   onChange={set("date")}
-                  disabled={!!claimTarget}
+                  disabled={!!repostTarget}
                 />
               </div>
             </div>
@@ -285,13 +289,13 @@ export default function PostParty({ setTab, q }) {
                   placeholder="e.g. East Legon, Accra"
                   value={form.location}
                   onChange={set("location")}
-                  disabled={!!claimTarget}
+                  disabled={!!repostTarget}
                 />
               </div>
               {showCommerce ? (
                 <div className="field">
                   <label htmlFor="pp-price">
-                    Ticket price (GH₵, 0 = free)
+                    Your repost price (GH₵, 0 = free)
                   </label>
                   <input
                     id="pp-price"
@@ -307,7 +311,7 @@ export default function PostParty({ setTab, q }) {
                   <label>Status</label>
                   <input
                     className="input"
-                    value="Idea — waiting for a host"
+                    value="Pool — waiting for an affiliate repost"
                     disabled
                   />
                 </div>
@@ -336,7 +340,7 @@ export default function PostParty({ setTab, q }) {
                 placeholder="What's the vibe? Music, food, dress code..."
                 value={form.description}
                 onChange={set("description")}
-                disabled={!!claimTarget}
+                disabled={!!repostTarget}
               />
             </div>
 
@@ -350,7 +354,7 @@ export default function PostParty({ setTab, q }) {
                     onChange={toggleTickets}
                   />
                   <span>
-                    <b>Sell tickets for this party</b>
+                    <b>Sell tickets for this repost</b>
                     <small>Build a custom ticket — presets, photo, your own lines.</small>
                   </span>
                 </label>
@@ -363,27 +367,21 @@ export default function PostParty({ setTab, q }) {
               </p>
             )}
 
-            {claimTarget && !isAffiliate ? null : (
-              <button
-                type="submit"
-                className="btn"
-                style={{ width: "100%", justifyContent: "center" }}
-              >
-                {claimTarget ? (
-                  <>
-                    <i className="fa-solid fa-ticket icon" /> Claim & put on the scene
-                  </>
-                ) : isAffiliate ? (
-                  <>
-                    Put it on the scene <i className="fa-solid fa-arrow-right icon" />
-                  </>
-                ) : (
-                  <>
-                    Post party idea <i className="fa-solid fa-lightbulb icon" />
-                  </>
-                )}
-              </button>
-            )}
+            <button
+              type="submit"
+              className="btn"
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              {repostTarget ? (
+                <>
+                  <i className="fa-solid fa-retweet icon" /> Repost & put on the scene
+                </>
+              ) : (
+                <>
+                  Post party <i className="fa-solid fa-arrow-right icon" />
+                </>
+              )}
+            </button>
           </form>
 
           {showCommerce && sellTickets && (

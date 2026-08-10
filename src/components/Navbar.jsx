@@ -8,33 +8,34 @@ const LINKS = [
   { id: "events", label: "Events", idx: "01" },
   { id: "hype", label: "Hype", idx: "02" },
   { id: "blog", label: "Blog", idx: "03" },
+  { id: "affiliate", label: "Affiliate", idx: "04" },
 ];
 
 // Bottom tab bar shown on phones — the essentials, one thumb away.
+// Post a party takes the Profile slot: profile lives in the avatar menu.
 const MOBILE_TABS = [
   { id: "home", label: "Home", icon: "fa-house" },
   { id: "events", label: "Events", icon: "fa-champagne-glasses" },
   { id: "hype", label: "Hype", icon: "fa-fire" },
   { id: "messages", label: "Chat", icon: "fa-comment-dots" },
-  { id: "profile", label: "Profile", icon: "fa-user" },
+  { id: "parties/new", label: "Post", icon: "fa-plus", post: true },
 ];
 
 export default function Navbar({ tab, setTab, hidden }) {
   const { cartCount, setCartOpen } = useStore();
-  const { user, name, initial, profile, openAuth, signOut, authLoading, affiliate } = useAuth();
-  // Host Events is exclusive to approved affiliates.
-  const isAffiliate = affiliate?.status === "approved";
-  const links = isAffiliate
-    ? [...LINKS, { id: "host", label: "Host Events", idx: "04" }]
-    : LINKS;
+  const { user, name, initial, profile, openAuth, signOut, authLoading } = useAuth();
+  // The Affiliate tab is open to everyone — sign up to host, or post a
+  // party idea for approved hosts to pick up.
+  const links = LINKS;
   const mobileExtras = [
-    ...(isAffiliate ? [{ id: "host", label: "Host Events", idx: "04" }] : []),
-    { id: "appearance", label: "Appearance", idx: isAffiliate ? "05" : "04" },
-    { id: "admin", label: "Admin", idx: isAffiliate ? "06" : "05" },
-    { id: "verify", label: "Verify", idx: isAffiliate ? "07" : "06" },
+    { id: "appearance", label: "Appearance", idx: "05" },
+    { id: "admin", label: "Admin", idx: "06" },
+    { id: "verify", label: "Verify", idx: "07" },
   ];
   // Events tab is active for its merged aliases too.
   const eventsActive = tab === "events" || tab === "tickets" || tab === "parties";
+  // The Affiliate page keeps its legacy "host" route id.
+  const affiliateActive = tab === "affiliate" || tab === "host";
   const { unreadTotal } = useSocial();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -99,7 +100,11 @@ export default function Navbar({ tab, setTab, hidden }) {
                   <a
                     href={`#${l.id}`}
                     className={
-                      (l.id === "events" ? eventsActive : tab === l.id)
+                      (l.id === "events"
+                        ? eventsActive
+                        : l.id === "affiliate"
+                        ? affiliateActive
+                        : tab === l.id)
                         ? "active"
                         : ""
                     }
@@ -163,11 +168,9 @@ export default function Navbar({ tab, setTab, hidden }) {
                     <button className="user-menu-item" onClick={() => go("hype")}>
                       <i className="fa-solid fa-fire" /> Hype
                     </button>
-                    {isAffiliate && (
-                      <button className="user-menu-item" onClick={() => go("host")}>
-                        <i className="fa-solid fa-wand-magic-sparkles" /> Host Events
-                      </button>
-                    )}
+                    <button className="user-menu-item" onClick={() => go("affiliate")}>
+                      <i className="fa-solid fa-handshake" /> Affiliate
+                    </button>
                     <button className="user-menu-item" onClick={() => go("events")}>
                       <i className="fa-solid fa-champagne-glasses" /> Events
                     </button>
@@ -193,7 +196,7 @@ export default function Navbar({ tab, setTab, hidden }) {
             )}
 
             <button className="btn btn-sm host-btn" onClick={() => go("parties/new")}>
-              Host an event
+              Post a party
             </button>
             <button
               className="cart-btn msg-btn"
@@ -230,11 +233,15 @@ export default function Navbar({ tab, setTab, hidden }) {
       <nav className="mobile-tabbar" aria-label="Quick navigation">
         {MOBILE_TABS.map((t) => {
           const active =
-            t.id === "events" ? eventsActive : tab === t.id;
+            t.id === "events"
+              ? eventsActive
+              : t.id === "parties/new"
+              ? tab === "parties/new"
+              : tab === t.id;
           return (
             <button
               key={t.id}
-              className={`mtab ${active ? "active" : ""}`}
+              className={`mtab ${t.post ? "mtab-post" : ""} ${active ? "active" : ""}`}
               aria-label={t.label}
               onClick={() => go(t.id)}
             >
@@ -279,7 +286,11 @@ export default function Navbar({ tab, setTab, hidden }) {
         <ul>
           {links.map((l, i) => {
             const active =
-              l.id === "events" ? eventsActive : tab === l.id;
+              l.id === "events"
+                ? eventsActive
+                : l.id === "affiliate"
+                ? affiliateActive
+                : tab === l.id;
             return (
               <li key={l.id}>
                 <a

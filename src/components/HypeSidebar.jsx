@@ -7,16 +7,13 @@ const LINKS = [
   { id: "events",  label: "Events",  icon: "fa-champagne-glasses" },
   { id: "blog",    label: "Blog",    icon: "fa-newspaper" },
   { id: "hype",    label: "Hype",    icon: "fa-fire" },
+  { id: "affiliate", label: "Affiliate", icon: "fa-handshake" },
 ];
 
 export default function HypeSidebar({ tab, setTab, onPost }) {
-  const { user, name, profile, openAuth, signOut, affiliate } = useAuth();
+  const { user, name, profile, openAuth, signOut } = useAuth();
   const { streaks, unreadTotal } = useSocial();
-  // Host Events is exclusive to approved affiliate hosts.
-  const isAffiliate = affiliate?.status === "approved";
-  const links = isAffiliate
-    ? [...LINKS, { id: "host", label: "Host Events", icon: "fa-wand-magic-sparkles" }]
-    : LINKS;
+  const links = LINKS;
 
   const handlePost = () => {
     if (!user) { openAuth(); return; }
@@ -39,7 +36,13 @@ export default function HypeSidebar({ tab, setTab, onPost }) {
             <li key={l.id}>
               <a
                 href={`#${l.id}`}
-                className={tab === l.id ? "active" : ""}
+                className={
+                  (l.id === "affiliate"
+                    ? tab === "affiliate" || tab === "host"
+                    : tab === l.id)
+                    ? "active"
+                    : ""
+                }
                 onClick={(e) => { e.preventDefault(); setTab(l.id); }}
               >
                 <i className={`fa-solid ${l.icon}`} aria-hidden="true" />

@@ -57,13 +57,22 @@ create table if not exists public.reviews (
 alter table public.parties add column if not exists ticket_design jsonb;
 alter table public.parties add column if not exists tickets_sold int not null default 0;
 
--- Party lifecycle: anyone can post a party idea ('proposed'), but it
--- only becomes visible on the public scene once an approved affiliate
--- host picks it up, sets a price and publishes it ('live'). affiliate_id
--- is the host who claimed + priced it (the one who earns commission).
+-- Party model: HOSTS post parties (the party organizers) — their rows
+-- have no affiliate_id and sit in the pool on the Affiliate page until an
+-- approved AFFILIATE reposts them. A repost is a copy of the host's party
+-- with the affiliate's own price + ticket design:
+--   affiliate_id     = the reposter (earns the 5% commission)
+--   host_id          = the original poster (earns 65% of every repost sale)
+--   source_party_id  = the host party this repost copies
 alter table public.parties add column if not exists status text not null default 'live';
 alter table public.parties add column if not exists affiliate_id uuid references auth.users (id) on delete set null;
+alter table public.parties add column if not exists host_id uuid references auth.users (id) on delete set null;
+alter table public.parties add column if not exists source_party_id text;
 create index if not exists parties_status on public.parties (status, created_at desc);
+-- One repost per affiliate per party — an affiliate can't double-list.
+create unique index if not exists parties_repost_unique
+  on public.parties (affiliate_id, source_party_id)
+  where affiliate_id is not null and source_party_id is not null;
 
 -- Purchased tickets (one row per pass). party_id links a pass to a
 -- hosted party's ticket design; hash is the unique per-ticket value
@@ -111,6 +120,11 @@ create table if not exists public.ticket_purchases (
 );
 create index if not exists ticket_purchases_host on public.ticket_purchases (host_id, created_at desc);
 alter table public.ticket_purchases add column if not exists commission numeric not null default 0;
+-- The reposting affiliate who drove the sale (earns the 5% affiliate_share).
+-- host_id above is always the ORIGINAL party host (65%); affiliate_id is
+-- the reposter, so their dashboard can log every sale they drove.
+alter table public.ticket_purchases add column if not exists affiliate_id uuid references auth.users (id) on delete set null;
+create index if not exists ticket_purchases_affiliate on public.ticket_purchases (affiliate_id, created_at desc);
 
 -- Keep each party's tickets_sold counter accurate whenever a pass is
 -- sold. Runs as the table owner so RLS (the buyer owns the insert)
@@ -237,10 +251,14 @@ create policy "parties_select" on public.parties
     )
   );
 
--- Party lifecycle is enforced by a BEFORE trigger rather than `new`
--- references inside policies (stricter, and runs everywhere). Anyone may
--- post an idea, but only approved affiliates can publish it 'live' or
--- claim a row (set affiliate_id + price).
+-- Party lifecycle: hosts post parties straight into the pool ('live' rows
+-- with no affiliate_id), and approved affiliates repost them with their
+-- own price. Only approved affiliates may carry affiliate_id / a source
+-- party — anyone else gets those stripped so their row stays a host
+-- original. The trigger also pins a repost's HOST attribution to the
+-- original poster on insert (resolving it from source_party_id) and
+-- freezes it on every update — so the 65% host earnings can never be
+-- rerouted; the reposter only ever earns the 5% commission.
 create or replace function public.enforce_party_lifecycle()
 returns trigger
 language plpgsql
@@ -249,6 +267,7 @@ set search_path = public
 as $$
 declare
   is_affiliate boolean;
+  src_user uuid;
 begin
   is_affiliate := exists (
     select 1 from public.affiliates a
@@ -256,26 +275,24 @@ begin
   );
 
   if (new.status is null) then
-    new.status := 'proposed';
+    new.status := 'live';
   end if;
 
   if not is_affiliate then
-    -- Non-affiliates may only edit their own *unclaimed* ideas. If the
-    -- party has been picked up and published, revert the whole update so
-    -- the original poster can't unpublish or re-price a host's listing.
-    if (tg_op = 'UPDATE' and (old.status = 'live' or old.affiliate_id is not null)) then
-      new := old;
-      return new;
-    end if;
-    new.status := 'proposed';
+    -- Hosts (and anyone else) can't mark a party as a repost — strip the
+    -- repost fields so it stays a host original in the pool.
     new.affiliate_id := null;
-  else
-    -- Once a party is claimed, only the claiming affiliate may change or
-    -- release the claim (prevents other affiliates from stealing it).
-    if (tg_op = 'UPDATE' and old.affiliate_id is not null
-        and new.affiliate_id is distinct from old.affiliate_id
-        and auth.uid() <> old.affiliate_id) then
-      new.affiliate_id := old.affiliate_id;
+    new.source_party_id := null;
+    new.host_id := null;
+  elsif (new.source_party_id is not null and new.affiliate_id is not null) then
+    -- Approved affiliate reposting: resolve the host from the original
+    -- party on insert, freeze it on every update.
+    if (tg_op = 'INSERT') then
+      select user_id into src_user
+        from public.parties where id = new.source_party_id;
+      new.host_id := src_user;
+    else
+      new.host_id := old.host_id;
     end if;
   end if;
 
@@ -297,13 +314,6 @@ create policy "parties_update" on public.parties
   for update using (
     auth.uid() = user_id
     or auth.uid() = affiliate_id
-    or (
-      status = 'proposed'
-      and exists (
-        select 1 from public.affiliates a
-        where a.user_id = auth.uid() and a.status = 'approved'
-      )
-    )
   )
   with check (auth.uid() = user_id or auth.uid() = affiliate_id);
 
@@ -334,7 +344,7 @@ create policy "tickets_delete" on public.tickets
 drop policy if exists "parties_delete" on public.parties;
 create policy "parties_delete" on public.parties
   for delete using (
-    (auth.uid() = user_id and status = 'proposed')
+    auth.uid() = user_id
     or auth.uid() = affiliate_id
   );
 
@@ -356,7 +366,11 @@ create policy "going_delete" on public.going
 
 drop policy if exists "ticket_purchases_select" on public.ticket_purchases;
 create policy "ticket_purchases_select" on public.ticket_purchases
-  for select using (auth.uid() = host_id or auth.uid() = buyer_id);
+  for select using (
+    auth.uid() = host_id
+    or auth.uid() = buyer_id
+    or auth.uid() = affiliate_id
+  );
 
 drop policy if exists "ticket_purchases_insert" on public.ticket_purchases;
 create policy "ticket_purchases_insert" on public.ticket_purchases
@@ -611,6 +625,12 @@ drop policy if exists "hype_views_insert" on public.hype_views;
 create policy "hype_views_insert" on public.hype_views
   for insert with check (auth.uid() = user_id);
 
+-- Needed for the client's upsert (seen-marking on swipe) to update an
+-- existing row instead of only ever inserting.
+drop policy if exists "hype_views_update" on public.hype_views;
+create policy "hype_views_update" on public.hype_views
+  for update using (auth.uid() = user_id);
+
 drop policy if exists "streaks_select" on public.hype_streaks;
 create policy "streaks_select" on public.hype_streaks
   for select using (auth.uid() = user_a or auth.uid() = user_b);
@@ -650,7 +670,7 @@ create policy "posts_delete" on public.posts
   for delete using (auth.uid() = user_id);
 
 grant select on table public.follows, public.messages, public.hypes, public.hype_streaks, public.contact_requests, public.posts to anon;
-grant all on table public.follows, public.messages, public.hypes, public.hype_streaks, public.contact_requests, public.posts to authenticated;
+grant all on table public.follows, public.messages, public.hypes, public.hype_comments, public.hype_views, public.hype_streaks, public.contact_requests, public.posts to authenticated;
 
 -- Global promo codes created from the Admin dashboard. One row per
 -- code; buyers see them at checkout (discounts every ticket in an
@@ -877,7 +897,7 @@ grant all on table public.affiliates, public.groups, public.group_members, publi
 do $$
 declare t text;
 begin
-  foreach t in array array['messages', 'hypes', 'hype_comments', 'follows', 'parties', 'ticket_purchases', 'groups', 'group_posts', 'live_sessions'] loop
+  foreach t in array array['messages', 'hypes', 'hype_comments', 'hype_views', 'follows', 'parties', 'ticket_purchases', 'groups', 'group_posts', 'live_sessions'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

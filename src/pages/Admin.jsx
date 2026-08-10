@@ -478,7 +478,7 @@ export default function Admin({ setTab }) {
             <i className="fa-solid fa-handshake" />
             <h3>No applications yet</h3>
             <p>
-              When someone applies to become an affiliate host, their request
+              When someone applies to become an affiliate, their request
               shows up here for approval.
             </p>
           </div>

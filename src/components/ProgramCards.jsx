@@ -25,9 +25,9 @@ const CARDS = [
   },
   {
     tab: "parties/new",
-    tag: "Join the scene",
-    title: "Post your party",
-    sub: "Community events & RSVPs",
+    tag: "Host the scene",
+    title: "Host a party",
+    sub: "Post a party — affiliates repost it with their price",
     cls: "corner2",
     shapes: ["ring", "tri", "dot"],
   },

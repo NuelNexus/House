@@ -1,21 +1,17 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
-import { useSocial } from "../context/SocialContext";
-import { buildSignals, scoreFeed, trendingFeed, formatCount } from "../lib/fyp";
 import TicketCard from "../components/TicketCard";
 import PartyCard from "../components/PartyCard";
 import TicketStub from "../components/TicketStub";
 import DesignedTicket from "../components/DesignedTicket";
-import ArticleCard from "../components/ArticleCard";
-import ArticleModal from "../components/ArticleModal";
 import Reveal from "../components/Reveal";
 
 // ------------------------------------------------------------------
-// Events — the merged Tickets + Parties + For You tab. A ranked
-// "For You" section sits on top (events + hype videos in one feed),
-// with the full searchable browse below. Old #tickets / #parties
-// links still land here via the router.
+// Events — the affiliate marketplace: every listing is an affiliate's
+// repost of a host's party, priced and ticketed by them. Browse by
+// Everything / Tickets / Parties with search + category filters.
+// Old #tickets / #parties links still land here via the router.
 // ------------------------------------------------------------------
 
 const VIEWS = [
@@ -24,138 +20,28 @@ const VIEWS = [
   { id: "parties", label: "Parties" },
 ];
 
-const KIND_LABEL = { ticket: "Tickets", party: "Parties", post: "Blog", hype: "Hype" };
-
-// One hype clip in the merged feed — a muted looping 16:9 preview that
-// jumps straight into the full Hype player when tapped.
-function HypeCard({ hype, setTab }) {
-  const author = hype.author?.name || "Creator";
-  return (
-    <a
-      className="card fyp-hype"
-      href="#hype"
-      onClick={(e) => {
-        e.preventDefault();
-        setTab("hype");
-      }}
-    >
-      <div className="fyp-hype-media">
-        <video src={hype.video_url} muted loop playsInline preload="metadata" />
-        <span className="fyp-hype-play">
-          <i className="fa-solid fa-play" aria-hidden="true" />
-        </span>
-        <span className="fyp-hype-badge">
-          <i className="fa-solid fa-fire" aria-hidden="true" />
-        </span>
-      </div>
-      <div className="fyp-hype-info">
-        <b>@{author}</b>
-        <p>{hype.caption || "A hype clip"}</p>
-        <span>
-          <i className="fa-solid fa-eye" aria-hidden="true" /> {formatCount(hype.views || 0)} views
-        </span>
-      </div>
-    </a>
-  );
-}
-
 export default function Events({ initialView = "all", setTab }) {
-  const { allTickets, allParties, allPosts, myTickets, going, userReviews, saved } =
-    useStore();
-  const { following, hypeFeed } = useSocial();
-  const { user, ensureAuth } = useAuth();
+  // Only affiliate reposts show here — host originals wait in the pool
+  // on the Affiliate tab until someone reposts them with a price.
+  const {
+    marketplaceTickets: allTickets,
+    marketplaceParties: allParties,
+    myTickets,
+  } = useStore();
+  const { ensureAuth } = useAuth();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [view, setView] = useState(
     VIEWS.some((v) => v.id === initialView) ? initialView : "all"
   );
-  const [openPost, setOpenPost] = useState(null);
 
-  // Anyone can post a party idea — approved hosts pick it up and set
-  // the price. Non-affiliates land on the idea form; affiliates get the
-  // full pricing + ticket flow.
+  // Posting a party = becoming a host: the party lands in the pool on
+  // the Affiliate tab, where approved affiliates repost it with their
+  // own price to put it on the scene.
   const openForm = () => {
     if (!ensureAuth("parties/new")) return;
     setTab("parties/new");
   };
-
-  // Ranked For You feed — events + hype clips in one personalised mix.
-  const feed = useMemo(() => {
-    const tickets = allTickets.map((t) => ({
-      kind: "ticket",
-      id: t.id,
-      category: t.category,
-      authorId: t.hostId || null,
-      rsvps: 0,
-      sold: t.capacity ? Math.max(0, t.capacity - t.ticketsLeft) : 0,
-      reviews: 0,
-      date: t.date,
-      createdAt: null,
-      ref: t,
-    }));
-    const parties = allParties.map((p) => ({
-      kind: "party",
-      id: p.id,
-      category: p.category,
-      authorId: p.userId || p.hostId || null,
-      rsvps: p.rsvps || 0,
-      sold: p.ticketsSold || 0,
-      reviews: 0,
-      date: p.date,
-      createdAt: p.created_at || null,
-      ref: p,
-    }));
-    const posts = allPosts.map((b) => ({
-      kind: "post",
-      id: b.id,
-      category: b.category,
-      authorId: b.userId || null,
-      rsvps: 0,
-      sold: 0,
-      reviews: 0,
-      date: b.date,
-      createdAt: b.created_at || null,
-      ref: b,
-    }));
-    const hypes = hypeFeed.map((h) => ({
-      kind: "hype",
-      id: h.id,
-      category: null,
-      authorId: h.user_id || null,
-      rsvps: 0,
-      sold: h.views || 0,
-      reviews: 0,
-      date: null,
-      createdAt: h.created_at || null,
-      ref: h,
-    }));
-    const pool = [...tickets, ...parties, ...posts, ...hypes];
-
-    if (user) {
-      const signals = buildSignals({
-        going,
-        myTickets,
-        userReviews,
-        following,
-        saved,
-        allParties,
-        allTickets,
-      });
-      return scoreFeed(pool, signals);
-    }
-    return trendingFeed(pool);
-  }, [
-    allTickets,
-    allParties,
-    allPosts,
-    hypeFeed,
-    going,
-    myTickets,
-    userReviews,
-    following,
-    saved,
-    user,
-  ]);
 
   const categories = useMemo(
     () => [
@@ -199,53 +85,19 @@ export default function Events({ initialView = "all", setTab }) {
     (showTickets && filteredTickets.length === 0) &&
     (showParties && filteredParties.length === 0);
 
-  const renderFeedItem = (item) => {
-    if (item.kind === "ticket") return <TicketCard ticket={item.ref} />;
-    if (item.kind === "party") return <PartyCard party={item.ref} />;
-    if (item.kind === "hype") return <HypeCard hype={item.ref} setTab={setTab} />;
-    return <ArticleCard article={item.ref} onOpen={setOpenPost} />;
-  };
-
   return (
     <div className="page">
       <header className="page-head reveal in">
-        <div className="kicker">02 · Events + For You</div>
+        <div className="kicker">02 · Events</div>
         <h1>
           Events<span className="outline">.</span>
         </h1>
         <p className="lede">
-          Events and hype clips in one place — ranked by what you RSVP to,
-          buy, watch and read. Browse every party below, grab passes, and
-          never miss what's on. Anyone can post a party idea; approved
-          hosts pick it up, set a price and put it on the scene.
+          Every event here is an affiliate's repost of a host's party —
+          picked from the pool, priced and ticketed by them. Want to
+          host? Post your party on the Affiliate tab.
         </p>
       </header>
-
-      {/* For You — the ranked feed, merged into the Events tab. It's a
-          separate recommendation rail, so it only shows on the
-          "Everything" view — picking Tickets or Parties browses just
-          those. */}
-      {view === "all" && feed.length > 0 && (
-        <Reveal>
-          <div className="section-label">
-            <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
-            For You
-          </div>
-          <div className="grid fyp-grid">
-            {feed.map((item, i) => (
-              <Reveal key={`${item.kind}-${item.id}`} delay={Math.min(i, 8) * 60}>
-                <div className="fyp-wrap">
-                  {renderFeedItem(item)}
-                  <div className="fyp-reason">
-                    <i className="fa-solid fa-sparkles" aria-hidden="true" />
-                    {KIND_LABEL[item.kind]} · {item.reason}
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </Reveal>
-      )}
 
       <Reveal>
         <div className="page-tools">
@@ -283,7 +135,7 @@ export default function Events({ initialView = "all", setTab }) {
             ))}
           </div>
           <button className="btn" onClick={openForm}>
-            <i className="fa-solid fa-plus icon" /> Host an event
+            <i className="fa-solid fa-plus icon" /> Post a party
           </button>
         </div>
       </Reveal>
@@ -293,7 +145,9 @@ export default function Events({ initialView = "all", setTab }) {
           <div className="section-label">Your Tickets ({myTickets.length})</div>
           <div
             className="grid"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
+            style={{
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))",
+            }}
           >
             {myTickets.map((t) =>
               t.design ? (
@@ -320,9 +174,9 @@ export default function Events({ initialView = "all", setTab }) {
         <div className="empty-state">
           <i className="fa-solid fa-magnifying-glass" />
           <h3>No events match</h3>
-          <p>Try a different search or category — or host the party yourself.</p>
+          <p>Try a different search or category — or post a party for an affiliate to repost.</p>
           <button className="btn" onClick={openForm}>
-            Host an event
+            Post a party
           </button>
         </div>
       ) : (
@@ -362,8 +216,6 @@ export default function Events({ initialView = "all", setTab }) {
           )}
         </>
       )}
-
-      {openPost && <ArticleModal article={openPost} onClose={() => setOpenPost(null)} />}
     </div>
   );
 }

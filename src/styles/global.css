@@ -852,7 +852,7 @@ textarea.input {
 
 .page-tools .search {
   flex: 1;
-  min-width: 240px;
+  min-width: min(240px, 100%);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -905,7 +905,9 @@ textarea.input {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  /* min() lets cards shrink below 330px on phones — one full-width
+     column instead of a track that overflows the viewport. */
+  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
   gap: 22px;
 }
 
@@ -3132,14 +3134,40 @@ a.featured:focus-visible {
     gap: 4px;
   }
   .page {
-    padding: 120px 16px 60px;
+    padding: 46px 16px 60px;
+  }
+  .page-head {
+    margin-bottom: 24px;
+  }
+  .page-head .kicker {
+    margin-bottom: 8px;
   }
   .page-head h1 {
-    font-size: 64px;
-    letter-spacing: -2px;
+    font-size: 40px;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+  .page-head .lede {
+    font-size: 15px;
+    letter-spacing: 0.4px;
+    line-height: 1.45;
+  }
+  .page-tools {
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .page-tools .search {
+    padding: 10px 14px;
+  }
+  .page-tools .chips {
+    gap: 6px;
+  }
+  .section-label {
+    margin: 34px 0 18px;
   }
   .grid {
-    grid-template-columns: 1fr;
+    gap: 14px;
   }
   .featured {
     grid-template-columns: 1fr;
@@ -8159,6 +8187,26 @@ html[data-mode="dark"][data-bg="image"] body::before {
   color: var(--paper);
 }
 
+/* On phones the three view tabs (Everything / Tickets / Parties) are
+   wider than the screen — stretch them evenly across one full row
+   instead of clipping the last tab off the right edge. */
+@media (max-width: 560px) {
+  .page-tools .view-switch {
+    width: 100%;
+  }
+
+  .view-switch .view-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 /* ============================================================
    Mobile bottom tab bar (phones)
    ============================================================ */
@@ -8213,6 +8261,26 @@ html[data-mode="dark"][data-bg="image"] body::before {
 
   .mtab.active i {
     color: var(--rose-deep);
+  }
+
+  /* Post a party — the action tab. Filled + icon, label turns ink when active. */
+  .mtab.mtab-post i {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 15px;
+    transition: background 0.25s ease, color 0.25s ease, transform 0.2s ease;
+  }
+
+  .mtab.mtab-post.active i {
+    background: var(--rose-deep);
+    color: var(--paper);
+    transform: scale(1.08);
   }
 
   .mtab-badge {
@@ -10125,5 +10193,62 @@ html[data-mode="dark"][data-bg="image"] body::before {
 
   .live-strip {
     top: 54px;
+  }
+}
+
+/* Affiliate tab — the "or post a party idea" split under the apply CTA */
+.affiliate-or {
+  margin: 16px auto 12px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 380px;
+}
+.affiliate-or::before,
+.affiliate-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.affiliate-idea {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: var(--paper-soft);
+  max-width: 640px;
+  margin: 0 auto;
+}
+.affiliate-idea > i {
+  font-size: 20px;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+.affiliate-idea > div {
+  flex: 1;
+  min-width: 0;
+}
+.affiliate-idea b {
+  font-size: 14px;
+}
+.affiliate-idea p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+@media (max-width: 560px) {
+  .affiliate-idea {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
   }
 }
