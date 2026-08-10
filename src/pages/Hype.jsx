@@ -268,7 +268,6 @@ export default function Hype({ setTab }) {
   const { ensureAuth } = useAuth();
   const {
     hypeFeed,
-    incomingHypes,
     hypeLoading,
     postHype,
     following,
@@ -282,14 +281,14 @@ export default function Hype({ setTab }) {
   const wheelLock = useRef(0);
   const touchStartX = useRef(null);
 
-  // Hypes sent to me appear first (so the sender's hype is received),
-  // then the public For You / Following feed.
+  // The feed is purely public — hypes friends send you live in Messages
+  // (incoming hype tray), not on the Hype page.
   const visibleFeed = useMemo(() => {
-    const base = [...incomingHypes, ...hypeFeed];
+    const base = hypeFeed;
     return feedTab === "following"
       ? base.filter((h) => following.includes(h.user_id))
       : base;
-  }, [incomingHypes, hypeFeed, following, feedTab]);
+  }, [hypeFeed, following, feedTab]);
 
   // Reset to the top when the tab changes or the feed's content actually
   // changes (e.g. a new hype lands at the top) — NOT on every background
