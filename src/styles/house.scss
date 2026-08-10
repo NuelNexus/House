@@ -1677,6 +1677,15 @@ $light-2: #badfd9;
   }
 }
 
+/* Phones — the villa reads tiny at 36vw, so scale the whole scene up.
+   The scale lives on its own layer (.css-house-scale) so it never fights
+   the wrapper's rise animation or the JS pointer-tilt. */
+@media (max-width: 767px) {
+  .css-house-scale {
+    transform: scale(1.75);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .css-house-wrap {
     animation: none;

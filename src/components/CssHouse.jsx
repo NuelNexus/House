@@ -30,7 +30,11 @@ export default function CssHouse() {
 
   return (
     <div className="css-house-wrap" aria-hidden="true">
-      <div className="house" ref={houseRef}>
+      {/* Scale layer: phones get a bigger villa (the wrapper's rise
+          animation and this scale live on separate elements so they
+          never fight) */}
+      <div className="css-house-scale">
+        <div className="house" ref={houseRef}>
         <div className="shadows">
           <div className="shadow-a" />
           <div className="shadow-b" />
@@ -382,6 +386,7 @@ export default function CssHouse() {
           <div className="door-t__left face" />
           <div className="door-t__top face" />
           <div className="door-t__bottom face" />
+        </div>
         </div>
       </div>
     </div>
