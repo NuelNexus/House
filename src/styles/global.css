@@ -6295,12 +6295,14 @@ html[data-mode="dark"][data-bg="image"] body::before {
     top: 12px;
   }
   .hype-rail {
-    right: 10px;
-    bottom: 20px; /* same bottom level as the creator profile row */
-    gap: 12px;
-    /* One cohesive floating control group instead of scattered icons */
-    padding: 8px 12px;
-    border-radius: 20px;
+    right: 8px;
+    bottom: 16px; /* same bottom level as the creator profile row */
+    gap: 10px;
+    /* One narrow vertical control stack along the right edge — with four
+       buttons (hype, comment, share, sound) a horizontal pill would be
+       wide enough to overlap the poster's profile picture. */
+    padding: 10px 8px;
+    border-radius: 18px;
     background: rgba(0, 0, 0, 0.42);
     border: 1px solid rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(10px);
@@ -6308,21 +6310,22 @@ html[data-mode="dark"][data-bg="image"] body::before {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   }
   .hype-rail-actions {
-    gap: 16px;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
   }
   .hype-rail-btn i {
     font-size: 22px;
   }
   .hype-rail-btn .hype-rail-label {
-    font-size: 9.5px;
+    font-size: 9px;
   }
   .hype-rail-disc {
-    width: 30px;
-    height: 30px;
-    font-size: 15px;
+    display: none;
   }
   .hype-slide-info {
     max-width: 58%;
+    padding-right: 8px;
   }
 }
 /* ============================================================

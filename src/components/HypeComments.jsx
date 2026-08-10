@@ -71,7 +71,15 @@ export default function HypeComments({ hype, onClose }) {
         setComments((p) => [...(p || []), row]);
         setBody("");
       } catch (err) {
-        setError(err.message || "Couldn't post the comment");
+        const msg = err.message || "";
+        // Schema not applied yet — the table/column is missing entirely.
+        if (/hype_comments|hashtags|does not exist|schema cache/i.test(msg)) {
+          setError(
+            "Comments aren't active yet — the owner needs to run the updated schema in Supabase (SQL Editor)."
+          );
+        } else {
+          setError(msg || "Couldn't post the comment");
+        }
       } finally {
         setSending(false);
       }
