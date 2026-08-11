@@ -87,3 +87,22 @@ export function isFailedVerification(verified) {
     !/not set|MISSING|unavailable|missing reference/.test(verified.reason)
   );
 }
+
+// Ask the server to split a settled ticket charge to the host's and
+// affiliate's mobile-money numbers (platform keeps its cut in the
+// FesGH balance). Fire-and-forget: the sale is already recorded, so a
+// payout that can't run right now just sits in the ledger for the
+// admin to retry — it never blocks or fails the checkout.
+export async function requestPayout(reference, role) {
+  if (!reference) return { ok: false, reason: "no reference" };
+  try {
+    const res = await fetch("/api/paystack/payout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference, role: role || undefined }),
+    });
+    return await res.json();
+  } catch {
+    return { ok: false, reason: "payout-unavailable" };
+  }
+}

@@ -15,6 +15,7 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runPayoutsForReference } from "../netlify/functions/payout-core.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -72,6 +73,37 @@ const MIME = {
 const CACHE = new Map(); // query -> { expires, json }
 const CACHE_TTL = 5 * 60 * 1000;
 
+// The Live wire is entertainment / party news only — politics, sport
+// and the rest never make the feed.
+const ENTERTAINMENT_QUERY =
+  '"Ghana entertainment" OR afrobeats OR amapiano OR highlife OR concert OR festival OR nightlife OR nightclub OR celebrity OR musician OR album OR tour';
+
+const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const wordRe = (terms) =>
+  new RegExp(terms.map((t) => `\\b${esc(t)}\\b`).join("|"), "i");
+
+const ENTERTAINMENT_TERMS = [
+  "music", "afrobeats", "amapiano", "highlife", "concert", "festival",
+  "nightlife", "nightclub", "club", "celebrity", "entertainment",
+  "musician", "artist", "artiste", "album", "tour", "rapper", "singer",
+  "dj", "grammy", "showbiz", "premiere", "actress", "actor", "movie",
+  "film", "party", "vibe", "performer", "stage", "comedy", "carnival",
+];
+const ENTERTAINMENT_BLOCK = [
+  "politics", "election", "parliament", "minister", "government",
+  "economy", "inflation", "gdp", "war", "military", "court", "police",
+  "crime", "murder", "stock", "oil", "covid", "vaccine", "church",
+  "bible", "prayer", "football", "soccer", "epl", "cricket", "tennis",
+];
+const ENT_RE = wordRe(ENTERTAINMENT_TERMS);
+const BLOCK_RE = wordRe(ENTERTAINMENT_BLOCK);
+
+function isEntertainment(a) {
+  const text = `${a.title || ""} ${a.description || ""} ${a.content || ""}`;
+  if (BLOCK_RE.test(text)) return false;
+  return ENT_RE.test(text);
+}
+
 async function fetchNews(params) {
   // Protected values are pinned AFTER the spread so a client can
   // never override the key, language or page size.
@@ -101,16 +133,29 @@ function sendFile(res, filePath) {
   }
 }
 
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (c) => {
+      raw += c;
+      if (raw.length > 1e6) {
+        reject(new Error("body too large"));
+        req.destroy();
+      }
+    });
+    req.on("end", () => resolve(raw));
+    req.on("error", reject);
+  });
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  // ---- News proxy -------------------------------------------------
+  // ---- News proxy (entertainment / party news only) ---------------
   if (url.pathname === "/api/news") {
     try {
-      const q =
-        url.searchParams.get("q") ||
-        'Ghana music OR afrobeats OR "Ghana entertainment" OR Accra OR Kumasi';
+      const q = url.searchParams.get("q") || ENTERTAINMENT_QUERY;
       const params = { q };
       const cacheKey = JSON.stringify(params);
       const cached = CACHE.get(cacheKey);
@@ -119,6 +164,10 @@ const server = createServer(async (req, res) => {
         return res.end(JSON.stringify(cached.json));
       }
       const json = await fetchNews(params);
+      // Keep only stories that are actually about entertainment/parties.
+      if (Array.isArray(json.articles)) {
+        json.articles = json.articles.filter(isEntertainment);
+      }
       CACHE.set(cacheKey, { expires: Date.now() + CACHE_TTL, json });
       res.writeHead(200, { "Content-Type": "application/json", "X-News-Cache": "miss" });
       return res.end(JSON.stringify(json));
@@ -171,6 +220,34 @@ const server = createServer(async (req, res) => {
     return res.end(JSON.stringify({ verified: false, reason: err.message }));
   }
 }
+
+  // ---- Paystack auto-payouts ------------------------------------------
+  // Splits a verified ticket charge to the host's + affiliate's mobile
+  // money numbers. POST { reference } — idempotent per purchase/role.
+  if (url.pathname === "/api/paystack/payout") {
+    if (req.method !== "POST") {
+      res.writeHead(405, { "Content-Type": "application/json", Allow: "POST" });
+      return res.end(JSON.stringify({ ok: false, reason: "method not allowed" }));
+    }
+    let body = {};
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ ok: false, reason: "invalid JSON body" }));
+    }
+    const reference = String(body.reference || "").trim();
+    const role =
+      body.role === "host" || body.role === "affiliate" ? body.role : null;
+    try {
+      const result = await runPayoutsForReference({ reference, role, env: process.env });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ ok: result.ok, ...result }));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ ok: false, reason: err.message }));
+    }
+  }
 
 // ---- Static build ------------------------------------------------
   if (url.pathname === "/" || url.pathname === "/index.html") {

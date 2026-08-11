@@ -19,7 +19,7 @@ export default function Auth({ authMode = "signin" }) {
     signOut,
   } = useAuth();
   const [mode, setMode] = useState(authMode); // signin | signup | forgot
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -119,6 +119,7 @@ export default function Auth({ authMode = "signin" }) {
           name: form.name.trim(),
           email: form.email,
           password: form.password,
+          phone: form.phone.trim(),
         });
         if (!data.session) {
           switchMode("signin");
@@ -337,6 +338,35 @@ export default function Auth({ authMode = "signin" }) {
                   onChange={set("name")}
                   autoComplete="name"
                 />
+              </div>
+            )}
+
+            {mode === "signup" && (
+              <div className="field">
+                <label htmlFor="auth-phone">
+                  Phone number (MTN / Vodafone / AirtelTigo / Telecel)
+                </label>
+                <input
+                  id="auth-phone"
+                  className="input"
+                  type="tel"
+                  placeholder="+233 20 000 0000"
+                  value={form.phone}
+                  onChange={set("phone")}
+                  autoComplete="tel"
+                />
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    fontSize: 12,
+                    color: "var(--ink-soft)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Where your ticket-share payouts land when you host or
+                  repost a party.
+                </small>
               </div>
             )}
 

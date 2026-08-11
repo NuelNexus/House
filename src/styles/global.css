@@ -1298,6 +1298,27 @@ textarea.input {
   gap: 12px;
 }
 
+/* Remove a community post (shown only on posts you own / moderate) */
+.article-delete {
+  background: transparent;
+  border: 1px solid var(--line);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  font-size: 12px;
+  transition: all 0.25s ease;
+}
+
+.article-delete:hover {
+  background: var(--rose-deep);
+  border-color: var(--rose-deep);
+  color: var(--paper);
+  transform: translateY(-2px);
+}
+
 /* Featured article */
 .featured {
   display: grid;
@@ -9854,6 +9875,19 @@ html[data-mode="dark"][data-bg="image"] body::before {
 .affiliate-status.rejected {
   color: var(--rose-deep);
   border: 1.5px solid var(--rose-deep);
+}
+.affiliate-status.paid,
+.affiliate-status.host {
+  color: #1f7a4d;
+  border: 1.5px solid #1f7a4d;
+}
+.affiliate-status.failed {
+  color: var(--rose-deep);
+  border: 1.5px solid var(--rose-deep);
+}
+.affiliate-status.affiliate {
+  color: #4a6fa5;
+  border: 1.5px solid #4a6fa5;
 }
 .admin-affiliate-actions {
   display: flex;

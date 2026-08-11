@@ -8,6 +8,8 @@ import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 
 const CATEGORIES = ["Kickback", "Rave", "Rooftop", "Pool", "Villa", "Birthday", "Games night"];
 
+const NETWORKS = ["MTN", "Vodafone", "AirtelTigo", "Telecel"];
+
 // ------------------------------------------------------------------
 // Post a party — two roles, never mixed:
 //   · HOST (anyone signed in): posts a party's details + base price. It
@@ -40,6 +42,8 @@ export default function PostParty({ setTab, q }) {
     capacity: "",
     description: repostTarget?.description || "",
     category: repostTarget?.category || CATEGORIES[0],
+    payoutPhone: "",
+    payoutNetwork: "MTN",
   }));
   const [sellTickets, setSellTickets] = useState(false);
   const [design, setDesign] = useState(null);
@@ -114,6 +118,8 @@ export default function PostParty({ setTab, q }) {
       repostParty(repostTarget.id, {
         price: Math.max(0, Number(form.price) || 0),
         capacity: form.capacity.trim(),
+        payoutPhone: form.payoutPhone.trim(),
+        payoutNetwork: form.payoutNetwork,
         ticketDesign:
           sellTickets && design && Object.keys(design).length
             ? { ...design, enabled: true }
@@ -133,6 +139,8 @@ export default function PostParty({ setTab, q }) {
       capacity: "",
       description: form.description.trim(),
       category: form.category,
+      payoutPhone: form.payoutPhone.trim(),
+      payoutNetwork: form.payoutNetwork,
     });
     setTab("affiliate");
   };
@@ -354,6 +362,47 @@ export default function PostParty({ setTab, q }) {
                 </div>
               )}
             </div>
+            <div className="field">
+              <label htmlFor="pp-payout-phone">
+                Payout phone — where your ticket share is sent
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <input
+                  id="pp-payout-phone"
+                  className="input"
+                  type="tel"
+                  placeholder="+233 20 000 0000"
+                  value={form.payoutPhone}
+                  onChange={set("payoutPhone")}
+                />
+                <select
+                  className="input"
+                  aria-label="Mobile money network"
+                  value={form.payoutNetwork}
+                  onChange={set("payoutNetwork")}
+                >
+                  {NETWORKS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <small
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: "var(--ink-soft)",
+                  lineHeight: 1.5,
+                }}
+              >
+                {repostTarget
+                  ? "Your affiliate share (70% of your margin) is paid to this number after every sale."
+                  : "Your host share (70% of the base price) is paid to this number after every sale an affiliate drives."}
+              </small>
+            </div>
+
             <div className="field">
               <label>Category</label>
               <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

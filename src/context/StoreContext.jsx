@@ -106,6 +106,9 @@ function mapPartyRow(p) {
     sourcePartyId: p.source_party_id ?? null,
     // The host's base price a repost marked up from — the split's anchor.
     originalPrice: p.original_price ?? null,
+    // Where the seller's ticket share is paid out (mobile money).
+    payoutPhone: p.payout_phone ?? null,
+    payoutNetwork: p.payout_network ?? null,
     // Missing status = live (legacy). Every party is 'live' — host
     // originals just have no affiliate_id, so they stay in the pool.
     status: p.status ?? "live",
@@ -1450,6 +1453,8 @@ export function StoreProvider({ children }) {
           affiliate_id: null,
           host_id: null,
           source_party_id: null,
+          payout_phone: record.payoutPhone || null,
+          payout_network: record.payoutNetwork || null,
         })
         .then(({ error }) => {
           if (error) console.warn("parties sync:", error.message);
@@ -1466,7 +1471,7 @@ export function StoreProvider({ children }) {
   // of the margin (host_id pinned by the lifecycle trigger). Returns
   // the new repost row or null.
   const repostParty = useCallback(
-    (partyId, { price, capacity, ticketDesign }) => {
+    (partyId, { price, capacity, payoutPhone = "", payoutNetwork = "MTN", ticketDesign }) => {
       const uid = cloudUserRef.current?.id;
       if (!uid) return null;
       const original = communityParties.find((p) => p.id === partyId);
@@ -1498,6 +1503,9 @@ export function StoreProvider({ children }) {
         sourcePartyId: original.id,
         ticketDesign: design,
         ticketsSold: 0,
+        // Where the AFFILIATE's share of every sale is sent.
+        payoutPhone: String(payoutPhone || "").trim() || null,
+        payoutNetwork: payoutNetwork || "MTN",
       };
       setUserParties((prev) => [record, ...prev]);
       setCommunityParties((prev) => [record, ...prev]);
@@ -1519,6 +1527,8 @@ export function StoreProvider({ children }) {
           affiliate_id: uid,
           host_id: record.hostId,
           source_party_id: record.sourcePartyId,
+          payout_phone: record.payoutPhone || null,
+          payout_network: record.payoutNetwork || null,
           // jsonb column — send the design object directly so the
           // design survives on every device.
           ticket_design: design,

@@ -12,6 +12,7 @@ export default function EditProfile({ setTab }) {
     bio: profile?.bio ?? "",
     avatar: profile?.avatar ?? 0,
     avatarUrl: profile?.avatarUrl ?? null,
+    phone: profile?.phone ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -62,6 +63,7 @@ export default function EditProfile({ setTab }) {
         bio: form.bio.trim(),
         avatar: form.avatar,
         avatarUrl: form.avatarUrl,
+        phone: form.phone.trim(),
       });
       setTab("profile");
     } catch (err) {
@@ -198,6 +200,32 @@ export default function EditProfile({ setTab }) {
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
+            </div>
+
+            <div className="field">
+              <label htmlFor="pe-phone">
+                Phone number (for ticket-share payouts)
+              </label>
+              <input
+                id="pe-phone"
+                className="input"
+                type="tel"
+                placeholder="+233 20 000 0000"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+              <small
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: "var(--ink-soft)",
+                  lineHeight: 1.5,
+                }}
+              >
+                Used as a fallback when you host or repost without setting
+                a payout number on the party.
+              </small>
             </div>
 
             <div className="field">

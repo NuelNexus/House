@@ -80,7 +80,7 @@ export function AuthProvider({ children }) {
     let active = true;
     supabase
       .from("profiles")
-      .select("name, bio, avatar, avatar_url, theme")
+      .select("name, bio, avatar, avatar_url, theme, phone")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -182,11 +182,18 @@ export function AuthProvider({ children }) {
   );
 
   const signUp = useCallback(
-    async ({ name, email, password }) => {
+    async ({ name, email, password, phone }) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name: name || email.split("@")[0] } },
+        options: {
+          data: {
+            name: name || email.split("@")[0],
+            // Carried into profiles.phone by the signup trigger so the
+            // number is saved even when email confirmation is on.
+            ...(phone ? { phone: String(phone).trim() } : {}),
+          },
+        },
       });
       if (error) throw new Error(error.message);
       if (data.session) {
@@ -245,13 +252,14 @@ export function AuthProvider({ children }) {
       avatar: base.avatar ?? seedFor(user.id),
       avatarUrl: base.avatar_url || base.avatarUrl || null,
       theme: base.theme || null,
+      phone: base.phone || "",
     };
   }, [user, cloudProfile]);
 
   const saveProfile = useCallback(
-    async ({ name, bio, avatar, avatarUrl = null }) => {
+    async ({ name, bio, avatar, avatarUrl = null, phone = "" }) => {
       if (!user) throw new Error("Not signed in");
-      const next = { name, bio, avatar, avatarUrl };
+      const next = { name, bio, avatar, avatarUrl, phone };
       try {
         localStorage.setItem(`festivity.profile.${user.id}`, JSON.stringify(next));
       } catch {
@@ -259,11 +267,12 @@ export function AuthProvider({ children }) {
       }
       // Name lives in auth metadata so it survives everywhere.
       const { error } = await supabase.auth.updateUser({ data: { name } });
-      // Bio + avatar live in the profiles table (if the schema has been run).
-      // Try it regardless of the metadata result so bio/avatar still sync.
+      // Bio + avatar + phone live in the profiles table (if the schema
+      // has been run). Try it regardless of the metadata result so they
+      // still sync.
       const { error: pe } = await supabase
         .from("profiles")
-        .upsert({ id: user.id, name, bio, avatar, avatar_url: avatarUrl });
+        .upsert({ id: user.id, name, bio, avatar, avatar_url: avatarUrl, phone });
       if (pe) console.warn("profile sync:", pe.message);
       // Refresh the in-memory profile right away so the new photo shows
       // everywhere (navbar, sidebar, profile) without a page reload.
@@ -273,6 +282,7 @@ export function AuthProvider({ children }) {
         bio,
         avatar,
         avatar_url: avatarUrl,
+        phone,
       }));
       if (error) throw new Error(error.message);
       notify("Profile updated");

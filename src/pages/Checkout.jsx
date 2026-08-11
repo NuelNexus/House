@@ -3,7 +3,12 @@ import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { promoOf } from "../lib/ticketPresets";
-import { payWithPaystack, verifyPaystack, isFailedVerification } from "../lib/paystack";
+import {
+  payWithPaystack,
+  verifyPaystack,
+  isFailedVerification,
+  requestPayout,
+} from "../lib/paystack";
 import TicketStub from "../components/TicketStub";
 import DesignedTicket from "../components/DesignedTicket";
 import Reveal from "../components/Reveal";
@@ -118,6 +123,9 @@ export default function Checkout({ setTab }) {
         promoApplied,
         ref
       );
+      // Split the money to host + affiliate (best-effort, never blocks
+      // the order — the ledger records anything that needs a retry).
+      if (ref) requestPayout(ref);
       setTickets(purchased);
       setStep(3);
     } catch (err) {

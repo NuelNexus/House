@@ -21,6 +21,12 @@
   to = "/.netlify/functions/paystack"
   status = 200
 
+# Paystack auto-payouts — split each sale to host + affiliate.
+[[redirects]]
+  from = "/api/paystack/payout"
+  to = "/.netlify/functions/payout"
+  status = 200
+
 # SPA fallback (the app uses hash routing, so this is a safety net).
 [[redirects]]
   from = "/*"

@@ -22,12 +22,29 @@ export default function ArticleCard({
   image,
   external = false,
   postedByYou = false,
+  onDelete = null,
+  deleting = false,
 }) {
   const yours = postedByYou && (
     <span className="tag yours">
       <i className="fa-solid fa-feather" /> Posted by you
     </span>
   );
+
+  const remove = onDelete ? (
+    <button
+      className="article-delete"
+      aria-label={`Delete ${article.title}`}
+      title="Remove this post"
+      disabled={deleting}
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete(article);
+      }}
+    >
+      <i className={`fa-solid ${deleting ? "fa-spinner fa-spin" : "fa-trash-can"}`} />
+    </button>
+  ) : null;
 
 
   if (featured) {
@@ -44,6 +61,7 @@ export default function ArticleCard({
           <div className="meta-row">
             <span>{article.date}</span>
             <span>{article.readTime}</span>
+            {remove}
             <span>{external ? "Open article →" : "Read →"}</span>
           </div>
         </div>
@@ -74,6 +92,7 @@ export default function ArticleCard({
       <p className="excerpt">{article.excerpt}</p>
       <div className="meta-row">
         <span>{article.date}</span>
+        {remove}
         {external ? (
           <span className="read">Open <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: 11 }} /></span>
         ) : (

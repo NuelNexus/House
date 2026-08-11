@@ -6,8 +6,36 @@ import ArticleModal from "../components/ArticleModal";
 import Marquee from "../components/Marquee";
 import Reveal from "../components/Reveal";
 
+// The Live wire is entertainment / party news only — politics, sport,
+// economy and the rest are filtered out here AND on the server.
 const LIVE_QUERY =
-  'Ghana music OR afrobeats OR "Ghana entertainment" OR Accra OR Kumasi';
+  '"Ghana entertainment" OR afrobeats OR amapiano OR highlife OR concert OR festival OR nightlife OR nightclub OR celebrity OR musician OR album OR tour';
+
+const esc = (t) => t.replace(/[.*+?^${}()[\]\\]/g, "\\$&");
+const wordRe = (terms) =>
+  new RegExp(terms.map((t) => `\\b${esc(t)}\\b`).join("|"), "i");
+
+const ENTERTAINMENT_TERMS = [
+  "music", "afrobeats", "amapiano", "highlife", "concert", "festival",
+  "nightlife", "nightclub", "club", "celebrity", "entertainment",
+  "musician", "artist", "artiste", "album", "tour", "rapper", "singer",
+  "dj", "grammy", "showbiz", "premiere", "actress", "actor", "movie",
+  "film", "party", "vibe", "performer", "stage", "comedy", "carnival",
+];
+const ENTERTAINMENT_BLOCK = [
+  "politics", "election", "parliament", "minister", "government",
+  "economy", "inflation", "gdp", "war", "military", "court", "police",
+  "crime", "murder", "stock", "oil", "covid", "vaccine", "church",
+  "bible", "prayer", "football", "soccer", "epl", "cricket", "tennis",
+];
+const ENT_RE = wordRe(ENTERTAINMENT_TERMS);
+const BLOCK_RE = wordRe(ENTERTAINMENT_BLOCK);
+
+function isEntertainment(a) {
+  const text = `${a.title || ""} ${a.description || ""} ${a.content || ""}`;
+  if (BLOCK_RE.test(text)) return false;
+  return ENT_RE.test(text);
+}
 
 // The news wire runs through the tiny Node proxy (server/news-proxy.mjs)
 // because NewsAPI blocks browsers. In dev, Vite proxies /api to it; on a
@@ -54,8 +82,8 @@ function toArticle(a) {
 }
 
 export default function Blog({ setTab }) {
-  const { allPosts, user } = useStore();
-  const { ensureAuth } = useAuth();
+  const { allPosts, deletePost } = useStore();
+  const { user, ensureAuth } = useAuth();
   const [open, setOpen] = useState(null);
   const [filter, setFilter] = useState("All");
   const [live, setLive] = useState(null); // null = loading, [] = empty/failed
@@ -68,7 +96,11 @@ export default function Blog({ setTab }) {
       const res = await fetch(`${API_BASE}/api/news?q=${encodeURIComponent(LIVE_QUERY)}`);
       if (!res.ok) throw new Error("live feed unavailable");
       const data = await res.json();
-      setLive(Array.isArray(data.articles) ? data.articles.map(toArticle) : []);
+      setLive(
+        Array.isArray(data.articles)
+          ? data.articles.filter(isEntertainment).map(toArticle)
+          : []
+      );
     } catch {
       setLiveError(true);
       setLive([]);
@@ -82,6 +114,19 @@ export default function Blog({ setTab }) {
   const openPost = () => {
     if (!ensureAuth("blog/new")) return;
     setTab("blog/new");
+  };
+
+  // A post is "yours" only when its author id matches the signed-in
+  // user — the store marks every cloud post isUser, so ownership must
+  // be checked against the actual author id, not that flag.
+  const isMine = (post) => !!user?.id && !!post?.userId && post.userId === user.id;
+
+  // Remove one of your own community posts (with a confirm, so a stray
+  // tap can't nuke a story).
+  const removePost = (post) => {
+    if (!post?.id || !isMine(post)) return;
+    if (!window.confirm(`Remove “${post.title}” from the blog?`)) return;
+    deletePost(post.id);
   };
 
   const showLive = filter === "All" || filter === "Live";
@@ -175,7 +220,8 @@ export default function Blog({ setTab }) {
                 article={commFeatured}
                 onOpen={setOpen}
                 featured
-                postedByYou={commFeatured.isUser}
+                postedByYou={isMine(commFeatured)}
+                onDelete={isMine(commFeatured) ? removePost : null}
               />
             </Reveal>
           )}
@@ -196,7 +242,8 @@ export default function Blog({ setTab }) {
                   <ArticleCard
                     article={b}
                     onOpen={setOpen}
-                    postedByYou={b.isUser}
+                    postedByYou={isMine(b)}
+                    onDelete={isMine(b) ? removePost : null}
                   />
                 </Reveal>
               ))}

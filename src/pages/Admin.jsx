@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useStore } from "../context/StoreContext";
 import { useSocial } from "../context/SocialContext";
 import { GH_CD } from "../data/seed";
 import { COMMISSION_RATE } from "../context/StoreContext";
 import { promoOf } from "../lib/ticketPresets";
+import { requestPayout } from "../lib/paystack";
 import Reveal from "../components/Reveal";
 import CoverArt from "../components/CoverArt";
 import Avatar from "../components/Avatar";
@@ -137,6 +138,7 @@ export default function Admin({ setTab }) {
     affiliates,
     fetchAffiliates,
     approveAffiliate,
+    notify,
   } = useStore();
   const { hypeFeed, fetchProfiles } = useSocial();
   // Affiliate applicant names (resolved from their profile rows).
@@ -160,6 +162,91 @@ export default function Admin({ setTab }) {
   const [newCode, setNewCode] = useState("");
   const [newPct, setNewPct] = useState("");
   const [promoError, setPromoError] = useState("");
+
+  // ------------------------------------------------------------
+  // Payout ledger — who got paid what, and retries for failures.
+  // ------------------------------------------------------------
+  const [payouts, setPayouts] = useState([]);
+  const [payoutsLoading, setPayoutsLoading] = useState(false);
+  const [retrying, setRetrying] = useState("");
+
+  const loadPayouts = useCallback(async () => {
+    setPayoutsLoading(true);
+    try {
+      const { data } = await supabase
+        .from("payouts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(40);
+      setPayouts(data || []);
+    } finally {
+      setPayoutsLoading(false);
+    }
+  }, []);
+
+  // Re-run the payout for one role of one purchase. Idempotent — a
+  // share already paid is never paid twice.
+  const retryPayout = async (row) => {
+    if (!row.payment_reference) {
+      notify("That payout has no payment reference to retry.");
+      return;
+    }
+    setRetrying(row.id);
+    try {
+      await requestPayout(row.payment_reference, row.role);
+      notify("Payout retried — check the ledger.");
+    } finally {
+      setRetrying("");
+      loadPayouts();
+    }
+  };
+
+  // ------------------------------------------------------------
+  // Blog moderation — remove community posts from the dashboard.
+  // ------------------------------------------------------------
+  const [blogPosts, setBlogPosts] = useState([]);
+  const [blogProfs, setBlogProfs] = useState({});
+  const [removingPost, setRemovingPost] = useState("");
+
+  const loadBlogPosts = useCallback(async () => {
+    try {
+      const [{ data: posts }, { data: profs }] = await Promise.all([
+        supabase
+          .from("posts")
+          .select("id, title, category, user_id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(40),
+        supabase.from("profiles").select("id, name"),
+      ]);
+      setBlogPosts(posts || []);
+      const m = {};
+      (profs || []).forEach((p) => {
+        m[p.id] = p.name;
+      });
+      setBlogProfs(m);
+    } catch {
+      /* keep current list */
+    }
+  }, []);
+
+  const removeBlogPost = async (post) => {
+    if (!window.confirm(`Remove “${post.title}” from the blog?`)) return;
+    setRemovingPost(post.id);
+    try {
+      const { error } = await supabase.rpc("admin_delete_post", {
+        p_id: post.id,
+      });
+      if (error) throw new Error(error.message);
+      notify("Post removed from the blog");
+      loadBlogPosts();
+    } catch (err) {
+      notify(err?.message || "Couldn't remove that post");
+    } finally {
+      setRemovingPost("");
+    }
+  };
+
+
 
   // ------------------------------------------------------------
   // Password gate — session unlock + attempt limiter.
@@ -257,6 +344,14 @@ export default function Admin({ setTab }) {
       /* ignore */
     }
   };
+
+  // Load the payout ledger + blog moderation lists once the dashboard
+  // unlocks (both are fetched with the public/authenticated client).
+  useEffect(() => {
+    if (!unlocked) return;
+    loadPayouts();
+    loadBlogPosts();
+  }, [unlocked, loadPayouts, loadBlogPosts]);
 
   // ------------------------------------------------------------
   // Revenue + the creator's 30% commission.
@@ -531,6 +626,149 @@ export default function Admin({ setTab }) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </Reveal>
+
+      <Reveal>
+        <div className="section-label">
+          Payouts · host & affiliate shares
+        </div>
+        {payoutsLoading ? (
+          <div className="profile-loader" aria-label="Loading payouts" />
+        ) : payouts.length === 0 ? (
+          <div className="empty-state" style={{ padding: 36 }}>
+            <i className="fa-solid fa-mobile-screen" />
+            <h3>No payouts yet</h3>
+            <p>
+              When a ticket sells, the host's and affiliate's shares are
+              sent to their mobile money numbers and land here. Your 30%
+              stays in the FesGH Paystack account automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="table-scroll">
+            <table className="sales-table admin-orders">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Role</th>
+                  <th>Amount</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>When</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {payouts.map((r) => (
+                  <tr key={r.id}>
+                    <td>{partyName(r.party_id)}</td>
+                    <td>
+                      <span className={`affiliate-status ${r.role}`}>{r.role}</span>
+                    </td>
+                    <td>{GH_CD(Number(r.amount) || 0)}</td>
+                    <td>{r.phone || "—"}</td>
+                    <td>
+                      <span className={`affiliate-status ${r.status}`}>{r.status}</span>
+                      {r.error && (
+                        <small
+                          style={{
+                            display: "block",
+                            color: "var(--rose-deep)",
+                            fontSize: 11,
+                            marginTop: 3,
+                          }}
+                        >
+                          {r.error}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      {new Date(r.created_at).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </td>
+                    <td>
+                      {(r.status === "failed" || r.status === "pending") &&
+                        r.payment_reference && (
+                          <button
+                            className="btn btn-sm btn-outline"
+                            disabled={retrying === r.id}
+                            onClick={() => retryPayout(r)}
+                          >
+                            {retrying === r.id ? (
+                              <>
+                                <i className="fa-solid fa-spinner fa-spin icon" /> Sending…
+                              </>
+                            ) : (
+                              <>
+                                <i className="fa-solid fa-rotate icon" /> Retry
+                              </>
+                            )}
+                          </button>
+                        )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Reveal>
+
+      <Reveal>
+        <div className="section-label">
+          Blog posts · community moderation ({blogPosts.length})
+        </div>
+        {blogPosts.length === 0 ? (
+          <div className="empty-state" style={{ padding: 36 }}>
+            <i className="fa-solid fa-feather" />
+            <h3>No blog posts yet</h3>
+            <p>
+              Community posts show up here so you can remove anything
+              off-brand.
+            </p>
+          </div>
+        ) : (
+          <div className="admin-affiliates">
+            {blogPosts.map((post) => (
+              <div className="admin-affiliate card" key={post.id}>
+                <Avatar
+                  name={blogProfs[post.user_id] || "Author"}
+                  seed={0}
+                  size={42}
+                />
+                <div className="admin-affiliate-id">
+                  <b>{post.title}</b>
+                  <small>
+                    {blogProfs[post.user_id] || "Author"} · {post.category} ·{" "}
+                    {new Date(post.created_at).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </small>
+                </div>
+                <div className="admin-affiliate-actions">
+                  <button
+                    className="btn btn-sm btn-outline danger"
+                    disabled={removingPost === post.id}
+                    onClick={() => removeBlogPost(post)}
+                  >
+                    {removingPost === post.id ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin icon" /> Removing…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-trash-can icon" /> Remove
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Reveal>

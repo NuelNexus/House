@@ -1,7 +1,12 @@
 import { useRef, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
-import { payWithPaystack, verifyPaystack, isFailedVerification } from "../lib/paystack";
+import {
+  payWithPaystack,
+  verifyPaystack,
+  isFailedVerification,
+  requestPayout,
+} from "../lib/paystack";
 
 // Buy a ticket for ONE event straight from the listing — no cart, no
 // checkout page. Clicking "Get ticket" opens Paystack for that event's
@@ -51,6 +56,8 @@ export function useBuyNow() {
         phone: profile?.phone || "",
       };
       buyNow(ticket, holder, paymentRef);
+      // Split the money to host + affiliate (best-effort, never blocks).
+      if (paymentRef) requestPayout(paymentRef);
       notify(
         price > 0
           ? "Payment received — your ticket is ready!"

@@ -1060,3 +1060,159 @@ begin
     end if;
   end loop;
 end $$;
+-- ============================================================
+-- FesGH — payout splits (host · admin · affiliate) + phone
+-- numbers + blog moderation. Append this section to the end of
+-- schema.sql and re-run the whole file, or run just this part.
+-- ============================================================
+
+-- Every user can give a phone number at signup (profiles.phone).
+-- It's the fallback payout number; hosts/affiliates also set a
+-- per-party payout number when they post.
+alter table public.profiles add column if not exists phone text;
+
+-- Where the money goes when a ticket sells:
+--   · HOST party rows carry the host's payout phone (their 70% of
+--     the base price).
+--   · AFFILIATE repost rows carry the affiliate's payout phone
+--     (their 70% of the margin).
+-- The platform's 30% never needs a number — it stays in the
+-- FesGH Paystack account automatically.
+alter table public.parties add column if not exists payout_phone text;
+alter table public.parties add column if not exists payout_network text;
+
+-- Auto-payout state per sale (one row per ticket_purchases row):
+--   pending  = charged but not paid out yet (queued / unconfigured)
+--   paid     = host + affiliate shares transferred
+--   failed   = a payout attempt errored — see the payouts ledger
+alter table public.ticket_purchases add column if not exists payout_status text not null default 'pending';
+
+-- Payout ledger — every transfer attempt, so the Admin panel can
+-- audit who was paid what and retry anything that failed. Written
+-- ONLY by the server (service role); the app just reads it.
+create table if not exists public.payouts (
+  id uuid primary key default gen_random_uuid(),
+  purchase_id uuid references public.ticket_purchases (id) on delete cascade,
+  party_id text,
+  role text not null check (role in ('host', 'affiliate')),
+  amount numeric not null default 0,
+  phone text,
+  network text,
+  status text not null default 'pending' check (status in ('pending', 'paid', 'failed')),
+  payment_reference text,
+  recipient_code text,
+  transfer_code text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists payouts_purchase on public.payouts (purchase_id);
+create index if not exists payouts_status on public.payouts (status, created_at desc);
+
+-- One live payout row per (purchase, role) — a retry updates the
+-- same row instead of piling up duplicates.
+create unique index if not exists payouts_one_per_role
+  on public.payouts (purchase_id, role);
+
+alter table public.payouts enable row level security;
+
+drop policy if exists "payouts_select" on public.payouts;
+create policy "payouts_select" on public.payouts
+  for select using (true);
+
+grant select on table public.payouts to anon, authenticated;
+-- The payout server (service role) writes the ledger and flips
+-- ticket_purchases.payout_status. Explicit grants keep it working
+-- even on projects where default privileges weren't configured.
+grant all on table public.payouts to service_role;
+grant all on table public.ticket_purchases to service_role;
+grant all on table public.parties to service_role;
+grant all on table public.profiles to service_role;
+
+-- Signup now also records the phone number (from signup metadata)
+-- so a new account's profile is ready immediately.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, name, avatar_url, phone)
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data ->> 'name',
+      new.raw_user_meta_data ->> 'full_name'
+    ),
+    new.raw_user_meta_data ->> 'avatar_url',
+    new.raw_user_meta_data ->> 'phone'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- Blog moderation: the Admin panel removes community posts that
+-- break the vibe. Security-definer so the dashboard can delete any
+-- post regardless of owner (the Admin gate is client-side, like the
+-- rest of the dashboard).
+create or replace function public.admin_delete_post(p_id text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.posts where id = p_id;
+end;
+$$;
+
+grant execute on function public.admin_delete_post(text) to authenticated;
+
+-- Payout single-flight claims: the FIRST caller to claim a
+-- (purchase, role) wins, so two concurrent payouts for the same
+-- purchase can never both transfer money. The server's service role
+-- claims a row, transfers, then records the outcome.
+--   claim_payout  — first attempt: insert a pending row, only the
+--                   inserter gets an id back.
+--   retry_payout  — re-open a failed attempt (or one stuck pending
+--                   for over 2 minutes — a crashed attempt), only
+--                   the caller whose update matched gets an id back.
+create or replace function public.claim_payout(p_purchase uuid, p_role text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.payouts (purchase_id, role, status, updated_at)
+  values (p_purchase, p_role, 'pending', now())
+  on conflict (purchase_id, role) do nothing
+  returning id;
+$$;
+
+create or replace function public.retry_payout(p_purchase uuid, p_role text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  update public.payouts
+  set status = 'pending', updated_at = now()
+  where purchase_id = p_purchase and role = p_role
+    and (
+      status = 'failed'
+      or (status = 'pending' and updated_at < now() - interval '2 minutes')
+    )
+  returning id;
+$$;
+
+revoke execute on function public.claim_payout(uuid, text) from public;
+grant execute on function public.claim_payout(uuid, text) to service_role;
+revoke execute on function public.retry_payout(uuid, text) from public;
+grant execute on function public.retry_payout(uuid, text) to service_role;
