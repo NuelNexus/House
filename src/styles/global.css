@@ -2246,6 +2246,151 @@ textarea.input {
   }
 }
 
+/* ------------------------------------------------------------
+   Location picker (Leaflet map)
+   ------------------------------------------------------------ */
+.loc-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.loc-picked {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #1f7a4d;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.location-picker {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  padding: 12px;
+  background: rgba(var(--paper-rgb), 0.5);
+}
+
+.loc-tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.loc-search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+}
+
+.loc-search > i:first-child {
+  position: absolute;
+  left: 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.loc-search .input {
+  padding-left: 34px;
+  padding-right: 30px;
+}
+
+.loc-search > i.fa-spinner {
+  position: absolute;
+  right: 10px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.loc-results {
+  list-style: none;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.loc-results li button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: var(--font);
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.loc-results li button i {
+  margin-top: 2px;
+  color: var(--rose-deep);
+  flex: none;
+}
+
+.loc-results li button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.loc-results li button:hover i {
+  color: var(--paper);
+}
+
+.loc-map {
+  height: 280px;
+  border: 1px solid var(--ink);
+  background: var(--paper-2);
+}
+
+.loc-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Leaflet pin (divIcon replaces the default PNG marker) */
+.loc-pin-wrap {
+  background: transparent;
+  border: none;
+}
+
+.loc-pin {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  background: var(--rose-deep);
+  border: 3px solid var(--paper);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.loc-pin::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  background: var(--paper);
+  border-radius: 50%;
+}
+
 /* ============================================================
    Profile page (Instagram-style)
    ============================================================ */

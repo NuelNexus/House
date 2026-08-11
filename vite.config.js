@@ -21,6 +21,9 @@ export default defineConfig({
           supabase: ["@supabase/supabase-js"],
           three: ["three"],
           gsap: ["gsap"],
+          // The map only appears on the party-posting form — keep it out
+          // of the app shell so first load stays fast.
+          leaflet: ["leaflet"],
         },
       },
     },

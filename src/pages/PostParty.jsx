@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import Reveal from "../components/Reveal";
 import TicketDesigner from "../components/TicketDesigner";
+import LocationPicker from "../components/LocationPicker";
 import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 
 const CATEGORIES = ["Kickback", "Rave", "Rooftop", "Pool", "Villa", "Birthday", "Games night"];
@@ -44,10 +45,14 @@ export default function PostParty({ setTab, q }) {
     category: repostTarget?.category || CATEGORIES[0],
     payoutPhone: "",
     payoutNetwork: "MTN",
+    // Map-picked coordinates (null = not picked yet; typing still works).
+    lat: null,
+    lng: null,
   }));
   const [sellTickets, setSellTickets] = useState(false);
   const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
+  const [showMap, setShowMap] = useState(false);
 
   // The repost target loads from the cloud (hostPartyPool arrives async),
   // so prefill the form once the party appears — e.g. on a deep link or
@@ -80,6 +85,18 @@ export default function PostParty({ setTab, q }) {
   }, [repostTarget?.id]);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  // A spot picked on the map fills the location field automatically
+  // (so everything downstream keeps working) and records the coords.
+  const onLocationPicked = ({ lat, lng, name }) => {
+    setForm((f) => ({
+      ...f,
+      location: name || f.location,
+      lat: Number.isFinite(lat) ? lat : f.lat,
+      lng: Number.isFinite(lng) ? lng : f.lng,
+    }));
+    setShowMap(false);
+  };
 
   const toggleTickets = () => {
     if (!sellTickets && (!design || !Object.keys(design).length)) {
@@ -141,6 +158,10 @@ export default function PostParty({ setTab, q }) {
       category: form.category,
       payoutPhone: form.payoutPhone.trim(),
       payoutNetwork: form.payoutNetwork,
+      // Coordinates from the map picker (optional — manual typing still
+      // works and leaves them null).
+      lat: form.lat,
+      lng: form.lng,
     });
     setTab("affiliate");
   };
@@ -295,7 +316,10 @@ export default function PostParty({ setTab, q }) {
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div className="field">
+              <div
+                className="field"
+                style={showMap ? { gridColumn: "1 / -1" } : undefined}
+              >
                 <label htmlFor="pp-location">Location</label>
                 <input
                   id="pp-location"
@@ -305,6 +329,38 @@ export default function PostParty({ setTab, q }) {
                   onChange={set("location")}
                   disabled={!!repostTarget}
                 />
+                {!repostTarget && (
+                  <div className="loc-toggle-row">
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${showMap ? "btn-outline" : ""}`}
+                      onClick={() => setShowMap((on) => !on)}
+                    >
+                      {showMap ? (
+                        <>
+                          <i className="fa-solid fa-xmark icon" /> Close map
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-map-location-dot icon" />{" "}
+                          Pick on map
+                        </>
+                      )}
+                    </button>
+                    {form.lat != null && form.lng != null && !showMap && (
+                      <span className="loc-picked">
+                        <i className="fa-solid fa-circle-check" aria-hidden="true" />{" "}
+                        Pinned on map
+                      </span>
+                    )}
+                  </div>
+                )}
+                {showMap && !repostTarget && (
+                  <LocationPicker
+                    value={{ lat: form.lat, lng: form.lng }}
+                    onChange={onLocationPicked}
+                  />
+                )}
               </div>
               {showCommerce ? (
                 <div className="field">

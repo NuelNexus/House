@@ -1216,3 +1216,8 @@ revoke execute on function public.claim_payout(uuid, text) from public;
 grant execute on function public.claim_payout(uuid, text) to service_role;
 revoke execute on function public.retry_payout(uuid, text) from public;
 grant execute on function public.retry_payout(uuid, text) to service_role;
+
+-- Map-picked coordinates for a party's location (location picker).
+-- Stays null when the location is typed manually.
+alter table public.parties add column if not exists location_lat double precision;
+alter table public.parties add column if not exists location_lng double precision;

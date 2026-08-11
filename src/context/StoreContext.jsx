@@ -109,6 +109,9 @@ function mapPartyRow(p) {
     // Where the seller's ticket share is paid out (mobile money).
     payoutPhone: p.payout_phone ?? null,
     payoutNetwork: p.payout_network ?? null,
+    // Map-picked coordinates (null when typed manually).
+    locationLat: p.location_lat ?? null,
+    locationLng: p.location_lng ?? null,
     // Missing status = live (legacy). Every party is 'live' — host
     // originals just have no affiliate_id, so they stay in the pool.
     status: p.status ?? "live",
@@ -1428,6 +1431,11 @@ export function StoreProvider({ children }) {
       sourcePartyId: null,
       originalPrice: Number(party.price) || 0,
       userId: cloudUserRef.current?.id ?? null,
+      // Coordinates from the map picker — stay null for manual typing.
+      locationLat:
+        party.lat != null ? Number(party.lat) : party.locationLat ?? null,
+      locationLng:
+        party.lng != null ? Number(party.lng) : party.locationLng ?? null,
     };
     setUserParties((prev) => [record, ...prev]);
     setCommunityParties((prev) => [record, ...prev]);
@@ -1435,6 +1443,8 @@ export function StoreProvider({ children }) {
     const uid = cloudUserRef.current?.id;
     if (uid) {
       // Send snake_case column names — `is_user` and `rsvps` default.
+      // location_lat/lng only travel when picked on the map, so a DB
+      // that hasn't had the new columns run never fails the upsert.
       supabase
         .from("parties")
         .upsert({
@@ -1455,6 +1465,12 @@ export function StoreProvider({ children }) {
           source_party_id: null,
           payout_phone: record.payoutPhone || null,
           payout_network: record.payoutNetwork || null,
+          ...(record.locationLat != null
+            ? { location_lat: record.locationLat }
+            : {}),
+          ...(record.locationLng != null
+            ? { location_lng: record.locationLng }
+            : {}),
         })
         .then(({ error }) => {
           if (error) console.warn("parties sync:", error.message);
@@ -1506,6 +1522,9 @@ export function StoreProvider({ children }) {
         // Where the AFFILIATE's share of every sale is sent.
         payoutPhone: String(payoutPhone || "").trim() || null,
         payoutNetwork: payoutNetwork || "MTN",
+        // A repost keeps the original's map pin too.
+        locationLat: original.locationLat ?? null,
+        locationLng: original.locationLng ?? null,
       };
       setUserParties((prev) => [record, ...prev]);
       setCommunityParties((prev) => [record, ...prev]);
@@ -1529,6 +1548,12 @@ export function StoreProvider({ children }) {
           source_party_id: record.sourcePartyId,
           payout_phone: record.payoutPhone || null,
           payout_network: record.payoutNetwork || null,
+          ...(record.locationLat != null
+            ? { location_lat: record.locationLat }
+            : {}),
+          ...(record.locationLng != null
+            ? { location_lng: record.locationLng }
+            : {}),
           // jsonb column — send the design object directly so the
           // design survives on every device.
           ticket_design: design,
