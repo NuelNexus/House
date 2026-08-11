@@ -500,26 +500,36 @@ export function StoreProvider({ children }) {
       const cloudGoing = (goingRes.data ?? []).map((g) => g.party_id);
       if (!goingRes.error) setGoing(cloudGoing);
       if (!ticketsRes.error) {
-        setMyTickets(
-          cloudTickets.map((t) => ({
-            code: t.code,
-            ticketId: t.ticket_id,
-            partyId: t.party_id ?? null,
-            hash: t.hash ?? null,
-            design: parseJson(t.design),
-            name: t.name,
-            date: t.date,
-            location: t.location,
-            price: Number(t.price),
-            originalPrice: Number(t.original_price ?? 0),
-            commission: t.commission ?? null,
-            paymentRef: t.payment_reference ?? null,
-            holder: parseHolder(t.holder),
-            promoUsed: parseJson(t.promo_used),
-            // Set when the host's door check marked this pass as used.
-            verifiedAt: t.verified_at ?? null,
-          }))
-        );
+        // MERGE (never replace): the cloud row is authoritative for the
+        // same pass, but a pass that only exists locally — e.g. its
+        // cloud insert failed silently, or this device bought it while
+        // offline — must NEVER be dropped. A plain replace used to wipe
+        // the wall on every reload when the tickets table was missing
+        // rows, which is exactly how passes "disappeared" after a scan.
+        setMyTickets((prev) => {
+          const merged = new Map(prev.map((t) => [t.code, t]));
+          cloudTickets.forEach((t) => {
+            merged.set(t.code, {
+              code: t.code,
+              ticketId: t.ticket_id,
+              partyId: t.party_id ?? null,
+              hash: t.hash ?? null,
+              design: parseJson(t.design),
+              name: t.name,
+              date: t.date,
+              location: t.location,
+              price: Number(t.price),
+              originalPrice: Number(t.original_price ?? 0),
+              commission: t.commission ?? null,
+              paymentRef: t.payment_reference ?? null,
+              holder: parseHolder(t.holder),
+              promoUsed: parseJson(t.promo_used),
+              // Set when the host's door check marked this pass as used.
+              verifiedAt: t.verified_at ?? null,
+            });
+          });
+          return [...merged.values()];
+        });
       }
       const cloudPosts = (postsRes.data ?? []).map((p) => ({
         ...p,
@@ -1234,6 +1244,31 @@ export function StoreProvider({ children }) {
 
   const clearCart = useCallback(() => setCart([]), []);
 
+  // Sync purchased passes to the `tickets` table. Retries once after a
+  // beat when the first attempt fails (DB error OR network rejection) —
+  // a pass must never silently fail to land on other devices (the wall
+  // keeps the local copy regardless). Upserts on the code primary key so
+  // the retry is idempotent even if the first attempt actually committed
+  // but its response was lost.
+  const syncTicketRows = useCallback((rows) => {
+    if (!rows || !rows.length) return;
+    const attempt = () => supabase.from("tickets").upsert(rows);
+    const run = (label) =>
+      attempt()
+        .then(({ error }) => {
+          if (error) throw error;
+        })
+        .catch((err) => {
+          if (label === "first") {
+            console.warn("ticket sync:", err?.message || err);
+            setTimeout(() => run("retry"), 2500);
+          } else {
+            console.warn("ticket sync retry:", err?.message || err);
+          }
+        });
+    run("first");
+  }, []);
+
   // Buy ONE ticket for an event directly from the listing — no cart, no
   // checkout page. Mirrors checkout()'s split exactly: platform 30% of
   // the sale, host 70% of base, affiliate 70% of margin — so a quick
@@ -1276,9 +1311,8 @@ export function StoreProvider({ children }) {
 
       const uid = cloudUserRef.current?.id;
       if (uid) {
-        supabase
-          .from("tickets")
-          .insert({
+        syncTicketRows([
+          {
             code: record.code,
             user_id: uid,
             ticket_id: record.ticketId,
@@ -1298,10 +1332,8 @@ export function StoreProvider({ children }) {
             // encoded as a string and other devices lose the design).
             design: record.design ?? null,
             promo_used: null,
-          })
-          .then(({ error }) => {
-            if (error) console.warn("ticket sync:", error.message);
-          });
+          },
+        ]);
 
         // Sale log: one row for the ORIGINAL host (70% of base) and the
         // reposting affiliate (70% of margin) — same as a cart checkout.
@@ -1332,7 +1364,7 @@ export function StoreProvider({ children }) {
 
       return record;
     },
-    []
+    [syncTicketRows]
   );
 
   const checkout = useCallback(
@@ -1390,33 +1422,28 @@ export function StoreProvider({ children }) {
 
       const uid = cloudUserRef.current?.id;
       if (uid && purchased.length) {
-        supabase
-          .from("tickets")
-          .insert(
-            purchased.map((t) => ({
-              code: t.code,
-              user_id: uid,
-              ticket_id: t.ticketId,
-              party_id: t.partyId,
-              hash: t.hash,
-              name: t.name,
-              date: t.date,
-              location: t.location,
-              price: t.price,
-              original_price: t.originalPrice ?? null,
-              commission: t.commission ?? null,
-              affiliate_share: t.affiliateShare ?? null,
-              payment_reference: t.paymentRef ?? null,
-              holder: JSON.stringify(t.holder),
-              // jsonb columns — send objects, never pre-stringified
-              // values, so the design survives across devices.
-              design: t.design ?? null,
-              promo_used: t.promoUsed ?? null,
-            }))
-          )
-          .then(({ error }) => {
-            if (error) console.warn("tickets sync:", error.message);
-          });
+        syncTicketRows(
+          purchased.map((t) => ({
+            code: t.code,
+            user_id: uid,
+            ticket_id: t.ticketId,
+            party_id: t.partyId,
+            hash: t.hash,
+            name: t.name,
+            date: t.date,
+            location: t.location,
+            price: t.price,
+            original_price: t.originalPrice ?? null,
+            commission: t.commission ?? null,
+            affiliate_share: t.affiliateShare ?? null,
+            payment_reference: t.paymentRef ?? null,
+            holder: JSON.stringify(t.holder),
+            // jsonb columns — send objects, never pre-stringified
+            // values, so the design survives across devices.
+            design: t.design ?? null,
+            promo_used: t.promoUsed ?? null,
+          }))
+        );
 
         // Sale log: every pass sold on a repost lands once for the
         // ORIGINAL host (host_id — they keep 70% of the base) and once
@@ -1452,7 +1479,7 @@ export function StoreProvider({ children }) {
       notify("Payment received — your tickets are ready");
       return purchased;
     },
-    [cartItems, notify, globalPromos]
+    [cartItems, notify, globalPromos, syncTicketRows]
   );
 
   // Anyone signed in can post a party — they become the HOST and set
