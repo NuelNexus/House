@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { contactHostHref } from "../lib/nav";
 import { useBuyNow } from "../hooks/useBuyNow";
-import CoverArt from "../components/CoverArt";
+import PartyCover from "../components/PartyCover";
 import ReviewCard from "../components/ReviewCard";
 import Reveal from "../components/Reveal";
 
@@ -117,7 +117,7 @@ export default function PartyDetail({ partyId, setTab }) {
       <Reveal>
         <div className="party-detail">
           <div className="pd-hero">
-            <CoverArt category={party.category} className="pd-cover" />
+            <PartyCover party={party} className="pd-cover" />
           </div>
 
           <div className="pd-body">

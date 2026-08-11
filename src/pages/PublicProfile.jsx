@@ -192,6 +192,7 @@ export default function PublicProfile({ userId }) {
       label: p.title,
       sub: `${p.rsvps ?? 0} going`,
       coverCat: p.category,
+      cover: p.coverUrl || p.cover_url || null,
     }));
     const reviewItems = state.reviews.map((r) => ({
       kind: "review",
@@ -357,6 +358,13 @@ export default function PublicProfile({ userId }) {
                         loop
                         playsInline
                         preload="metadata"
+                      />
+                    ) : item.cover ? (
+                      <img
+                        className="gallery-image cover-img"
+                        src={item.cover}
+                        alt=""
+                        loading="lazy"
                       />
                     ) : (
                       <CoverArt category={item.coverCat} className="gallery-image" />

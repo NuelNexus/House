@@ -2011,6 +2011,12 @@ textarea.input {
   display: block;
 }
 
+/* An uploaded cover photo filling the same box as the illustrated
+   cover-art — object-fit keeps it a clean crop at any aspect ratio. */
+.cover-img {
+  object-fit: cover;
+}
+
 .party-card .cover,
 .article-card .cover,
 .featured .cover,
@@ -6962,7 +6968,28 @@ html[data-mode="dark"][data-bg="image"] body::before {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+}
+
+.profile-ticket-meta span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-used-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(31, 122, 77, 0.12);
+  border: 1px solid #1f7a4d;
+  color: #14532d;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
@@ -8499,6 +8526,12 @@ html[data-mode="dark"][data-bg="image"] body::before {
   border-color: var(--rose-deep);
   background: rgba(160, 70, 70, 0.07);
   color: var(--rose-deep);
+}
+
+.verify-result.warn {
+  border-color: #b7791f;
+  background: rgba(183, 121, 31, 0.08);
+  color: #92600f;
 }
 
 .verify-result-icon {
@@ -11006,6 +11039,16 @@ html[data-mode="dark"][data-bg="image"] body::before {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Party cover upload (PostParty) — banner-shaped preview instead of the
+   circular group-avatar crop, reusing the same component classes. */
+.pp-cover-upload .group-cover-preview,
+.pp-cover-upload .group-cover-placeholder {
+  width: 100%;
+  max-width: 340px;
+  height: 150px;
+  border-radius: 10px;
 }
 
 /* Add friend button states on public profiles */

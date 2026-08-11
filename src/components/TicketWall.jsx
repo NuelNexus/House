@@ -52,6 +52,11 @@ export default function TicketWall({ tickets, onOpen }) {
           <i className="fa-solid fa-ticket" aria-hidden="true" /> {t.name}
         </span>
         <span>{GH_CD(Number(t.price) || 0)}</span>
+        {t.verifiedAt && (
+          <span className="ticket-used-badge">
+            <i className="fa-solid fa-circle-check" aria-hidden="true" /> Used
+          </span>
+        )}
         <button
           className="profile-ticket-open"
           onClick={() => onOpen && onOpen(t)}

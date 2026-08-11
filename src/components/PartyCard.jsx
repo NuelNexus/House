@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
 import { goUser, contactHostHref } from "../lib/nav";
 import { useBuyNow } from "../hooks/useBuyNow";
-import CoverArt from "./CoverArt";
+import PartyCover from "./PartyCover";
 
 export default function PartyCard({ party }) {
   const { isSaved, toggleSave } = useStore();
@@ -70,7 +70,7 @@ export default function PartyCard({ party }) {
     >
       <div className="cover">
         {isMine && <span className="hosted-badge">Hosted by you</span>}
-        <CoverArt category={party.category} />
+        <PartyCover party={party} />
         <button
           className={`save-btn ${isSaved(party.id) ? "on" : ""}`}
           aria-label={isSaved(party.id) ? "Remove from saved" : "Save party"}

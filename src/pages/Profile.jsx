@@ -94,6 +94,7 @@ export default function Profile({ setTab }) {
           ? "Proposed · waiting for a host"
           : `${p.rsvps} going`,
       coverCat: p.category,
+      cover: p.coverUrl || p.cover_url || null,
     }));
     const reviewItems = userReviews.map((r) => ({
       kind: "review",
@@ -115,6 +116,7 @@ export default function Profile({ setTab }) {
         label: p.title,
         sub: `${p.rsvps} going`,
         coverCat: p.category,
+        cover: p.coverUrl || p.cover_url || null,
       }));
     // My own posted clips — with the view count they've earned.
     const hypeItems = myHypes.map((h) => ({
@@ -332,6 +334,13 @@ export default function Profile({ setTab }) {
                     loop
                     playsInline
                     preload="metadata"
+                  />
+                ) : item.cover ? (
+                  <img
+                    className="gallery-image cover-img"
+                    src={item.cover}
+                    alt=""
+                    loading="lazy"
                   />
                 ) : (
                   <CoverArt category={item.coverCat} className="gallery-image" />

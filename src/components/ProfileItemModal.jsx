@@ -63,7 +63,11 @@ export default function ProfileItemModal({ item, onClose, deletable = false }) {
   return (
     <Modal title="Your Pass" onClose={onClose}>
       <div className="art-cover" style={{ background: "linear-gradient(135deg, #c7a5a5, #101117)" }}>
-        <CoverArt category={item.coverCat} />
+        {item.cover ? (
+          <img className="cover-art cover-img" src={item.cover} alt="" loading="lazy" />
+        ) : (
+          <CoverArt category={item.coverCat} />
+        )}
       </div>
       <div style={{ marginTop: 20 }}>
         {item.ref.design ? (

@@ -1221,3 +1221,98 @@ grant execute on function public.retry_payout(uuid, text) to service_role;
 -- Stays null when the location is typed manually.
 alter table public.parties add column if not exists location_lat double precision;
 alter table public.parties add column if not exists location_lng double precision;
+
+-- ============================================================
+-- Party cover images — the image a host/affiliate sets when
+-- posting a party. The file lives in the public "party-covers"
+-- storage bucket; its URL is stored on the party row (cover_url).
+-- Null = fall back to the illustrated cover.
+-- ============================================================
+alter table public.parties add column if not exists cover_url text;
+
+insert into storage.buckets (id, name, public)
+values ('party-covers', 'party-covers', true)
+on conflict (id) do nothing;
+
+drop policy if exists "party_covers_public_read" on storage.objects;
+create policy "party_covers_public_read" on storage.objects
+  for select using (bucket_id = 'party-covers');
+
+drop policy if exists "party_covers_owner_write" on storage.objects;
+create policy "party_covers_owner_write" on storage.objects
+  for insert with check (bucket_id = 'party-covers' and owner = auth.uid());
+
+drop policy if exists "party_covers_owner_update" on storage.objects;
+create policy "party_covers_owner_update" on storage.objects
+  for update using (bucket_id = 'party-covers' and owner = auth.uid());
+
+drop policy if exists "party_covers_owner_delete" on storage.objects;
+create policy "party_covers_owner_delete" on storage.objects
+  for delete using (bucket_id = 'party-covers' and owner = auth.uid());
+
+-- ============================================================
+-- One-time ticket scanning — a host's successful door check
+-- marks the pass as used so the same hash can never be
+-- rescanned or let in twice. verified_at lives on the host's
+-- sales row (ticket_purchases) and is mirrored onto the
+-- buyer's pass (tickets) so their wall can show "Used".
+-- ============================================================
+alter table public.ticket_purchases add column if not exists verified_at timestamptz;
+alter table public.tickets add column if not exists verified_at timestamptz;
+
+-- Atomically claim a scan: only the FIRST successful check of an unused
+-- hash flips verified_at (a concurrent rescan serializes on the row lock
+-- and its update matches 0 rows, losing the race). Ownership-checked —
+-- the caller must be the party's ORIGINAL host or the reposting
+-- affiliate, so nobody else can burn a ticket by knowing its hash.
+create or replace function public.claim_ticket_scan(p_hash text)
+returns table (claimed boolean, verified_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_me uuid := auth.uid();
+  v_id uuid;
+  v_hit timestamptz;
+begin
+  select id, verified_at into v_id, v_hit
+    from public.ticket_purchases
+   where upper(hash) = upper(p_hash)
+     and (host_id = v_me or affiliate_id = v_me)
+   limit 1;
+
+  -- Not this account's sale (or doesn't exist) — claim=false, no time.
+  if v_id is null then
+    return query select false, null::timestamptz;
+    return;
+  end if;
+
+  -- Already used — report the original scan time.
+  if v_hit is not null then
+    return query select false, v_hit;
+    return;
+  end if;
+
+  -- First-come-wins: only one of two concurrent checks flips this.
+  update public.ticket_purchases
+     set verified_at = now()
+   where id = v_id and verified_at is null;
+
+  if found then
+    -- Mirror onto the buyer's pass (same hash) so their wall shows Used.
+    update public.tickets
+       set verified_at = now()
+     where hash is not null and upper(hash) = upper(p_hash)
+       and verified_at is null;
+    return query select true, now();
+  end if;
+
+  -- Lost the race — someone else scanned it first.
+  select verified_at into v_hit from public.ticket_purchases where id = v_id;
+  return query select false, v_hit;
+end;
+$$;
+
+revoke execute on function public.claim_ticket_scan(text) from anon, public;
+grant execute on function public.claim_ticket_scan(text) to authenticated;

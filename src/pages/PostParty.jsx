@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
@@ -23,7 +23,7 @@ const NETWORKS = ["MTN", "Vodafone", "AirtelTigo", "Telecel"];
 // ------------------------------------------------------------------
 
 export default function PostParty({ setTab, q }) {
-  const { postParty, repostParty, hostPartyPool } = useStore();
+  const { postParty, repostParty, hostPartyPool, uploadPartyCover, notify } = useStore();
   const { user, authLoading, name: authName, openAuth, affiliate } = useAuth();
   const isAffiliate = affiliate?.status === "approved";
   const repostId = q?.repost || null;
@@ -48,7 +48,11 @@ export default function PostParty({ setTab, q }) {
     // Map-picked coordinates (null = not picked yet; typing still works).
     lat: null,
     lng: null,
+    // Uploaded cover image (null = the illustrated cover shows instead).
+    coverUrl: null,
   }));
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverFileRef = useRef(null);
   const [sellTickets, setSellTickets] = useState(false);
   const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
@@ -69,6 +73,8 @@ export default function PostParty({ setTab, q }) {
       location: f.location || repostTarget.location || "",
       description: f.description || repostTarget.description || "",
       category: f.category || repostTarget.category || CATEGORIES[0],
+      // The affiliate keeps the host's cover unless they swap in their own.
+      coverUrl: f.coverUrl || repostTarget.coverUrl || "",
     }));
     setSellTickets(true);
     setDesign((d) =>
@@ -96,6 +102,28 @@ export default function PostParty({ setTab, q }) {
       lng: Number.isFinite(lng) ? lng : f.lng,
     }));
     setShowMap(false);
+  };
+
+  // Pick + upload a cover photo. The URL lands in the form and travels
+  // with the party so the Events page and party page show the real image.
+  const onPickCover = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+      notify("Pick an image file for the cover.");
+      return;
+    }
+    setCoverUploading(true);
+    try {
+      const url = await uploadPartyCover(file);
+      setForm((f) => ({ ...f, coverUrl: url }));
+      notify("Cover added — it'll show on the event page");
+    } catch (err) {
+      notify(err.message || "Couldn't upload the cover.");
+    } finally {
+      setCoverUploading(false);
+    }
   };
 
   const toggleTickets = () => {
@@ -137,6 +165,7 @@ export default function PostParty({ setTab, q }) {
         capacity: form.capacity.trim(),
         payoutPhone: form.payoutPhone.trim(),
         payoutNetwork: form.payoutNetwork,
+        coverUrl: form.coverUrl || "",
         ticketDesign:
           sellTickets && design && Object.keys(design).length
             ? { ...design, enabled: true }
@@ -162,6 +191,7 @@ export default function PostParty({ setTab, q }) {
       // works and leaves them null).
       lat: form.lat,
       lng: form.lng,
+      coverUrl: form.coverUrl || null,
     });
     setTab("affiliate");
   };
@@ -484,6 +514,69 @@ export default function PostParty({ setTab, q }) {
                 onChange={set("description")}
                 disabled={!!repostTarget}
               />
+            </div>
+
+            <div className="field">
+              <label>Cover image</label>
+              <div className="group-cover-upload pp-cover-upload">
+                {form.coverUrl ? (
+                  <img
+                    src={form.coverUrl}
+                    alt="Cover preview"
+                    className="group-cover-preview"
+                  />
+                ) : (
+                  <div className="group-cover-placeholder">
+                    <i className="fa-solid fa-image" />
+                    <span>No cover yet</span>
+                  </div>
+                )}
+                <div className="group-cover-actions">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline"
+                    onClick={() => coverFileRef.current?.click()}
+                    disabled={coverUploading}
+                  >
+                    {coverUploading ? (
+                      <i className="fa-solid fa-spinner fa-spin icon" />
+                    ) : (
+                      <i className="fa-solid fa-camera icon" />
+                    )}
+                    {form.coverUrl ? "Change photo" : "Upload cover"}
+                  </button>
+                  {/* Removing only makes sense for a HOST's own cover — on
+                      a repost, emptying it just reverts to the host's photo. */}
+                  {form.coverUrl && !repostTarget && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline danger"
+                      onClick={() => setForm((f) => ({ ...f, coverUrl: null }))}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={coverFileRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={onPickCover}
+                />
+              </div>
+              <small
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: "var(--ink-soft)",
+                  lineHeight: 1.5,
+                }}
+              >
+                This photo becomes the party's cover on the Events page and
+                party page. {repostTarget ? "Leave it to keep the host's cover." : ""}
+              </small>
             </div>
 
             {showCommerce && (

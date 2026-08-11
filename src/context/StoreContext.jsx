@@ -57,6 +57,11 @@ const genHash = () => {
     .replace(/-$/, "");
 };
 
+// Hash/code comparison is case- and whitespace-insensitive everywhere
+// (typed input vs QR payload vs the stored value).
+const normalizeHash = (v) =>
+  String(v || "").trim().toUpperCase().replace(/\s+/g, "");
+
 function fmtShortDate(iso) {
   try {
     return new Date(iso).toLocaleDateString("en-GB", {
@@ -112,6 +117,8 @@ function mapPartyRow(p) {
     // Map-picked coordinates (null when typed manually).
     locationLat: p.location_lat ?? null,
     locationLng: p.location_lng ?? null,
+    // Cover image the host/affiliate set when posting (null = default art).
+    coverUrl: p.cover_url ?? null,
     // Missing status = live (legacy). Every party is 'live' — host
     // originals just have no affiliate_id, so they stay in the pool.
     status: p.status ?? "live",
@@ -246,6 +253,7 @@ export function StoreProvider({ children }) {
           accent: "#a04646",
           isParty: true,
           ticketDesign: p.ticketDesign,
+          coverUrl: p.coverUrl,
           party: p,
         })),
     [communityParties]
@@ -470,6 +478,7 @@ export function StoreProvider({ children }) {
         status: p.status ?? "live",
         ticketDesign: parseJson(p.ticket_design),
         ticketsSold: p.tickets_sold ?? 0,
+        coverUrl: p.cover_url ?? null,
       }));
       const cloudReviews = (reviewsRes.data ?? []).map((r) => ({
         ...r,
@@ -507,6 +516,8 @@ export function StoreProvider({ children }) {
             paymentRef: t.payment_reference ?? null,
             holder: parseHolder(t.holder),
             promoUsed: parseJson(t.promo_used),
+            // Set when the host's door check marked this pass as used.
+            verifiedAt: t.verified_at ?? null,
           }))
         );
       }
@@ -1022,6 +1033,36 @@ export function StoreProvider({ children }) {
     return data.publicUrl;
   }, []);
 
+  // Upload a party cover photo to the party-covers bucket (creates the
+  // bucket if the schema hasn't run yet, mirroring the groups fallback).
+  // Returns the public URL to store on the party row.
+  const uploadPartyCover = useCallback(async (file) => {
+    const me = cloudUserRef.current?.id;
+    if (!me) throw new Error("Sign in to upload a cover");
+    const ext =
+      (file.name || "cover").split(".").pop().replace(/[^a-zA-Z0-9]/g, "") || "jpg";
+    const path = `parties/${me}/${Date.now()}-cover.${ext}`;
+    const bucket = supabase.storage.from("party-covers");
+    const upload = () =>
+      bucket.upload(path, file, { upsert: true, cacheControl: "3600" });
+    let { error } = await upload();
+    if (error) {
+      const { error: createErr } = await supabase.storage.createBucket(
+        "party-covers",
+        { public: true }
+      );
+      if (!createErr || /exist/i.test(createErr.message || "")) {
+        ({ error } = await upload());
+      }
+      if (error)
+        throw new Error(
+          "Couldn't upload the cover — is the party-covers bucket set up?"
+        );
+    }
+    const { data } = supabase.storage.from("party-covers").getPublicUrl(path);
+    return data.publicUrl;
+  }, []);
+
   // Post a VIDEO to a group. The clip also becomes a hype row: it shows
   // on the public Hype feed when the group's videos_to_hype setting is on
   // (default), otherwise it stays a group-only clip. Returns the post row.
@@ -1436,6 +1477,7 @@ export function StoreProvider({ children }) {
         party.lat != null ? Number(party.lat) : party.locationLat ?? null,
       locationLng:
         party.lng != null ? Number(party.lng) : party.locationLng ?? null,
+      coverUrl: party.coverUrl ?? null,
     };
     setUserParties((prev) => [record, ...prev]);
     setCommunityParties((prev) => [record, ...prev]);
@@ -1471,6 +1513,9 @@ export function StoreProvider({ children }) {
           ...(record.locationLng != null
             ? { location_lng: record.locationLng }
             : {}),
+          // Only travel with the cover URL when one is set, so a DB that
+          // hasn't had the new column run never fails the upsert.
+          ...(record.coverUrl ? { cover_url: record.coverUrl } : {}),
         })
         .then(({ error }) => {
           if (error) console.warn("parties sync:", error.message);
@@ -1487,7 +1532,7 @@ export function StoreProvider({ children }) {
   // of the margin (host_id pinned by the lifecycle trigger). Returns
   // the new repost row or null.
   const repostParty = useCallback(
-    (partyId, { price, capacity, payoutPhone = "", payoutNetwork = "MTN", ticketDesign }) => {
+    (partyId, { price, capacity, payoutPhone = "", payoutNetwork = "MTN", ticketDesign, coverUrl }) => {
       const uid = cloudUserRef.current?.id;
       if (!uid) return null;
       const original = communityParties.find((p) => p.id === partyId);
@@ -1525,6 +1570,9 @@ export function StoreProvider({ children }) {
         // A repost keeps the original's map pin too.
         locationLat: original.locationLat ?? null,
         locationLng: original.locationLng ?? null,
+        // Cover: whatever the affiliate set, else the original's photo
+        // (null = the illustrated fallback).
+        coverUrl: String(coverUrl || "").trim() || original.coverUrl || null,
       };
       setUserParties((prev) => [record, ...prev]);
       setCommunityParties((prev) => [record, ...prev]);
@@ -1554,6 +1602,9 @@ export function StoreProvider({ children }) {
           ...(record.locationLng != null
             ? { location_lng: record.locationLng }
             : {}),
+          // Only travel with the cover URL when one is set, so a DB that
+          // hasn't had the new column run never fails the upsert.
+          ...(record.coverUrl ? { cover_url: record.coverUrl } : {}),
           // jsonb column — send the design object directly so the
           // design survives on every device.
           ticket_design: design,
@@ -1648,6 +1699,37 @@ export function StoreProvider({ children }) {
       if (data && data.length) setAffiliateLogs(data);
     } catch {
       /* offline — keep what we have */
+    }
+  }, []);
+
+  // A successful door check claims the pass as used — atomic in the DB
+  // (only the first scanner flips verified_at), ownership-checked (the
+  // caller must host the party or be the reposting affiliate). Returns
+  // { claimed, verified_at } or null when the claim couldn't run. The
+  // verified_at is stamped onto the local sales log instantly so a
+  // rescan in this session already shows "used".
+  const claimTicketScan = useCallback(async (hash) => {
+    try {
+      const { data, error } = await supabase.rpc("claim_ticket_scan", {
+        p_hash: String(hash || "").trim(),
+      });
+      if (error) {
+        console.warn("claim scan:", error.message);
+        return null;
+      }
+      const res = data && data[0] ? data[0] : null;
+      if (res && (res.claimed || res.verified_at)) {
+        const stamp = new Date(res.verified_at || Date.now()).toISOString();
+        const mark = (l) =>
+          l && normalizeHash(l.hash) === normalizeHash(hash)
+            ? { ...l, verified_at: stamp }
+            : l;
+        setHostLogs((prev) => prev.map(mark));
+        setAffiliateLogs((prev) => prev.map(mark));
+      }
+      return res;
+    } catch {
+      return null;
     }
   }, []);
 
@@ -1899,6 +1981,7 @@ export function StoreProvider({ children }) {
     affiliateLogs,
     fetchHostLogs,
     fetchAffiliateLogs,
+    claimTicketScan,
     saveTicketDesign,
     updateTicketStock,
     saved,
@@ -1927,6 +2010,7 @@ export function StoreProvider({ children }) {
     postGroupVideo,
     inviteToGroup,
     uploadGroupCover,
+    uploadPartyCover,
     deleteGroupPost,
     deleteGroup,
     // live

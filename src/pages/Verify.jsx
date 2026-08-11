@@ -10,12 +10,13 @@ import Reveal from "../components/Reveal";
 // QR with the camera) and it's checked against every sale tied to
 // this account — both the parties you originally hosted (hostLogs)
 // and the parties you reposted as an affiliate (affiliateLogs), so a
-// reposted event's passes verify for the affiliate too. Fully
-// client-side: hashes never leave the browser.
+// reposted event's passes verify for the affiliate too. A successful
+// check CLAIMS the pass (claim_ticket_scan RPC): it's logged as used
+// and can never be let in or rescanned again.
 // ------------------------------------------------------------------
 
 export default function Verify() {
-  const { hostLogs, affiliateLogs, allParties, userParties } = useStore();
+  const { hostLogs, affiliateLogs, allParties, userParties, claimTicketScan, notify } = useStore();
   const { user, authLoading, openAuth } = useAuth();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null); // { status, row }
@@ -52,7 +53,10 @@ export default function Verify() {
 
   const normalize = (v) => (v || "").trim().toUpperCase().replace(/\s+/g, "");
 
-  const checkHash = (raw) => {
+  // A successful check claims the pass — it's logged as used so the
+  // same hash can never be scanned in twice (the DB enforces this
+  // atomically, so two devices at the door can't both let it in).
+  const checkHash = async (raw) => {
     const q = normalize(raw);
     if (!q) return;
     // A manual check cancels any pending live-check debounce so the two
@@ -63,7 +67,30 @@ export default function Verify() {
     const row = salesLog.find(
       (l) => normalize(l.hash) === q || normalize(l.code) === q
     );
-    setResult(row ? { status: "valid", row } : { status: "invalid", row: null });
+    if (!row) {
+      setResult({ status: "invalid", row: null });
+      setChecking(false);
+      return;
+    }
+    if (row.verified_at) {
+      setResult({ status: "used", row });
+      setChecking(false);
+      return;
+    }
+    // Claim with the row's canonical hash — the typed query may be a
+    // pass CODE (FST-…), which the claim RPC doesn't match.
+    const claim = await claimTicketScan(row.hash);
+    if (claim && claim.claimed) {
+      setResult({ status: "valid", row: { ...row, verified_at: claim.verified_at } });
+      notify("Ticket marked as used — it can't be scanned again");
+    } else if (claim && claim.verified_at) {
+      // Lost the race — another scanner got there first.
+      setResult({ status: "used", row: { ...row, verified_at: claim.verified_at } });
+    } else {
+      // Claim unavailable (schema not applied / offline) — fall back to
+      // the plain valid check, just without the used-logging.
+      setResult({ status: "valid", row });
+    }
     setChecking(false);
   };
 
@@ -80,7 +107,13 @@ export default function Verify() {
         const row = salesLog.find(
           (l) => normalize(l.hash) === clean || normalize(l.code) === clean
         );
-        setResult(row ? { status: "valid", row } : { status: "invalid", row: null });
+        // Live preview only — no claiming while typing. Used passes show
+        // their used state; only an explicit check/scan claims the pass.
+        setResult(
+          row
+            ? { status: row.verified_at ? "used" : "valid", row }
+            : { status: "invalid", row: null }
+        );
         setChecking(false);
       }, 420);
     } else {
@@ -172,7 +205,8 @@ export default function Verify() {
       <p className="lede">
         Paste a buyer's ticket hash or scan their QR — it's checked against
         your sales log in an instant. Covers the parties you host and the
-        reposts you sell as an affiliate.
+        reposts you sell as an affiliate. A successful check logs the pass
+        as used, so it can't be let in or rescanned twice.
       </p>
     </header>
   );
@@ -277,7 +311,11 @@ export default function Verify() {
             {result && (
               <div
                 className={`verify-result ${
-                  result.status === "valid" ? "ok" : "bad"
+                  result.status === "valid"
+                    ? "ok"
+                    : result.status === "used"
+                    ? "warn"
+                    : "bad"
                 }`}
               >
                 {result.status === "valid" ? (
@@ -298,6 +336,34 @@ export default function Verify() {
                           { day: "numeric", month: "short" }
                         )}
                       </span>
+                      <span className="verify-hash">
+                        <i className="fa-solid fa-qrcode" aria-hidden="true" />{" "}
+                        {result.row.hash}
+                      </span>
+                    </div>
+                  </>
+                ) : result.status === "used" ? (
+                  <>
+                    <div className="verify-result-icon">
+                      <i className="fa-solid fa-clock-rotate-left" />
+                    </div>
+                    <div className="verify-result-body">
+                      <b>Already used — this pass was scanned in before</b>
+                      <span>
+                        {result.row.buyer_name || "A guest"} ·{" "}
+                        {partyName(result.row.party_id)}
+                      </span>
+                      {result.row.verified_at && (
+                        <span>
+                          Scanned{" "}
+                          {new Date(result.row.verified_at).toLocaleString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
                       <span className="verify-hash">
                         <i className="fa-solid fa-qrcode" aria-hidden="true" />{" "}
                         {result.row.hash}
@@ -346,8 +412,9 @@ export default function Verify() {
               </div>
             )}
             <p className="verify-hint">
-              <i className="fa-solid fa-shield-halved" aria-hidden="true" /> The
-              check is private — hashes never leave your browser.
+              <i className="fa-solid fa-shield-halved" aria-hidden="true" /> Your
+              sales log is private to your account — other hosts can't see
+              your buyers or hashes.
             </p>
           </div>
         </div>

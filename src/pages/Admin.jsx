@@ -7,7 +7,7 @@ import { COMMISSION_RATE } from "../context/StoreContext";
 import { promoOf } from "../lib/ticketPresets";
 import { requestPayout } from "../lib/paystack";
 import Reveal from "../components/Reveal";
-import CoverArt from "../components/CoverArt";
+import PartyCover from "../components/PartyCover";
 import Avatar from "../components/Avatar";
 
 // ------------------------------------------------------------------
@@ -1044,7 +1044,7 @@ export default function Admin({ setTab }) {
               key={p.id}
               onClick={() => setTab(`party/${p.id}`)}
             >
-              <CoverArt category={p.category} />
+              <PartyCover party={p} />
               <span>
                 <b>{p.title}</b>
                 <small>
