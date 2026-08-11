@@ -9,7 +9,7 @@ import HypePlayerSlide from "../components/HypePlayerSlide";
 import TicketWall from "../components/TicketWall";
 import { formatCount } from "../lib/fyp";
 
-const FILTERS = ["All", "Saved", "Hypes", "Hyped", "Parties", "Reviews", "Tickets"];
+const FILTERS = ["All", "Saved", "Hypes", "Hyped", "Events", "Reviews", "Tickets"];
 
 const KIND_ICON = {
   party: "fa-people-group",
@@ -58,7 +58,7 @@ export default function Profile({ setTab }) {
 
   const stats = useMemo(
     () => [
-      { label: "Parties", count: userParties.length },
+      { label: "Events", count: userParties.length },
       { label: "Reviews", count: userReviews.length },
       { label: "Tickets", count: myTickets.length },
       { label: "Followers", count: myFollowers },
@@ -294,15 +294,15 @@ export default function Profile({ setTab }) {
             <h3>Nothing here yet</h3>
             <p>
               {filter === "Saved"
-                ? "Tap the heart on any party to keep it here."
+                ? "Tap the heart on any event to keep it here."
                 : filter === "Hypes"
                 ? "Post a hype from the Hype tab and your clips will appear here with their view counts."
                 : filter === "Hyped"
                 ? "Videos you watch on the Hype tab move here so you can rewatch them anytime."
-                : filter === "Parties"
-                ? "Post your first party from the Parties tab."
+                : filter === "Events"
+                ? "Post your first event from the Events tab."
                 : filter === "Reviews"
-                ? "Write a review after your next party."
+                ? "Write a review after your next event."
                 : filter === "Tickets"
                 ? "Buy a ticket and your pass will appear in the ticket wall above — and here in the gallery."
                 : "Your posts, reviews and tickets will show up here."}

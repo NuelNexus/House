@@ -39,7 +39,7 @@ function FriendButton({ status, busy, onAction }) {
   );
 }
 
-const FILTERS = ["All", "Hypes", "Parties", "Reviews"];
+const FILTERS = ["All", "Hypes", "Events", "Reviews"];
 
 const KIND_ICON = {
   party: "fa-people-group",
@@ -176,7 +176,7 @@ export default function PublicProfile({ userId }) {
   const stats = useMemo(
     () => [
       { label: "Hypes", count: state.hypes.length },
-      { label: "Parties", count: state.parties.length },
+      { label: "Events", count: state.parties.length },
       { label: "Reviews", count: state.reviews.length },
       { label: "Followers", count: counts.followers },
       { label: "Following", count: counts.following },

@@ -194,7 +194,7 @@ export default function Checkout({ setTab }) {
             <i className="fa-solid fa-bag-shopping" />
           </div>
           <h2>Your cart is empty</h2>
-          <p>Pick up some party passes before checking out.</p>
+          <p>Pick up some event passes before checking out.</p>
           <button className="btn" onClick={() => setTab("tickets")}>
             Browse tickets <i className="fa-solid fa-arrow-right icon" />
           </button>
@@ -433,7 +433,7 @@ export default function Checkout({ setTab }) {
                   color: "var(--ink-soft)",
                 }}
               >
-                {form.name}, your party passes are confirmed. Show the codes at
+                {form.name}, your event passes are confirmed. Show the codes at
                 the door.
               </p>
               {tickets.map((t) =>

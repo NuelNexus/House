@@ -186,8 +186,8 @@ export default function Host({ setTab }) {
         Affiliate<span className="outline">.</span>
       </h1>
       <p className="lede">
-        Hosts post their parties with a base price and they land in the
-        pool below. Approved affiliates repost a party with their own
+        Hosts post their events with a base price and they land in the
+        pool below. Approved affiliates repost an event with their own
         price, put it on the Events page and keep {Math.round(AFFILIATE_MARGIN_RATE * 100)}%
         of their margin — the host keeps 70% of their base price, the
         platform takes {Math.round(COMMISSION_RATE * 100)}% of the sale
@@ -203,15 +203,15 @@ export default function Host({ setTab }) {
     <Reveal>
       <div className="host-toolbar">
         <div className="section-label" style={{ margin: 0 }}>
-          Host parties in the pool ({hostPartyPool.length})
+          Host events in the pool ({hostPartyPool.length})
         </div>
         <button className="btn btn-sm" onClick={() => setTab("parties/new")}>
-          <i className="fa-solid fa-plus icon" /> Post a party
+          <i className="fa-solid fa-plus icon" /> Post an event
         </button>
       </div>
       {isApproved && hostPartyPool.length > 0 && (
         <p className="pool-hint">
-          <i className="fa-solid fa-upload" /> Tap <b>Post</b> on a party to
+          <i className="fa-solid fa-upload" /> Tap <b>Post</b> on an event to
           set your price — it goes live on the Events page and you keep{" "}
           {Math.round(AFFILIATE_MARGIN_RATE * 100)}% of your margin on every
           sale.
@@ -220,14 +220,14 @@ export default function Host({ setTab }) {
       {hostPartyPool.length === 0 ? (
         <div className="empty-state">
           <i className="fa-solid fa-champagne-glasses" />
-          <h3>No parties in the pool yet</h3>
+          <h3>No events in the pool yet</h3>
           <p>
-            Anyone on FesGH can post a party — it lands here for approved
+            Anyone on FesGH can post an event — it lands here for approved
             affiliates to repost with their price. Post one and it shows up
             in this pool.
           </p>
           <button className="btn" onClick={() => setTab("parties/new")}>
-            Post a party <i className="fa-solid fa-arrow-right icon" />
+            Post an event <i className="fa-solid fa-arrow-right icon" />
           </button>
         </div>
       ) : (
@@ -264,7 +264,7 @@ export default function Host({ setTab }) {
                     <button
                       className="btn btn-sm"
                       onClick={() => setTab(`parties/new?repost=${p.id}`)}
-                      title="Set your price and put this party on the Events page"
+                      title="Set your price and put this event on the Events page"
                     >
                       <i className="fa-solid fa-upload icon" /> Post
                     </button>
@@ -304,8 +304,8 @@ export default function Host({ setTab }) {
           </div>
           <h2>Sign in to open the Affiliate program</h2>
           <p>
-            Post your party into the pool, or apply to become an affiliate
-            and repost parties with your own price — keeping 70% of your
+            Post your event into the pool, or apply to become an affiliate
+            and repost events with your own price — keeping 70% of your
             margin on every sale you drive.
           </p>
           <button className="btn" onClick={() => openAuth("host")}>
@@ -328,7 +328,7 @@ export default function Host({ setTab }) {
             </div>
             <h2>Become an affiliate</h2>
             <p className="affiliate-pitch-lead">
-              Affiliates don't host — they repost. Pick any host's party
+              Affiliates don't host — they repost. Pick any host's event
               from the pool, attach your own price and put it on the scene.
               Every ticket sold on your repost pays you 70% of your margin.
               Applying costs a one-time {GH_CD(AFFILIATE_FEE)} fee.
@@ -336,8 +336,8 @@ export default function Host({ setTab }) {
             <div className="affiliate-perks">
               <div className="affiliate-perk">
                 <i className="fa-solid fa-retweet" />
-                <b>Repost any party</b>
-                <span>Copy a host's party from the pool and set your own price.</span>
+                <b>Repost any event</b>
+                <span>Copy a host's event from the pool and set your own price.</span>
               </div>
               <div className="affiliate-perk">
                 <i className="fa-solid fa-share-nodes" />
@@ -374,9 +374,9 @@ export default function Host({ setTab }) {
             <div className="affiliate-idea">
               <i className="fa-solid fa-champagne-glasses" />
               <div>
-                <b>Got a party? Post it as a host</b>
+                <b>Got an event? Post it as a host</b>
                 <p>
-                  Post your party's details + base price — it lands in the
+                  Post your event's details + base price — it lands in the
                   pool for affiliates to repost. You keep 70% of your base
                   price on every sale they make.
                 </p>
@@ -385,7 +385,7 @@ export default function Host({ setTab }) {
                 className="btn btn-sm btn-outline"
                 onClick={() => setTab("parties/new")}
               >
-                Post a party
+                Post an event
               </button>
             </div>
           </div>
@@ -524,7 +524,7 @@ export default function Host({ setTab }) {
             Your reposts ({myReposts.length})
           </div>
           <button className="btn btn-sm" onClick={() => setTab("parties/new")}>
-            <i className="fa-solid fa-plus icon" /> Post a party
+            <i className="fa-solid fa-plus icon" /> Post an event
           </button>
         </div>
         {myReposts.length === 0 ? (
@@ -532,7 +532,7 @@ export default function Host({ setTab }) {
             <i className="fa-solid fa-retweet" />
             <h3>No reposts yet</h3>
             <p>
-              Pick a party from the pool above and repost it with your own
+              Pick an event from the pool above and repost it with your own
               price — it goes live on the Events page and you keep 70% of
               your margin on every sale. Share your repost link to bring
               people in.

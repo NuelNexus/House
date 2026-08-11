@@ -56,9 +56,9 @@ export default function Events({ setTab }) {
           Events<span className="outline">.</span>
         </h1>
         <p className="lede">
-          Every party here is its own ticket — an affiliate's repost of a
-          host's party, priced and ticketed by them. Grab a pass right from
-          the listing. Want to host? Post your party on the Affiliate tab.
+          Every event here is its own ticket — an affiliate's repost of a
+          host's event, priced and ticketed by them. Grab a pass right from
+          the listing. Want to host? Post your event on the Affiliate tab.
         </p>
       </header>
 
@@ -67,7 +67,7 @@ export default function Events({ setTab }) {
           <div className="search">
             <i className="fa-solid fa-magnifying-glass" />
             <input
-              placeholder="Search parties, cities, artists…"
+              placeholder="Search events, cities, artists…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Search events"
@@ -85,7 +85,7 @@ export default function Events({ setTab }) {
             ))}
           </div>
           <button className="btn" onClick={openForm}>
-            <i className="fa-solid fa-plus icon" /> Post a party
+            <i className="fa-solid fa-plus icon" /> Post an event
           </button>
         </div>
       </Reveal>
@@ -93,10 +93,10 @@ export default function Events({ setTab }) {
       {nothing ? (
         <div className="empty-state">
           <i className="fa-solid fa-magnifying-glass" />
-          <h3>No parties match</h3>
-          <p>Try a different search or category — or post a party for an affiliate to repost.</p>
+          <h3>No events match</h3>
+          <p>Try a different search or category — or post an event for an affiliate to repost.</p>
           <button className="btn" onClick={openForm}>
-            Post a party
+            Post an event
           </button>
         </div>
       ) : (

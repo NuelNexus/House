@@ -3,7 +3,7 @@ const CARDS = [
     tab: "tickets",
     tag: "Parties & tickets",
     title: "Shop all parties",
-    sub: "Every party comes with its ticket",
+    sub: "Every event comes with its ticket",
     cls: "main",
     shapes: ["orb", "ring", "orb2", "tri"],
   },
@@ -26,8 +26,8 @@ const CARDS = [
   {
     tab: "parties/new",
     tag: "Host the scene",
-    title: "Host a party",
-    sub: "Post a party — affiliates repost it with their price",
+    title: "Host an event",
+    sub: "Post an event — affiliates repost it with their price",
     cls: "corner2",
     shapes: ["ring", "tri", "dot"],
   },
@@ -51,7 +51,7 @@ export default function ProgramCards({ setTab }) {
         <h2>
           There is something <em>else</em> for you
         </h2>
-        <p>Four ways into the party. Pick your door.</p>
+        <p>Four ways into the event. Pick your door.</p>
       </div>
 
       <div className="cards-grid">

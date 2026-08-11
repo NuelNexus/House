@@ -67,7 +67,7 @@ export default function WriteReview({ setTab, q }) {
 
   const back = (
     <button className="back-link" onClick={() => setTab(q?.back ? `party/${q.back}` : "parties")}>
-      <i className="fa-solid fa-arrow-left" /> {q?.back ? "Back to the party" : "Back to parties"}
+      <i className="fa-solid fa-arrow-left" /> {q?.back ? "Back to the event" : "Back to events"}
     </button>
   );
 
@@ -121,7 +121,7 @@ export default function WriteReview({ setTab, q }) {
         <div className="form-panel">
           <form onSubmit={submit}>
             <div className="field">
-              <label htmlFor="rv-party">Which party?</label>
+              <label htmlFor="rv-party">Which event?</label>
               <select
                 id="rv-party"
                 className="input"

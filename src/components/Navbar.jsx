@@ -196,7 +196,7 @@ export default function Navbar({ tab, setTab, hidden }) {
             )}
 
             <button className="btn btn-sm host-btn" onClick={() => go("parties/new")}>
-              Post a party
+              Post an event
             </button>
             <button
               className="cart-btn msg-btn"

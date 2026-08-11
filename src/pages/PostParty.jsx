@@ -148,7 +148,7 @@ export default function PostParty({ setTab, q }) {
       return;
     }
     if (!repostTarget && Number(form.price) <= 0) {
-      setError("Set a base price for your party — the host keeps 70% of it on every repost sale.");
+      setError("Set a base price for your event — the host keeps 70% of it on every repost sale.");
       return;
     }
     setError("");
@@ -157,7 +157,7 @@ export default function PostParty({ setTab, q }) {
       // Affiliate reposting a host's party — their price + ticket go
       // live on the scene as their own listing.
       if (!isAffiliate) {
-        setError("Setting a price on a party is exclusive to approved affiliates.");
+        setError("Setting a price on an event is exclusive to approved affiliates.");
         return;
       }
       repostParty(repostTarget.id, {
@@ -207,16 +207,16 @@ export default function PostParty({ setTab, q }) {
   const head = (
     <header className="page-head reveal in">
       <div className="kicker">
-        {repostTarget ? "Affiliate post" : "Post a party"}
+        {repostTarget ? "Affiliate post" : "Post an event"}
       </div>
       <h1>
-        {repostTarget ? "Set your price" : "Post a party"}
+        {repostTarget ? "Set your price" : "Post an event"}
         <span className="outline">.</span>
       </h1>
       <p className="lede">
         {repostTarget
           ? `${repostTarget.host || "Someone"} posted “${repostTarget.title}” with a base price of ${GH_CD(Number(repostTarget.price) || 0)}. Post it with your own price and ticket — it goes live on the Events page and you keep 70% of your margin (price − base).`
-          : "You're the host — post your party's details and set a base price. It lands in the pool on the Affiliate page; an approved affiliate posts it with their own price and puts it on the scene. You keep 70% of your base price on every sale."}
+          : "You're the host — post your event's details and set a base price. It lands in the pool on the Affiliate page; an approved affiliate posts it with their own price and puts it on the scene. You keep 70% of your base price on every sale."}
       </p>
     </header>
   );
@@ -238,9 +238,9 @@ export default function PostParty({ setTab, q }) {
           <div className="gate-icon">
             <i className="fa-solid fa-champagne-glasses" />
           </div>
-          <h2>Sign in to post a party</h2>
+          <h2>Sign in to post an event</h2>
           <p>
-            Post your party and it lands in the affiliate pool — approved
+            Post your event and it lands in the affiliate pool — approved
             affiliates repost it with their price and sell the tickets.
           </p>
           <button className="btn" onClick={() => openAuth("parties/new")}>
@@ -287,10 +287,10 @@ export default function PostParty({ setTab, q }) {
           <div className="gate-icon">
             <i className="fa-solid fa-hourglass-half" />
           </div>
-          <h2>That party's gone</h2>
+          <h2>That event's gone</h2>
           <p>
             The host may have removed it. Head back to the Affiliate
-            program to see the parties still waiting in the pool.
+            program to see the events still waiting in the pool.
           </p>
           <button className="btn" onClick={() => setTab("host")}>
             Back to the Affiliate program <i className="fa-solid fa-arrow-right icon" />
@@ -311,7 +311,7 @@ export default function PostParty({ setTab, q }) {
         <div className={`form-panel ${sellTickets ? "wide" : ""}`}>
           <form onSubmit={submit}>
             <div className="field">
-              <label htmlFor="pp-title">Party name</label>
+              <label htmlFor="pp-title">Event name</label>
               <input
                 id="pp-title"
                 className="input"
@@ -443,7 +443,7 @@ export default function PostParty({ setTab, q }) {
                   >
                     Your base price is what you earn from — you keep 70% of
                     it on every ticket sold when an affiliate posts your
-                    party. Affiliates mark it up with their own price.
+                    event. Affiliates mark it up with their own price.
                   </small>
                 </div>
               )}
@@ -574,8 +574,8 @@ export default function PostParty({ setTab, q }) {
                   lineHeight: 1.5,
                 }}
               >
-                This photo becomes the party's cover on the Events page and
-                party page. {repostTarget ? "Leave it to keep the host's cover." : ""}
+                This photo becomes the event's cover on the Events page and
+                event page. {repostTarget ? "Leave it to keep the host's cover." : ""}
               </small>
             </div>
 
@@ -613,7 +613,7 @@ export default function PostParty({ setTab, q }) {
                 </>
               ) : (
                 <>
-                  Post party <i className="fa-solid fa-arrow-right icon" />
+                  Post event <i className="fa-solid fa-arrow-right icon" />
                 </>
               )}
             </button>

@@ -233,9 +233,32 @@ export default function Admin({ setTab }) {
     if (!window.confirm(`Remove “${post.title}” from the blog?`)) return;
     setRemovingPost(post.id);
     try {
-      const { error } = await supabase.rpc("admin_delete_post", {
+      // The security-definer RPC deletes ANY post (owner or not) and
+      // works without a signed-in session. Older databases may not have
+      // it yet — fall back to a direct delete (covers your own posts) so
+      // the button never silently does nothing.
+      const rpc = await supabase.rpc("admin_delete_post", {
         p_id: post.id,
       });
+      let error = rpc.error || null;
+      if (
+        error &&
+        /does not exist|could not find|schema cache|not found|undefined/i.test(
+          error.message || ""
+        )
+      ) {
+        // RPC missing on an older database — fall back to a direct delete
+        // (works for your own posts) and VERIFY the row is really gone
+        // before reporting success (RLS can silently filter a delete to
+        // zero rows).
+        await supabase.from("posts").delete().eq("id", post.id);
+        const { data: stillThere } = await supabase
+          .from("posts")
+          .select("id")
+          .eq("id", post.id)
+          .maybeSingle();
+        if (!stillThere) error = null;
+      }
       if (error) throw new Error(error.message);
       notify("Post removed from the blog");
       loadBlogPosts();
@@ -536,7 +559,7 @@ export default function Admin({ setTab }) {
   const kpis = [
     { icon: "fa-coins", label: "Your commission", value: GH_CD(estCommission), sub: `${Math.round(COMMISSION_RATE * 100)}% of every ticket · estimate`, accent: "#1f7a4d" },
     { icon: "fa-champagne-glasses", label: "Events", value: stats.parties, sub: `${stats.rsvps} RSVPs total` },
-    { icon: "fa-ticket", label: "Tickets sold", value: stats.ticketsSold, sub: "across all parties" },
+    { icon: "fa-ticket", label: "Tickets sold", value: stats.ticketsSold, sub: "across all events" },
     { icon: "fa-sack-dollar", label: "Gross income", value: GH_CD(stats.estIncome), sub: `before your ${Math.round(COMMISSION_RATE * 100)}% cut` },
     { icon: "fa-star", label: "Reviews", value: stats.reviews, sub: `${stats.avgRating.toFixed(1)}/5 avg · ${stats.verifiedReviews} verified` },
     { icon: "fa-users", label: "Users", value: stats.users, sub: "signed-up members" },

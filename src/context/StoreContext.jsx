@@ -127,12 +127,35 @@ function mapPartyRow(p) {
   };
 }
 
+// Normalise a row from the `posts` table into the blog post shape.
+function mapPostRow(p) {
+  return {
+    ...p,
+    isUser: true,
+    userId: p.user_id ?? null,
+    date: fmtShortDate(p.created_at),
+    readTime: `${Math.max(
+      1,
+      Math.ceil((p.body || "").split(/\s+/).length / 200)
+    )} min read`,
+    excerpt: (p.body || "").replace(/\s+/g, " ").trim().slice(0, 180),
+  };
+}
+
 export function StoreProvider({ children }) {
   const [cart, setCart] = useState(() => load("festivity.cart", []));
   const [myTickets, setMyTickets] = useState(() => load("festivity.tickets", []));
   const [userParties, setUserParties] = useState(() => load("festivity.parties", []));
   const [userReviews, setUserReviews] = useState(() => load("festivity.reviews", []));
   const [userPosts, setUserPosts] = useState(() => load("festivity.posts", []));
+  // Every community blog post (all users) — the blog shows the whole
+  // community, not just what this device has published.
+  const [communityPosts, setCommunityPosts] = useState([]);
+  // Codes of passes deleted on THIS device — a reload or re-import can
+  // never resurrect them, even if the cloud soft-delete hasn't landed.
+  const [deletedTicketCodes, setDeletedTicketCodes] = useState(() =>
+    load("festivity.deletedTickets", [])
+  );
   const [going, setGoing] = useState(() => load("festivity.going", []));
   // Saved parties (wishlist) — stored locally, shown in the FYP + profile.
   const [saved, setSaved] = useState(() => load("festivity.saved", []));
@@ -162,15 +185,23 @@ export function StoreProvider({ children }) {
   const toastTimer = useRef(null);
   const goingRef = useRef(going);
   const cloudUserRef = useRef(null);
+  const deletedTicketCodesRef = useRef(deletedTicketCodes);
   useEffect(() => {
     goingRef.current = going;
   }, [going]);
+  useEffect(() => {
+    deletedTicketCodesRef.current = deletedTicketCodes;
+  }, [deletedTicketCodes]);
 
   useEffect(() => save("festivity.cart", cart), [cart]);
   useEffect(() => save("festivity.tickets", myTickets), [myTickets]);
   useEffect(() => save("festivity.parties", userParties), [userParties]);
   useEffect(() => save("festivity.reviews", userReviews), [userReviews]);
   useEffect(() => save("festivity.posts", userPosts), [userPosts]);
+  useEffect(
+    () => save("festivity.deletedTickets", deletedTicketCodes),
+    [deletedTicketCodes]
+  );
   useEffect(() => save("festivity.going", going), [going]);
   useEffect(() => save("festivity.saved", saved), [saved]);
   useEffect(() => save("festivity.globalPromos", globalPromos), [globalPromos]);
@@ -269,9 +300,17 @@ export function StoreProvider({ children }) {
     [allParties]
   );
 
-  // Real user reviews + posts only.
+  // Real user reviews only.
   const allReviews = useMemo(() => userReviews, [userReviews]);
-  const allPosts = useMemo(() => userPosts, [userPosts]);
+  // The blog feed = the whole community (all users) merged with this
+  // device's own posts — a story posted anywhere shows up everywhere.
+  const allPosts = useMemo(() => {
+    const map = new Map();
+    [...userPosts, ...communityPosts].forEach((p) => {
+      if (p && p.id) map.set(p.id, p);
+    });
+    return [...map.values()];
+  }, [userPosts, communityPosts]);
   const cartItems = useMemo(() => {
     return cart
       .map((i) => {
@@ -342,6 +381,60 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     fetchSceneParties();
   }, [fetchSceneParties]);
+
+  // The blog feed = EVERYONE's community posts (public read), so a story
+  // posted on one device shows up on every device — not just the
+  // author's. Own posts still win locally (freshest copy on id clash).
+  const fetchCommunityPosts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) return;
+      if (data && data.length) setCommunityPosts(data.map(mapPostRow));
+    } catch {
+      /* offline — keep what we have */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCommunityPosts();
+  }, [fetchCommunityPosts]);
+
+  // Live blog: new posts, edits and removals (including admin
+  // moderation) land everywhere instantly (needs `posts` in the
+  // realtime publication, which the schema sets up).
+  useEffect(() => {
+    const channel = supabase
+      .channel("community-posts")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "posts" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const p = mapPostRow(payload.new);
+            setCommunityPosts((prev) =>
+              prev.some((x) => x.id === p.id) ? prev : [p, ...prev]
+            );
+          } else if (payload.eventType === "UPDATE") {
+            const p = mapPostRow(payload.new);
+            setCommunityPosts((prev) =>
+              prev.map((x) => (x.id === p.id ? { ...x, ...p } : x))
+            );
+          } else if (payload.eventType === "DELETE") {
+            setCommunityPosts((prev) =>
+              prev.filter((x) => x.id !== payload.old.id)
+            );
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Pull any promo codes the creator saved to the promo_codes table, so
   // buyers on other devices can use them at checkout too. Merges with
@@ -506,9 +599,20 @@ export function StoreProvider({ children }) {
         // offline — must NEVER be dropped. A plain replace used to wipe
         // the wall on every reload when the tickets table was missing
         // rows, which is exactly how passes "disappeared" after a scan.
+        // Deletes sync too: passes soft-deleted in the cloud (another
+        // device) or tombstoned here (deleted while offline) never come
+        // back into the merged wall.
+        const tombstoned = new Set(deletedTicketCodesRef.current || []);
+        const liveCloudTickets = cloudTickets.filter(
+          (t) => !t.deleted && !tombstoned.has(t.code)
+        );
         setMyTickets((prev) => {
-          const merged = new Map(prev.map((t) => [t.code, t]));
-          cloudTickets.forEach((t) => {
+          const merged = new Map(
+            prev
+              .filter((t) => !tombstoned.has(t.code))
+              .map((t) => [t.code, t])
+          );
+          liveCloudTickets.forEach((t) => {
             merged.set(t.code, {
               code: t.code,
               ticketId: t.ticket_id,
@@ -531,17 +635,7 @@ export function StoreProvider({ children }) {
           return [...merged.values()];
         });
       }
-      const cloudPosts = (postsRes.data ?? []).map((p) => ({
-        ...p,
-        isUser: true,
-        userId: p.user_id ?? null,
-        date: fmtShortDate(p.created_at),
-        readTime: `${Math.max(
-          1,
-          Math.ceil((p.body || "").split(/\s+/).length / 200)
-        )} min read`,
-        excerpt: (p.body || "").replace(/\s+/g, " ").trim().slice(0, 180),
-      }));
+      const cloudPosts = (postsRes.data ?? []).map(mapPostRow);
       if (!postsRes.error) setUserPosts(cloudPosts);
     } catch {
       /* offline — keep local */
@@ -1549,7 +1643,7 @@ export function StoreProvider({ children }) {
         });
     }
 
-    notify("Party posted — it's in the pool for affiliates to repost");
+    notify("Event posted — it's in the pool for affiliates to repost");
   }, [notify]);
 
   // An approved affiliate REPOSTS a host's party: a brand-new listing — a
@@ -1875,7 +1969,7 @@ export function StoreProvider({ children }) {
             if (error) console.warn("going cleanup:", error.message);
           });
       }
-      notify("Party removed");
+      notify("Event removed");
     },
     [notify]
   );
@@ -1925,6 +2019,9 @@ export function StoreProvider({ children }) {
   const deletePost = useCallback(
     (id) => {
       setUserPosts((prev) => prev.filter((p) => p.id !== id));
+      // The post is also in the community feed — drop it there too so
+      // it never lingers on this device until a reload or realtime event.
+      setCommunityPosts((prev) => prev.filter((p) => p.id !== id));
       removeFromCloud("posts", id);
       notify("Post removed");
     },
@@ -1934,7 +2031,30 @@ export function StoreProvider({ children }) {
   const deleteTicket = useCallback(
     (code) => {
       setMyTickets((prev) => prev.filter((t) => t.code !== code));
-      removeFromCloud("tickets", code);
+      // Tombstone the code so no reload or re-import resurrects it, even
+      // if the cloud soft-delete hasn't landed yet.
+      setDeletedTicketCodes((prev) => {
+        const next = prev.includes(code) ? prev : [...prev, code];
+        deletedTicketCodesRef.current = next;
+        return next;
+      });
+      const uid = cloudUserRef.current?.id;
+      if (uid) {
+        // Soft-delete the cloud row so EVERY device drops the pass (a
+        // hard delete can't tell other devices' local copies it's gone).
+        supabase
+          .from("tickets")
+          .update({ deleted: true })
+          .eq("code", code)
+          .eq("user_id", uid)
+          .then(({ error }) => {
+            if (error) {
+              console.warn("ticket soft-delete sync:", error.message);
+              // Fall back to the old hard delete (pre-deleted-column DBs).
+              removeFromCloud("tickets", code);
+            }
+          });
+      }
       notify("Pass removed");
     },
     [notify, removeFromCloud]
@@ -1948,6 +2068,8 @@ export function StoreProvider({ children }) {
     setUserReviews([]);
     setUserPosts([]);
     setMyTickets([]);
+    setDeletedTicketCodes([]);
+    deletedTicketCodesRef.current = [];
     setGoing([]);
     setSaved([]);
     setRsvpPatches({});
@@ -1956,6 +2078,7 @@ export function StoreProvider({ children }) {
       localStorage.removeItem("festivity.reviews");
       localStorage.removeItem("festivity.posts");
       localStorage.removeItem("festivity.tickets");
+      localStorage.removeItem("festivity.deletedTickets");
       localStorage.removeItem("festivity.going");
       localStorage.removeItem("festivity.saved");
     } catch {

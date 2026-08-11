@@ -115,7 +115,7 @@ export default function Contact({ contactId, q }) {
               placeholder={
                 kind === "offer"
                   ? "Hi! I run a catering service in Accra — food, setup and staff for up to 200 guests. I'd love to work on your event…"
-                  : "Hi! I'm interested in the party and had a few questions…"
+                  : "Hi! I'm interested in the event and had a few questions…"
               }
             />
           </div>

@@ -78,7 +78,7 @@ export default function PartyDetail({ partyId, setTab }) {
         </button>
         <div className="empty-state">
           <i className="fa-solid fa-champagne-glasses" />
-          <h3>Party not found</h3>
+          <h3>Event not found</h3>
           <p>This event may have been removed.</p>
         </div>
       </div>
@@ -147,8 +147,8 @@ export default function PartyDetail({ partyId, setTab }) {
             <div className="pd-actions">
               <button
                 className={`btn btn-outline pd-save ${isSaved(party.id) ? "on" : ""}`}
-                aria-label={isSaved(party.id) ? "Remove from saved" : "Save party"}
-                title={isSaved(party.id) ? "Remove from saved" : "Save party"}
+                aria-label={isSaved(party.id) ? "Remove from saved" : "Save event"}
+                title={isSaved(party.id) ? "Remove from saved" : "Save event"}
                 onClick={() => toggleSave(party.id)}
               >
                 <i className="fa-solid fa-heart icon" />{" "}
@@ -199,7 +199,7 @@ export default function PartyDetail({ partyId, setTab }) {
               </a>
               <button
                 className="btn btn-outline"
-                aria-label="Copy link to this party"
+                aria-label="Copy link to this event"
                 title="Copy link"
                 onClick={() => {
                   shareParty(party.id, title);
@@ -272,7 +272,7 @@ export default function PartyDetail({ partyId, setTab }) {
           <div className="empty-state">
             <i className="fa-solid fa-comment-dots" />
             <h3>No reviews yet</h3>
-            <p>Nobody has reviewed this party yet — be the first to share the vibes.</p>
+            <p>Nobody has reviewed this event yet — be the first to share the vibes.</p>
           </div>
         </Reveal>
       ) : (

@@ -44,11 +44,11 @@ export default function Verify() {
   }, [hostLogs, affiliateLogs]);
 
   const partyName = (id) => {
-    if (!id) return "Your party";
+    if (!id) return "Your event";
     const p =
       allParties.find((x) => x.id === id) ||
       userParties.find((x) => x.id === id);
-    return p ? p.title : "Your party";
+    return p ? p.title : "Your event";
   };
 
   const normalize = (v) => (v || "").trim().toUpperCase().replace(/\s+/g, "");
@@ -379,7 +379,7 @@ export default function Verify() {
                       <b>No match found</b>
                       <span>
                         This hash isn't in your sales log. Double-check it, or
-                        it may belong to another host's party.
+                        it may belong to another host's event.
                       </span>
                     </div>
                   </>
@@ -405,7 +405,7 @@ export default function Verify() {
               <div className="verify-party-stats">
                 {Object.entries(stats).map(([pid, n]) => (
                   <div className="verify-party-row" key={pid}>
-                    <span>{pid === "unlisted" ? "Unlisted party" : partyName(pid)}</span>
+                    <span>{pid === "unlisted" ? "Unlisted event" : partyName(pid)}</span>
                     <b>{n} sold</b>
                   </div>
                 ))}

@@ -102,6 +102,10 @@ alter table public.tickets add column if not exists hash text;
 alter table public.tickets add column if not exists design jsonb;
 alter table public.tickets add column if not exists promo_used jsonb;
 alter table public.tickets add column if not exists commission numeric not null default 0;
+-- A pass soft-deletes (deleted=true) instead of vanishing: the flag
+-- tells every device to drop it, so deleting a pass on one device
+-- actually syncs to the rest.
+alter table public.tickets add column if not exists deleted boolean not null default false;
 
 -- Hosts' sales log: one row per pass sold on a host's party ticket.
 -- Hosts read this to see every buyer (name / email / phone) and the
@@ -376,6 +380,10 @@ create policy "tickets_select" on public.tickets
 drop policy if exists "tickets_insert" on public.tickets;
 create policy "tickets_insert" on public.tickets
   for insert with check (auth.uid() = user_id);
+
+drop policy if exists "tickets_update" on public.tickets;
+create policy "tickets_update" on public.tickets
+  for update using (auth.uid() = user_id);
 
 drop policy if exists "tickets_delete" on public.tickets;
 create policy "tickets_delete" on public.tickets
@@ -1049,7 +1057,7 @@ grant all on table public.affiliates, public.groups, public.group_members, publi
 do $$
 declare t text;
 begin
-  foreach t in array array['messages', 'hypes', 'hype_comments', 'hype_views', 'follows', 'friend_requests', 'parties', 'ticket_purchases', 'groups', 'group_members', 'group_posts', 'live_sessions'] loop
+  foreach t in array array['messages', 'hypes', 'hype_comments', 'hype_views', 'follows', 'friend_requests', 'parties', 'ticket_purchases', 'groups', 'group_members', 'group_posts', 'live_sessions', 'posts'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'
@@ -1173,7 +1181,10 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_delete_post(text) to authenticated;
+-- The Admin gate is a client-side password (not Supabase auth), so the
+-- dashboard can run without a signed-in session — the moderation RPC
+-- must work for anon too, or the delete silently fails.
+grant execute on function public.admin_delete_post(text) to anon, authenticated;
 
 -- Payout single-flight claims: the FIRST caller to claim a
 -- (purchase, role) wins, so two concurrent payouts for the same

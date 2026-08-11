@@ -73,8 +73,8 @@ export default function PartyCard({ party }) {
         <PartyCover party={party} />
         <button
           className={`save-btn ${isSaved(party.id) ? "on" : ""}`}
-          aria-label={isSaved(party.id) ? "Remove from saved" : "Save party"}
-          title={isSaved(party.id) ? "Remove from saved" : "Save party"}
+          aria-label={isSaved(party.id) ? "Remove from saved" : "Save event"}
+          title={isSaved(party.id) ? "Remove from saved" : "Save event"}
           onClick={(e) => {
             e.stopPropagation();
             toggleSave(party.id);

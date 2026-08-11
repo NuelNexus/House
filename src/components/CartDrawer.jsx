@@ -41,7 +41,7 @@ export default function CartDrawer({ setTab }) {
             <div className="empty-state">
               <i className="fa-solid fa-bag-shopping" />
               <h3>Cart is empty</h3>
-              <p>Your party passes will live here.</p>
+              <p>Your event passes will live here.</p>
             </div>
           ) : (
             cartItems.map(({ ticket, qty }) => (

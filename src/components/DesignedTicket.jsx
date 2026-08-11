@@ -22,7 +22,7 @@ export default function DesignedTicket({
       {d.bg && <img className="dt-bg" src={d.bg} alt="" aria-hidden="true" />}
       <div className="dt-main">
         <div className="dt-header">
-          <b>{d.name || "Your Party"}</b>
+          <b>{d.name || "Your Event"}</b>
           <span>{d.tagline || "Admission"}</span>
         </div>
         <div className="dt-cell dt-passenger">

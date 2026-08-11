@@ -221,7 +221,7 @@ export function AuthProvider({ children }) {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
     resetUserContent();
-    notify("Signed out. See you at the next party!");
+    notify("Signed out. See you at the next event!");
   }, [notify, resetUserContent]);
 
   const resetPassword = useCallback(async (email) => {

@@ -224,7 +224,7 @@ export default function EditProfile({ setTab }) {
                 }}
               >
                 Used as a fallback when you host or repost without setting
-                a payout number on the party.
+                a payout number on the event.
               </small>
             </div>
 

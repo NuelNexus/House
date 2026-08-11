@@ -365,7 +365,7 @@ export default function Auth({ authMode = "signin" }) {
                   }}
                 >
                   Where your ticket-share payouts land when you host or
-                  repost a party.
+                  repost an event.
                 </small>
               </div>
             )}
