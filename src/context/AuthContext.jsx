@@ -204,19 +204,6 @@ export function AuthProvider({ children }) {
     [notify]
   );
 
-  // Sign in (or sign up) with Google. This is a redirect flow — the
-  // browser leaves to accounts.google.com and comes back with a session
-  // in the URL hash, which supabase-js picks up automatically. The
-  // redirect target must be whitelisted in Supabase → Authentication →
-  // URL Configuration.
-  const signInWithGoogle = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) throw new Error(error.message);
-  }, []);
-
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
@@ -302,7 +289,6 @@ export function AuthProvider({ children }) {
       ensureAuth,
       signIn,
       signUp,
-      signInWithGoogle,
       signOut,
       resetPassword,
       updatePassword,
@@ -311,7 +297,7 @@ export function AuthProvider({ children }) {
       hypeByDefault,
       setHypeByDefault,
     }),
-    [user, profile, saveProfile, authLoading, openAuth, ensureAuth, signIn, signUp, signInWithGoogle, signOut, resetPassword, updatePassword, affiliate, refreshAffiliate, hypeByDefault, setHypeByDefault]
+    [user, profile, saveProfile, authLoading, openAuth, ensureAuth, signIn, signUp, signOut, resetPassword, updatePassword, affiliate, refreshAffiliate, hypeByDefault, setHypeByDefault]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

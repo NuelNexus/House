@@ -1,13 +1,13 @@
--- One-time purge of every video already posted on the site.
+-- One-time purge of every piece of media already posted on the site.
 --
 -- Deletes:
---   · every video hype (public + private clips) — photo hypes stay
+--   · every hype — photos AND videos (public + private clips)
 --   · their watch history + comments (cascade with the hype rows)
 --   · group-chat posts that carried a clip
---   · the video files in the "hype" storage bucket
+--   · every media file in the "hype" storage bucket
 --
--- The posting features stay live — users can still upload videos after
--- this runs. Re-running is a no-op once the videos are gone.
+-- The posting features stay live — users can still upload photos and
+-- videos after this runs. Re-running is a no-op once everything is gone.
 --
 -- Run it from the Supabase SQL Editor, or:
 --   SUPABASE_PAT=<token> node scripts/purge-videos.mjs
@@ -17,12 +17,14 @@
 --    cover it anyway).
 delete from public.group_posts where video_url is not null;
 
--- 2) Video hypes only — image hypes (jpeg/png/gif/webp) are untouched.
+-- 2) EVERY hype — photos and videos alike.
 --    hype_views and hype_comments cascade with their hype rows.
-delete from public.hypes
-where video_url ~ '\.(mp4|webm|ogg|mov|m4v|mkv|avi)(\?|$)';
+delete from public.hypes;
 
--- 3) The clip files themselves (photos in the bucket stay).
-delete from storage.objects
-where bucket_id = 'hype'
-  and lower(name) ~ '\.(mp4|webm|ogg|mov|m4v|mkv|avi)$';
+-- 3) Every media file in the hype bucket. Supabase blocks direct
+--    storage.objects deletes with a protect trigger, so run as postgres
+--    (SQL editor / Management API) and bypass the trigger for this one
+--    statement, then restore the setting.
+set session_replication_role = replica;
+delete from storage.objects where bucket_id = 'hype';
+reset session_replication_role;

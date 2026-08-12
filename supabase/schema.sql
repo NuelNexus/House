@@ -713,6 +713,24 @@ drop policy if exists "hypes_delete" on public.hypes;
 create policy "hypes_delete" on public.hypes
   for delete using (auth.uid() = user_id);
 
+-- Private (friend) hypes expire after 24 hours. The app calls this
+-- cleanup in the background; read queries also filter expired rows out,
+-- so a private hype can never be seen or rewatched past the window.
+-- Security-definer because only the SENDER can delete via RLS — the
+-- recipient's copy must go too.
+create or replace function public.expire_private_hypes()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.hypes
+  where recipient_id is not null
+    and created_at < now() - interval '24 hours';
+$$;
+
+grant execute on function public.expire_private_hypes() to anon, authenticated;
+
 drop policy if exists "hype_comments_select" on public.hype_comments;
 create policy "hype_comments_select" on public.hype_comments
   for select using (

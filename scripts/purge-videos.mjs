@@ -1,5 +1,6 @@
-// One-shot: purge every video already posted on the site via the
-// Supabase Management API. Safe to re-run (nothing left to delete).
+// One-shot: purge every piece of media already posted on the site
+// (photos AND videos) via the Supabase Management API. Safe to re-run
+// (nothing left to delete).
 //
 // Usage:
 //   SUPABASE_PAT=<token> node scripts/purge-videos.mjs
@@ -11,8 +12,8 @@
 // Get a token at supabase.com → Account Settings → Access Tokens.
 // Revoke it afterwards — it has full access to your account.
 //
-// Deletes every posted video (hypes, group clips, storage files) but
-// keeps the video features, so users can still post new ones.
+// Deletes every posted hype (photos + videos), group clips and storage
+// files but keeps the posting features, so users can still post new ones.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

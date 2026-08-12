@@ -13,7 +13,6 @@ export default function Auth({ authMode = "signin" }) {
     authLoading,
     signIn,
     signUp,
-    signInWithGoogle,
     resetPassword,
     updatePassword,
     signOut,
@@ -52,20 +51,6 @@ export default function Auth({ authMode = "signin" }) {
     setNotice("");
     const target = m === "signin" ? "#auth" : `#auth/${m}`;
     if (window.location.hash !== target) window.location.hash = target;
-  };
-
-  const handleGoogle = async () => {
-    setError("");
-    setNotice("");
-    setBusy(true);
-    try {
-      // Redirect flow — the browser leaves to Google, then supabase-js
-      // recovers the session from the return URL automatically.
-      await signInWithGoogle();
-    } catch (err) {
-      setError(err.message || "Couldn't start Google sign-in. Try again.");
-      setBusy(false);
-    }
   };
 
   const goBack = () => {
@@ -295,21 +280,6 @@ export default function Auth({ authMode = "signin" }) {
       <Reveal>
         <div className="form-panel">
           {mode !== "forgot" && (
-            <>
-              <button
-                type="button"
-                className="btn btn-outline btn-google"
-                onClick={handleGoogle}
-                disabled={busy}
-              >
-                <i className="fa-brands fa-google" />
-                {busy ? "One moment…" : "Continue with Google"}
-              </button>
-              <div className="auth-divider">or</div>
-            </>
-          )}
-
-          {mode !== "forgot" && (
             <div className="auth-tabs">
               <button
                 className={`auth-tab ${mode === "signin" ? "active" : ""}`}
@@ -459,7 +429,7 @@ export default function Auth({ authMode = "signin" }) {
           </form>
 
           <p className="auth-foot">
-            Powered by Supabase — secure email and Google sign-in.
+            Powered by Supabase — secure email sign-in.
           </p>
         </div>
       </Reveal>

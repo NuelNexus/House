@@ -21,6 +21,16 @@ function localDate(d = new Date()) {
   ).padStart(2, "0")}`;
 }
 
+// Private (friend) hypes expire after 24 hours: they vanish from the
+// inbox and the watch history once the window closes, on every device.
+const HYPE_TTL_MS = 24 * 60 * 60 * 1000;
+function hypeStillFresh(h) {
+  return (
+    !h?.recipient_id ||
+    Date.now() - new Date(h.created_at).getTime() < HYPE_TTL_MS
+  );
+}
+
 export function SocialProvider({ children }) {
   const { user } = useAuth();
   const { notify } = useStore();
@@ -465,9 +475,23 @@ export function SocialProvider({ children }) {
     });
   }, []);
 
+  // Best-effort DB cleanup: delete private hypes past the 24h window
+  // (read queries filter them out anyway — this keeps the table tidy).
+  // Throttled so the 12s polling heartbeat doesn't hammer the database.
+  const lastHypeExpiry = useRef(0);
+  const expireOldPrivateHypes = useCallback(() => {
+    const now = Date.now();
+    if (now - lastHypeExpiry.current < 10 * 60 * 1000) return;
+    lastHypeExpiry.current = now;
+    supabase.rpc("expire_private_hypes").then(({ error }) => {
+      if (error) console.warn("hype expiry:", error.message);
+    });
+  }, []);
+
   const loadHype = useCallback(async () => {
     const me = uidRef.current;
     setHypeLoading(true);
+    expireOldPrivateHypes();
     let feedRes = await supabase
       .from("hypes")
       .select("*")
@@ -502,10 +526,12 @@ export function SocialProvider({ children }) {
       ...h,
       author: profs[h.user_id] || null,
     }));
-    const inboxWithAuthors = (inboxRes.data || []).map((h) => ({
-      ...h,
-      author: profs[h.user_id] || null,
-    }));
+    const inboxWithAuthors = (inboxRes.data || [])
+      .map((h) => ({
+        ...h,
+        author: profs[h.user_id] || null,
+      }))
+      .filter(hypeStillFresh);
     syncHypeRef(feedWithAuthors);
     syncHypeRef(inboxWithAuthors);
     setHypeFeed(feedWithAuthors);
@@ -632,7 +658,8 @@ export function SocialProvider({ children }) {
     const profs = await fetchProfiles(aIds);
     const withAuthors = hypes
       .map((h) => ({ ...h, author: profs[h.user_id] || null }))
-      .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
+      .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
+      .filter(hypeStillFresh);
     syncHypeRef(withAuthors);
     setHypedHypes(withAuthors);
   }, [fetchProfiles, syncHypeRef]);
