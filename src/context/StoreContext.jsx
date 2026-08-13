@@ -737,36 +737,25 @@ export function StoreProvider({ children }) {
   // ----------------------------------------------------------
   // Affiliate hosts — apply, list, approve (creator's Admin panel)
   // ----------------------------------------------------------
-  // Apply to become an affiliate. The 40 GHS application fee is paid
-  // via Paystack BEFORE the application is submitted — feeRef is the
-  // Paystack transaction reference proving the fee was paid, and it's
-  // REQUIRED: without a successful payment no application row is ever
-  // created (the RLS insert policy enforces fee_paid server-side too).
-  const applyAffiliate = useCallback(
-    async (feeRef) => {
-      const uid = cloudUserRef.current?.id;
-      if (!uid) return false;
-      if (!feeRef) {
-        notify("Pay the 40 GHS application fee first — then we'll send your application.");
-        return false;
-      }
-      const { error } = await supabase.from("affiliates").upsert({
-        user_id: uid,
-        status: "pending",
-        fee_paid: true,
-        fee_reference: feeRef,
-        fee_amount: 40,
-      });
-      if (error) {
-        console.warn("affiliate apply:", error.message);
-        notify("Couldn't apply right now — try again in a moment.");
-        return false;
-      }
-      notify("Fee paid — application sent, the admin will review it soon.");
-      return true;
-    },
-    [notify]
-  );
+  // Apply to become an affiliate. Signing up is FREE right now — the
+  // application just lands as 'pending' for the admin to review (the
+  // RLS insert policy requires status = 'pending', so nobody can
+  // insert themselves straight into 'approved').
+  const applyAffiliate = useCallback(async () => {
+    const uid = cloudUserRef.current?.id;
+    if (!uid) return false;
+    const { error } = await supabase.from("affiliates").upsert({
+      user_id: uid,
+      status: "pending",
+    });
+    if (error) {
+      console.warn("affiliate apply:", error.message);
+      notify("Couldn't apply right now — try again in a moment.");
+      return false;
+    }
+    notify("Application sent — the admin will review it soon.");
+    return true;
+  }, [notify]);
 
   const fetchAffiliates = useCallback(async () => {
     try {
@@ -1945,6 +1934,12 @@ export function StoreProvider({ children }) {
       });
   }, []);
 
+  // Deletes a party the signed-in user owns — a HOST original they
+  // posted, or an AFFILIATE repost they made (RLS's parties_delete
+  // policy permits auth.uid() = user_id OR auth.uid() = affiliate_id,
+  // so deleting by id alone is safe and covers both). The host's
+  // original party a repost copies is a SEPARATE row and is never
+  // touched.
   const deleteParty = useCallback(
     (id) => {
       setUserParties((prev) => prev.filter((p) => p.id !== id));
@@ -1955,7 +1950,6 @@ export function StoreProvider({ children }) {
         supabase
           .from("parties")
           .delete()
-          .eq("user_id", uid)
           .eq("id", id)
           .then(({ error }) => {
             if (error) console.warn("parties delete sync:", error.message);

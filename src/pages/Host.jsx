@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useStore, COMMISSION_RATE, AFFILIATE_MARGIN_RATE } from "../context/StoreContext";
 import { useAuth } from "../context/AuthContext";
 import { GH_CD } from "../data/seed";
-import { payWithPaystack, verifyPaystack, isFailedVerification } from "../lib/paystack";
 import { DEFAULT_DESIGN } from "../lib/ticketPresets";
 import Modal from "../components/Modal";
 import TicketDesigner from "../components/TicketDesigner";
@@ -15,15 +14,13 @@ import Reveal from "../components/Reveal";
 //     lands in the pool below and stays there until an approved
 //     affiliate reposts it. The host keeps 70% of their base price on
 //     every ticket sold on a repost of their party.
-//   · AFFILIATE (approved by the admin after paying the 40 GHS fee)
+//   · AFFILIATE (approved by the admin — applying is free right now)
 //     reposts host parties from the pool with their OWN price — the
 //     repost is what goes live on the Events page. They keep 70% of
 //     their margin (their price − the host's base price).
 //   · Split per sale: platform 30% of the sale (= 30% of the base +
 //     30% of the margin) · host 70% of base · affiliate 70% of margin.
 // ------------------------------------------------------------------
-
-const AFFILIATE_FEE = 40;
 
 const shareUrl = (id) =>
   `${window.location.origin}${window.location.pathname}#party/${id}`;
@@ -37,6 +34,7 @@ export default function Host({ setTab }) {
     affiliateLogs,
     saveTicketDesign,
     updateTicketStock,
+    deleteParty,
     notify,
     applyAffiliate,
   } = useStore();
@@ -150,30 +148,12 @@ export default function Host({ setTab }) {
     if (busy) return;
     setBusy(true);
     try {
-      // Pay first: the 40 GHS fee is charged up front via Paystack, the
-      // charge is verified server-side, and ONLY then is the application
-      // submitted. No payment = no application, ever.
-      if (!user?.email) {
-        throw new Error("Add an email to your account before paying the application fee.");
-      }
-      const feeRef = await payWithPaystack({
-        email: user.email,
-        amount: AFFILIATE_FEE,
-        label: "Affiliate application fee",
-      });
-      // Best-effort server verification when PAYSTACK_SECRET_KEY is set.
-      // Without it the endpoint reports not-set and the popup callback is
-      // trusted instead — but an explicitly failed charge still blocks.
-      const verified = await verifyPaystack(feeRef).catch(() => null);
-      if (isFailedVerification(verified)) {
-        throw new Error("Payment could not be verified — application not sent.");
-      }
-      const ok = await applyAffiliate(feeRef);
+      // Applying is FREE right now — the application goes straight to
+      // the admin for review, no payment step.
+      const ok = await applyAffiliate();
       if (ok) refreshAffiliate();
     } catch (err) {
-      notify(
-        err?.message || "Payment didn't go through — your application wasn't sent."
-      );
+      notify(err?.message || "Couldn't send your application right now.");
     } finally {
       setBusy(false);
     }
@@ -192,7 +172,7 @@ export default function Host({ setTab }) {
         of their margin — the host keeps 70% of their base price, the
         platform takes {Math.round(COMMISSION_RATE * 100)}% of the sale
         ({Math.round(COMMISSION_RATE * 100)}% of the base + {Math.round(COMMISSION_RATE * 100)}%
-        of the margin). Applying costs a one-time {GH_CD(AFFILIATE_FEE)} fee.
+        of the margin). Applying is free right now.
       </p>
     </header>
   );
@@ -331,7 +311,7 @@ export default function Host({ setTab }) {
               Affiliates don't host — they repost. Pick any host's event
               from the pool, attach your own price and put it on the scene.
               Every ticket sold on your repost pays you 70% of your margin.
-              Applying costs a one-time {GH_CD(AFFILIATE_FEE)} fee.
+              Applying is free right now — no fee, just an admin review.
             </p>
             <div className="affiliate-perks">
               <div className="affiliate-perk">
@@ -361,11 +341,11 @@ export default function Host({ setTab }) {
             >
               {busy ? (
                 <>
-                  <i className="fa-solid fa-spinner fa-spin icon" /> Paying {GH_CD(AFFILIATE_FEE)}…
+                  <i className="fa-solid fa-spinner fa-spin icon" /> Sending application…
                 </>
               ) : (
                 <>
-                  Apply to become an affiliate · {GH_CD(AFFILIATE_FEE)}{" "}
+                  Apply to become an affiliate — it's free{" "}
                   <i className="fa-solid fa-arrow-right icon" />
                 </>
               )}
@@ -397,10 +377,6 @@ export default function Host({ setTab }) {
 
   // ---- Pending review ------------------------------------------
   if (affiliate.status === "pending") {
-    // Applications created before the pay-first rework may sit here with
-    // no fee recorded — they can't be approved until the 40 GHS fee is
-    // paid, so offer the pay-first flow right here instead of a dead end.
-    const needsFee = !affiliate.fee_paid;
     return (
       <div className="page">
         {head}
@@ -408,41 +384,16 @@ export default function Host({ setTab }) {
           <div className="gate-icon">
             <i className="fa-solid fa-hourglass-half" />
           </div>
-          {needsFee ? (
-            <>
-              <h2>Pay the fee to finish your application</h2>
-              <p>
-                Your application is on file, but the one-time {GH_CD(AFFILIATE_FEE)}{" "}
-                affiliate fee hasn't been paid yet — applications are only
-                approved once it clears.
-              </p>
-              <button className="btn" onClick={apply} disabled={busy}>
-                {busy ? (
-                  <>
-                    <i className="fa-solid fa-spinner fa-spin icon" /> Paying {GH_CD(AFFILIATE_FEE)}…
-                  </>
-                ) : (
-                  <>
-                    Pay {GH_CD(AFFILIATE_FEE)} and finish applying{" "}
-                    <i className="fa-solid fa-arrow-right icon" />
-                  </>
-                )}
-              </button>
-            </>
-          ) : (
-            <>
-              <h2>Affiliate application under review</h2>
-              <p>
-                Your fee is paid and your application is with the admin. Once
-                approved you can repost parties from the pool with your own
-                price and start keeping 70% of your margin. You can still
-                post your own parties as a host while you wait.
-              </p>
-              <button className="btn btn-outline" onClick={() => refreshAffiliate()}>
-                <i className="fa-solid fa-rotate icon" /> Check status
-              </button>
-            </>
-          )}
+          <h2>Affiliate application under review</h2>
+          <p>
+            Your application is with the admin. Once approved you can
+            repost parties from the pool with your own price and start
+            keeping 70% of your margin. You can still post your own
+            parties as a host while you wait.
+          </p>
+          <button className="btn btn-outline" onClick={() => refreshAffiliate()}>
+            <i className="fa-solid fa-rotate icon" /> Check status
+          </button>
         </div>
         {poolSection}
       </div>
@@ -649,6 +600,21 @@ export default function Host({ setTab }) {
                       onClick={() => setTab(`party/${p.id}`)}
                     >
                       View
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline danger"
+                      title="Delete this repost"
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Delete your repost “${p.title}”? It will come off the Events page — the host's original stays in the pool.`
+                          )
+                        )
+                          return;
+                        deleteParty(p.id);
+                      }}
+                    >
+                      <i className="fa-solid fa-trash-can icon" /> Delete
                     </button>
                   </div>
                 </article>

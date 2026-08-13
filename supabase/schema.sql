@@ -218,9 +218,11 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- Affiliate hosts: users approved to post events and sell tickets at
--- their own prices. Applying costs a one-time 40 GHS fee (paid via
--- Paystack before the application is submitted; fee_reference records
--- the charge). Every sale splits as:
+-- their own prices. Applying is FREE right now — the application just
+-- lands as 'pending' for the admin to approve. (The fee_paid /
+-- fee_reference / fee_amount columns below were the old 40 GHS pay-
+-- first flow; they're kept so the fee can be reinstated later.) Every
+-- sale splits as:
 --   30% platform (30% of the host's base price + 30% of the affiliate's
 --   margin) · host keeps 70% of their base · affiliate keeps 70% of
 --   their margin.
@@ -948,18 +950,15 @@ drop policy if exists "affiliates_select" on public.affiliates;
 create policy "affiliates_select" on public.affiliates
   for select using (true);
 
--- Pay FIRST, then apply: an application can only be created with a
--- verified fee (fee_paid = true + its Paystack reference) and it always
--- lands as 'pending' — no one can insert themselves straight into
--- 'approved'. Approval only happens through the update path below
--- (Admin panel).
+-- Applying is free: anyone can create their own application and it
+-- always lands as 'pending' — no one can insert themselves straight
+-- into 'approved'. Approval only happens through the update path
+-- below (Admin panel).
 drop policy if exists "affiliates_insert" on public.affiliates;
 create policy "affiliates_insert" on public.affiliates
   for insert with check (
     auth.uid() = user_id
     and status = 'pending'
-    and fee_paid = true
-    and fee_reference is not null
   );
 
 -- The creator approves / rejects applications from the Admin panel
