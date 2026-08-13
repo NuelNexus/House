@@ -330,16 +330,6 @@ export default function TourOverlay({ setTab }) {
                 </button>
               </div>
 
-              <div className="tour-credit">
-                Bart illustration: pure CSS by{" "}
-                <a
-                  href="https://github.com/alvaromontoro/CSS-Simpsons"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Álvaro Montoro
-                </a>
-              </div>
             </div>
           </div>
         </div>
