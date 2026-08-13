@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { SocialProvider } from "./context/SocialContext";
 import MouseEffect from "./components/MouseEffect";
+import TourOverlay from "./components/TourOverlay";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CartDrawer from "./components/CartDrawer";
@@ -280,6 +281,7 @@ function Shell() {
       {tab !== "messages" && tab !== "hype" && <Footer setTab={setTab} />}
       <CartDrawer setTab={setTab} />
       <Toast message={toast} />
+      <TourOverlay setTab={setTab} />
     </ErrorBoundary>
   );
 }
