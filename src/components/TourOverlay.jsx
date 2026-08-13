@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-// The site tour — simplified English, one step per feature. `go` jumps
-// the visitor to that page when they tap the button (and closes the
-// tour so they can try it for real).
+// The site tour — simplified English, one step per feature. `go` names
+// the page each step describes; advancing to that step takes the
+// visitor there automatically (the tour stays open, floating above).
 const STEPS = [
   {
     title: "Welcome to FesGH!",
@@ -212,13 +212,13 @@ export default function TourOverlay({ setTab }) {
     }
   }, []);
 
-  // Lock page scroll while the tour is open.
+  // Each step takes the visitor to the page it describes, so they
+  // can try the real thing behind the floating guide.
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+    if (!open) return;
+    const target = STEPS[step].go;
+    if (target) setTab(target);
+  }, [open, step, setTab]);
 
   // Keyboard: Esc closes, arrows move between steps.
   useEffect(() => {
@@ -253,21 +253,15 @@ export default function TourOverlay({ setTab }) {
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
 
-  const jump = () => {
-    if (current.go) setTab(current.go);
-    close();
-  };
-
   return (
-    <>
-      {open && (
-        <div id="tour-root" className="tour-overlay">
-          <div
-            className="tour-backdrop"
-            onClick={close}
-            aria-hidden="true"
-          />
-          <div className="tour-card" role="dialog" aria-modal="true" aria-label="How to use FesGH">
+    <>      {open && (
+        <div
+          id="tour-root"
+          className="tour-overlay"
+          role="dialog"
+          aria-label="How to use FesGH"
+        >
+          <div className="tour-bubble">
             <button
               className="tour-close"
               aria-label="Close tour"
@@ -277,60 +271,48 @@ export default function TourOverlay({ setTab }) {
               <i className="fa-solid fa-xmark" />
             </button>
 
-            <div className="tour-bart-wrap">
-              <BartFigure />
+            <div className="tour-kicker">
+              <i className={`fa-solid ${current.icon}`} aria-hidden="true" />
+              Step {step + 1} of {STEPS.length}
             </div>
+            <h2 className="tour-title">{current.title}</h2>
+            <p className="tour-body">{current.body}</p>
 
-            <div className="tour-panel">
-              <div className="tour-kicker">
-                <i className={`fa-solid ${current.icon}`} aria-hidden="true" />
-                Step {step + 1} of {STEPS.length}
+            <div className="tour-controls">
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setStep((s) => Math.max(0, s - 1))}
+                disabled={step === 0}
+              >
+                <i className="fa-solid fa-arrow-left icon" /> Back
+              </button>
+              <div className="tour-dots" aria-hidden="true">
+                {STEPS.map((s, i) => (
+                  <span
+                    key={s.title}
+                    className={`tour-dot ${i === step ? "on" : ""}`}
+                  />
+                ))}
               </div>
-              <h2 className="tour-title">{current.title}</h2>
-              <p className="tour-body">{current.body}</p>
-
-              {current.go && (
-                <button className="btn btn-outline tour-jump" onClick={jump}>
-                  <i className="fa-solid fa-arrow-up-right-from-square icon" />
-                  {current.goLabel}
-                </button>
-              )}
-
-              <div className="tour-controls">
-                <button
-                  className="btn btn-sm btn-outline"
-                  onClick={() => setStep((s) => Math.max(0, s - 1))}
-                  disabled={step === 0}
-                >
-                  <i className="fa-solid fa-arrow-left icon" /> Back
-                </button>
-                <div className="tour-dots" aria-hidden="true">
-                  {STEPS.map((s, i) => (
-                    <span
-                      key={s.title}
-                      className={`tour-dot ${i === step ? "on" : ""}`}
-                    />
-                  ))}
-                </div>
-                <button
-                  className="btn btn-sm"
-                  onClick={() =>
-                    isLast ? close() : setStep((s) => s + 1)
-                  }
-                >
-                  {isLast ? (
-                    <>
-                      <i className="fa-solid fa-check icon" /> Done
-                    </>
-                  ) : (
-                    <>
-                      Next <i className="fa-solid fa-arrow-right icon" />
-                    </>
-                  )}
-                </button>
-              </div>
-
+              <button
+                className="btn btn-sm"
+                onClick={() => (isLast ? close() : setStep((s) => s + 1))}
+              >
+                {isLast ? (
+                  <>
+                    <i className="fa-solid fa-check icon" /> Done
+                  </>
+                ) : (
+                  <>
+                    Next <i className="fa-solid fa-arrow-right icon" />
+                  </>
+                )}
+              </button>
             </div>
+          </div>
+
+          <div className="tour-bart-wrap" aria-hidden="true">
+            <BartFigure />
           </div>
         </div>
       )}
