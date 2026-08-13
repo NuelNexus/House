@@ -197,12 +197,16 @@ function BartFigure() {
   );
 }
 
-export default function TourOverlay({ setTab }) {
+export default function TourOverlay({ setTab, tab }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
-  // Show the tour once for new visitors (until they finish or close it).
+  // Show the tour once for new visitors (until they finish or close it)
+  // — and only from the HOME page. It never pops up on its own over
+  // another tab, and the "How to use" button only lives on home too,
+  // so the guide can't sit on top of the rest of the site.
   useEffect(() => {
+    if (tab !== "home") return;
     try {
       if (!localStorage.getItem("festivity.tourSeen")) {
         setOpen(true);
@@ -210,7 +214,7 @@ export default function TourOverlay({ setTab }) {
     } catch {
       /* storage unavailable — stay closed */
     }
-  }, []);
+  }, [tab]);
 
   // Each step takes the visitor to the page it describes, so they
   // can try the real thing behind the floating guide.
@@ -317,7 +321,7 @@ export default function TourOverlay({ setTab }) {
         </div>
       )}
 
-      {!open && (
+      {!open && tab === "home" && (
         <button
           className="tour-help-btn"
           onClick={() => setOpen(true)}

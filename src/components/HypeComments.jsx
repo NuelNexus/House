@@ -23,6 +23,9 @@ export default function HypeComments({ hype, onClose }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  // Signed-out visitors get an inline "sign in to comment" prompt
+  // instead of being yanked to the auth page the moment they tap.
+  const [signInHint, setSignInHint] = useState(false);
   const listRef = useRef(null);
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export default function HypeComments({ hype, onClose }) {
     async (e) => {
       e.preventDefault();
       if (!user) {
-        openAuth();
+        setSignInHint(true);
         return;
       }
       const text = body.trim();
@@ -84,7 +87,7 @@ export default function HypeComments({ hype, onClose }) {
         setSending(false);
       }
     },
-    [user, openAuth, body, sending, addComment, hype.id]
+    [user, body, sending, addComment, hype.id]
   );
 
   const remove = useCallback(
@@ -166,8 +169,11 @@ export default function HypeComments({ hype, onClose }) {
             placeholder={user ? "Add a comment…" : "Sign in to comment"}
             onChange={(e) => setBody(e.target.value)}
             aria-label="Add a comment"
-            onClick={() => {
-              if (!user) openAuth();
+            onFocus={() => {
+              if (!user) setSignInHint(true);
+            }}
+            onKeyDown={() => {
+              if (!user) setSignInHint(true);
             }}
           />
           <button className="hype-comment-send" disabled={sending || !body.trim()} type="submit">
@@ -178,6 +184,15 @@ export default function HypeComments({ hype, onClose }) {
             )}
           </button>
         </div>
+        {!user && signInHint && (
+          <button
+            type="button"
+            className="hype-comment-signin"
+            onClick={openAuth}
+          >
+            <i className="fa-solid fa-right-to-bracket icon" /> Sign in to comment
+          </button>
+        )}
       </form>
     </div>
   );

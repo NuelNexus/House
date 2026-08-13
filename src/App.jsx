@@ -281,7 +281,7 @@ function Shell() {
       {tab !== "messages" && tab !== "hype" && <Footer setTab={setTab} />}
       <CartDrawer setTab={setTab} />
       <Toast message={toast} />
-      <TourOverlay setTab={setTab} />
+      <TourOverlay setTab={setTab} tab={tab} />
     </ErrorBoundary>
   );
 }

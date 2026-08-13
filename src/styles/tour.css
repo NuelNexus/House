@@ -29,20 +29,23 @@
   font-family: var(--font, "Oswald", sans-serif);
 }
 
-/* The speech bubble (the only clickable part of the overlay) */
+/* The speech bubble (the only clickable part of the overlay).
+   Frosted dark glass instead of a white card: the page stays visible
+   through it, and the text is bright + heavy so it always reads. */
 #tour-root .tour-bubble {
   position: fixed;
   left: 28px;
   bottom: 356px;
   width: min(420px, calc(100vw - 56px));
   padding: 24px 26px 20px;
-  background: rgba(251, 250, 255, 0.92);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 2px solid #101117;
-  box-shadow: 8px 8px 0 rgba(16, 17, 23, 0.5);
+  background: rgba(16, 17, 23, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
   z-index: 2;
+  color: #fff;
 }
 
 #tour-root .tour-bubble::after {
@@ -51,7 +54,7 @@
   bottom: -17px;
   left: 64px;
   border: 8px solid transparent;
-  border-top: 9px solid #101117;
+  border-top: 9px solid rgba(255, 255, 255, 0.85);
   border-bottom: 0;
 }
 
@@ -78,7 +81,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--rose-deep, #a04646);
+  color: #ffd166;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 12px;
@@ -90,24 +93,27 @@
 }
 
 #tour-root .tour-title {
+  color: #fff;
   font-size: clamp(22px, 3vw, 30px);
   font-weight: 900;
   letter-spacing: -1px;
   line-height: 1.1;
   margin: 8px 0 10px;
   padding-right: 34px; /* keep clear of the close button */
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
 #tour-root .tour-body {
-  color: var(--ink-soft, #3a3b45);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 15.5px;
   line-height: 1.55;
   max-width: 52ch;
   margin-bottom: 14px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
 }
 
 #tour-root .tour-body b {
-  color: var(--ink, #101117);
+  color: #ffd166;
 }
 
 #tour-root .tour-controls {
@@ -115,6 +121,39 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* The outline buttons sit on dark glass now — make them light so they
+   stay visible instead of blending into the bubble. */
+#tour-root .btn-outline {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+#tour-root .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+#tour-root .btn-outline::after {
+  background: rgba(255, 255, 255, 0.65);
+}
+
+/* The primary Next button — pinned to bright yellow on the dark glass
+   so it pops in both light and dark themes (matches Bart's yellow). */
+#tour-root .btn {
+  background: #ffd166;
+  color: #101117;
+  border-color: #ffd166;
+}
+
+#tour-root .btn::after {
+  background: #fff;
+}
+
+#tour-root .btn:hover {
+  color: #101117;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 #tour-root .tour-dots {
@@ -128,14 +167,15 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 1.5px solid #101117;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
   background: transparent;
   padding: 0;
   cursor: default;
 }
 
 #tour-root .tour-dot.on {
-  background: #101117;
+  background: #fff;
+  border-color: #fff;
 }
 
 #tour-root .tour-close {
@@ -144,16 +184,19 @@
   right: 10px;
   width: 38px;
   height: 38px;
-  border: 2px solid #101117;
-  background: var(--paper, #fbfaff);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   font-size: 17px;
   line-height: 1;
   z-index: 2;
   cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 #tour-root .tour-close:hover {
   background: var(--rose-deep, #a04646);
+  border-color: var(--rose-deep, #a04646);
   color: #fff;
 }
 
@@ -971,7 +1014,7 @@
     left: 12px;
     right: 12px;
     width: auto;
-    bottom: 208px;
+    bottom: 232px;
     padding: 20px 18px 16px;
   }
 
@@ -988,7 +1031,7 @@
   }
 
   #tour-root .tour-title {
-    font-size: 22px;
+    font-size: 24px;
   }
 
   .tour-help-btn {
@@ -1019,4 +1062,36 @@
   #tour-root .tour-bubble {
     bottom: 300px;
   }
+}
+
+/* ------------------------------------------------------------
+   Inline "sign in to comment" prompt (HypeComments drawer)
+   Lives here because this file loads globally and the design
+   system file is too large for in-place edits — same tokens,
+   same look, scoped to the one class.
+   ------------------------------------------------------------ */
+.hype-comment-signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: rgba(77, 163, 255, 0.14);
+  border: 1px solid rgba(77, 163, 255, 0.55);
+  color: #4da3ff;
+  font-family: var(--font, "Oswald", sans-serif);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.hype-comment-signin:hover {
+  background: #4da3ff;
+  color: #fff;
 }
