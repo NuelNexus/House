@@ -5310,6 +5310,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
   inset: 0;
   background: #000;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ms-hype-stage-media {
@@ -5781,6 +5782,9 @@ html[data-mode="dark"][data-bg="image"] body::before {
   position: relative;
   background: #000;
   cursor: pointer;
+  /* Kill the native light-blue tap flash iOS paints on the tapped
+     slide when you tap the video to play/pause it. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Widescreen stage: every video renders as a fixed 16:9 (1.69:1)
@@ -8913,7 +8917,26 @@ html[data-mode="dark"][data-bg="image"] body::before {
   height: 100%;
   object-fit: cover;
   background: #000;
-  transition: filter 0.25s ease;
+}
+
+/* Tracked overlay filters (hat, glasses, doggy...) — the sprites are
+   positioned over the face by JS every frame, so only the layer and
+   image base styles live here. */
+.snap-overlay-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.snap-overlay-sprite {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  pointer-events: none;
+  will-change: left, top, width, height;
 }
 
 .hype-feed-slide img.hype-slide-img {
@@ -8975,6 +8998,7 @@ html[data-mode="dark"][data-bg="image"] body::before {
 /* Placed stickers */
 .snap-sticker {
   position: absolute;
+  z-index: 3; /* above the tracked overlay sprites, below grid/flash */
   transform: translate(-50%, -50%);
   font-size: clamp(44px, 13vw, 78px);
   line-height: 1;

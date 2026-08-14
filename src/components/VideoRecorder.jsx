@@ -1,24 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import {
+  OVERLAYS,
+  DEFAULT_OVERLAY,
+  loadSpriteImages,
+  overlaySpriteRect,
+  drawOverlays,
+  mapIntrinsicToStage,
+  createFaceTracker,
+} from "../lib/hypeFilters";
 
 const MAX_SECONDS = 30;
-
-// Color filters — applied live to the viewfinder via CSS filter, and
-// baked into photos at capture time. The swatch dot previews each look.
-const FILTERS = [
-  { id: "orig", label: "Original", css: "none", dot: "linear-gradient(135deg,#fffc00,#ff7a45)" },
-  { id: "vivid", label: "Vivid", css: "saturate(1.65) contrast(1.18)", dot: "linear-gradient(135deg,#ff4d6d,#ffb703)" },
-  { id: "golden", label: "Golden", css: "sepia(.55) saturate(1.7) contrast(1.05) hue-rotate(-12deg)", dot: "linear-gradient(135deg,#f5b301,#8c4b00)" },
-  { id: "mono", label: "Mono", css: "grayscale(1)", dot: "linear-gradient(135deg,#a9a9a9,#333)" },
-  { id: "noir", label: "Noir", css: "grayscale(1) contrast(1.45) brightness(.92)", dot: "linear-gradient(135deg,#23262b,#05070a)" },
-  { id: "rose", label: "Rose", css: "saturate(1.35) hue-rotate(-32deg) brightness(1.06)", dot: "linear-gradient(135deg,#ff8fb1,#d63384)" },
-  { id: "ocean", label: "Ocean", css: "saturate(1.45) hue-rotate(165deg) brightness(1.05)", dot: "linear-gradient(135deg,#22d3ee,#0e5fd8)" },
-  { id: "acid", label: "Acid", css: "saturate(2.1) hue-rotate(75deg)", dot: "linear-gradient(135deg,#c0ff33,#00e676)" },
-  { id: "frost", label: "Frost", css: "brightness(1.18) saturate(.75) hue-rotate(185deg) contrast(1.1)", dot: "linear-gradient(135deg,#cfe8ff,#6aa9ff)" },
-  { id: "cherry", label: "Cherry", css: "saturate(1.8) hue-rotate(-55deg) brightness(1.04)", dot: "linear-gradient(135deg,#ff2e4d,#7b0030)" },
-  { id: "night", label: "Night", css: "brightness(.55) contrast(1.6) saturate(1.15)", dot: "linear-gradient(135deg,#101525,#020409)" },
-  { id: "vintage", label: "Vintage", css: "sepia(.65) contrast(.92) brightness(1.06)", dot: "linear-gradient(135deg,#d8b46a,#8a6d3b)" },
-];
 
 const STICKERS = ["😎", "🎉", "🔥", "👑", "💖", "🤩", "🥂", "🎤", "💃", "🕶️", "⭐", "🍾"];
 
@@ -77,13 +69,108 @@ export default function VideoRecorder({
   const holdRef = useRef(null);
   const countdownRef = useRef(null);
   const stickersRef = useRef(stickers);
+  // Overlay filters (hat, glasses, doggy...) replace the old CSS color
+  // filters: real sprites tracked onto the face live, and baked into
+  // both photos and recorded videos.
+  const overlay = OVERLAYS[filterIdx] || DEFAULT_OVERLAY;
+  const overlayRef = useRef(overlay);
+  const faceBoxRef = useRef(null); // latest tracked face box (intrinsic px)
+  const trackerRef = useRef(null); // face tracker instance
+  const overlayLayerRef = useRef(null); // live sprite layer in the stage
 
   // Keep the sticker mirror fresh without writing refs during render.
   useEffect(() => {
     stickersRef.current = stickers;
   }, [stickers]);
 
-  const filter = FILTERS[filterIdx] || FILTERS[0];
+  // Keep the active overlay in a ref so the photo/video bakes always use
+  // the same filter the preview is showing, even mid-recording.
+  useEffect(() => {
+    overlayRef.current = overlay;
+  }, [overlay]);
+
+  // Preload the filter sprites once so overlays render instantly.
+  useEffect(() => {
+    loadSpriteImages();
+  }, []);
+
+  // Face tracking: live while the camera is on screen. A captured snap's
+  // preview already has the overlay baked in, so tracking stops there.
+  useEffect(() => {
+    if (phase === "camera" || phase === "recording") {
+      if (!trackerRef.current) trackerRef.current = createFaceTracker();
+      trackerRef.current.start(videoRef.current, (fb) => {
+        faceBoxRef.current = fb;
+      });
+      return () => trackerRef.current?.stop();
+    }
+    faceBoxRef.current = null;
+    return undefined;
+  }, [phase]);
+
+  // Build the sprite <img>s for the active overlay (imperatively — they
+  // get repositioned every frame without re-rendering React).
+  useEffect(() => {
+    const layer = overlayLayerRef.current;
+    if (!layer) return;
+    layer.innerHTML = "";
+    if (overlay.id === "original" || (phase !== "camera" && phase !== "recording")) {
+      return;
+    }
+    for (const key of overlay.sprites) {
+      const img = document.createElement("img");
+      img.className = "snap-overlay-sprite";
+      img.alt = "";
+      img.dataset.sprite = key;
+      layer.appendChild(img);
+    }
+  }, [overlay, phase]);
+
+  // Position the overlay sprites on the live video every frame, mapping
+  // the tracked face box from the video's intrinsic pixels onto the
+  // stage (which shows the video with object-fit: cover).
+  useEffect(() => {
+    if (overlay.id === "original" || (phase !== "camera" && phase !== "recording")) {
+      return undefined;
+    }
+    let raf = 0;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      const layer = overlayLayerRef.current;
+      const v = videoRef.current;
+      const stage = stageRef.current;
+      if (!layer || !v || !v.videoWidth || !stage) return;
+      const imgs = layer.querySelectorAll("img");
+      if (!imgs.length) return;
+      const fb = faceBoxRef.current;
+      if (!fb) {
+        for (const img of imgs) img.style.display = "none";
+        return;
+      }
+      const t = performance.now();
+      const vw = v.videoWidth;
+      const vh = v.videoHeight;
+      const sw = stage.clientWidth;
+      const sh = stage.clientHeight;
+      for (const img of imgs) {
+        const hit = overlaySpriteRect(overlay, img.dataset.sprite, fb, t);
+        if (!hit) {
+          img.style.display = "none";
+          continue;
+        }
+        const s = mapIntrinsicToStage(hit.rect, vw, vh, sw, sh);
+        if (!s) continue;
+        img.style.display = "block";
+        img.src = hit.src;
+        img.style.left = `${s.left}px`;
+        img.style.top = `${s.top}px`;
+        img.style.width = `${s.w}px`;
+        img.style.height = `${s.h}px`;
+      }
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [overlay, phase]);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -161,8 +248,10 @@ export default function VideoRecorder({
     canvas.width = v.videoWidth;
     canvas.height = v.videoHeight;
     const ctx = canvas.getContext("2d");
-    ctx.filter = filter.css !== "none" ? filter.css : "none";
     ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    // Bake the active overlay filter onto the face (the same tracked
+    // position the preview shows), then stickers on top.
+    drawOverlays(ctx, overlayRef.current, faceBoxRef.current, Date.now());
     // Bake stickers into the photo (positioned by % of the frame).
     stickersRef.current.forEach((s) => {
       ctx.font = `${Math.round(canvas.height * 0.16)}px "Segoe UI Emoji", "Noto Color Emoji", serif`;
@@ -217,11 +306,35 @@ export default function VideoRecorder({
     setError(null);
     chunksRef.current = [];
     const mime = pickMimeType();
-    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+    // Record through a canvas so the overlay filter is baked into the
+    // clip: every frame the live video + tracked overlay are redrawn
+    // onto an offscreen canvas, and that canvas stream is what gets
+    // recorded (with the camera's audio track attached).
+    const v = videoRef.current;
+    const bw = v?.videoWidth || 1280;
+    const bh = v?.videoHeight || 720;
+    const bake = document.createElement("canvas");
+    bake.width = bw;
+    bake.height = bh;
+    const bctx = bake.getContext("2d");
+    let bakeRaf = 0;
+    const drawBake = () => {
+      bakeRaf = requestAnimationFrame(drawBake);
+      if (v?.videoWidth) bctx.drawImage(v, 0, 0, bw, bh);
+      drawOverlays(bctx, overlayRef.current, faceBoxRef.current, Date.now());
+    };
+    drawBake();
+    const outStream = bake.captureStream(30);
+    const audio = stream.getAudioTracks()[0];
+    if (audio) outStream.addTrack(audio);
+
+    const rec = new MediaRecorder(outStream, mime ? { mimeType: mime } : undefined);
     rec.ondataavailable = (e) => {
       if (e.data.size) chunksRef.current.push(e.data);
     };
     rec.onstop = () => {
+      cancelAnimationFrame(bakeRaf);
       const blob = new Blob(chunksRef.current, {
         type: rec.mimeType || "video/webm",
       });
@@ -364,11 +477,14 @@ export default function VideoRecorder({
         <video
           ref={videoRef}
           className="snap-video"
-          style={{ filter: filter.css !== "none" ? filter.css : undefined }}
           muted
           playsInline
           autoPlay
         />
+
+        {/* Tracked overlay filters — sprites positioned over the face
+            every frame (imperative, so tracking stays smooth). */}
+        <div className="snap-overlay-layer" ref={overlayLayerRef} />
 
         {/* Grid overlay */}
         {gridOn && phase === "camera" && <div className="snap-grid" aria-hidden="true" />}
@@ -469,14 +585,22 @@ export default function VideoRecorder({
 
       {/* Filter tray (Snapchat's right-edge swatches) */}
       <div className="snap-filter-rail" aria-label="Filters">
-        {FILTERS.map((f, i) => (
+        {OVERLAYS.map((o, i) => (
           <button
-            key={f.id}
+            key={o.id}
             className={`snap-swatch${i === filterIdx ? " active" : ""}`}
-            style={{ background: f.dot }}
+            style={
+              o.thumb
+                ? {
+                    backgroundImage: `url(${o.thumb})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }
+                : { background: "rgba(255,255,255,0.28)" }
+            }
             onClick={() => setFilterIdx(i)}
-            aria-label={f.label}
-            title={f.label}
+            aria-label={o.label}
+            title={o.label}
           >
             <span />
           </button>

@@ -86,8 +86,11 @@ export default function HypePlayerSlide({ hype, author, onClose }) {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      v.play().catch(() => {});
-      setPaused(false);
+      // Only drop the play overlay once playback actually starts —
+      // play() is async and may need to (re)buffer on mobile, so hiding
+      // the button first flashes the raw video element's native
+      // placeholder behind it.
+      v.play().then(() => setPaused(false)).catch(() => {});
     } else {
       v.pause();
       setPaused(true);

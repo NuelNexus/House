@@ -133,8 +133,11 @@ function HypeSlide({
     if (!v) return;
     if (v.paused) {
       v.muted = !soundOn;
-      v.play().catch(() => {});
-      setPaused(false);
+      // Only drop the play overlay once playback actually starts.
+      // play() is async and may need to (re)buffer on mobile, so hiding
+      // the button first flashes the raw video element's native
+      // placeholder (a light blue/gray frame on iOS) behind it.
+      v.play().then(() => setPaused(false)).catch(() => {});
     } else {
       v.pause();
       setPaused(true);

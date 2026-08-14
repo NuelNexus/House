@@ -11,6 +11,7 @@
     "serve": "npm run build && node server/news-proxy.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@supabase/supabase-js": "^2.109.0",
     "gsap": "^3.12.5",
     "jsqr": "^1.4.0",

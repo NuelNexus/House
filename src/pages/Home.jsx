@@ -4,16 +4,7 @@ import CssHouse from "../components/CssHouse";
 import Marquee from "../components/Marquee";
 import ProgramCards from "../components/ProgramCards";
 
-const MARQUEE_ITEMS = [
-  "Accra",
-  "Kumasi",
-  "Takoradi",
-  "Cape Coast",
-  "Tema",
-  "Ho",
-  "Tamale",
-  "Kwahu",
-];
+const MARQUEE_ITEMS = ["CONNECT", "CREATE", "EXPERIENCE"];
 
 export default function Home({ setTab, onIntroDone }) {
   const [ready, setReady] = useState(false);
