@@ -4,3 +4,7 @@ dist
 *.local
 *.png
 !src/assets/filters/*.png
+# Local reference copy of the Python snapchat-filters project — its sprites
+# were ported into src/assets/filters/, and a committed gitlink with no
+# .gitmodules breaks Netlify's clone, so keep it out of the repo.
+snapchat-filters-opencv/
